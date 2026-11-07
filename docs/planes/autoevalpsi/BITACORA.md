@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | Ola 0 hecha salvo P-5 (humano). Siguiente: instalar uv (BS-D1, no está instalado) y arrancar BS-R0 en la rama `fase-bs-0`. Todo commiteado en `main`. |
+| Siguiente acción | BS-R0 hecha. Siguiente: CO-R0 (esquema y cargador de plantillas) en la rama `fase-co-0`. Pendiente humano: P-5 (repo GitHub). |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 0 de 38 |
+| Fases hechas | 1 de 38 (BS-R0) |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -76,7 +76,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 
 | # | Fase | Qué cierra | Rama | Requiere | Esfuerzo | Estado |
 |---|---|---|---|---|---|---|
-| 1 | [BS-R0](PLAN-BASE.md#bs-r0--esqueleto-del-repo-y-entorno) | BS-01, BS-04 | `fase-bs-0` | P-1, BS-D1 | S | pendiente |
+| 1 | [BS-R0](PLAN-BASE.md#bs-r0--esqueleto-del-repo-y-entorno) | BS-01, BS-04 | `fase-bs-0` | P-1, BS-D1 | S | hecha |
 | 2 | [CO-R0](PLAN-CORE.md#co-r0--esquema-y-cargador-de-plantillas) | CO-04, CO-05 | `fase-co-0` | BS-R0, CO-D3 | S | pendiente |
 | 3 | [BS-R1](PLAN-BASE.md#bs-r1--formulario-sintético-y-generador-de-fotos-de-prueba) | BS-02 | `fase-bs-1` | CO-R0 | M | pendiente |
 | 4 | [OC-R0](PLAN-OCR.md#oc-r0--prueba-de-viabilidad-de-pp-ocrv6-en-onnx) | OC-01, OC-03, OC-05 (medición) | `fase-oc-0` | BS-R0 | M | pendiente |
@@ -191,7 +191,8 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 - **Máquina de desarrollo ≠ máquina objetivo.** Las latencias medidas aquí son aproximadas; las que
   cuentan son las del Vivobook Flip (Ryzen 7) de la usuaria (OC-07).
 - **Herramientas (verificado 2026-11-06):** Python 3.12.0, git 2.42, gh 2.32 disponibles; **uv y
-  Node no instalados**.
+  Node no instalados** (uv 0.13.7 instalado el mismo día con `pip install --user uv`; no está en el
+  PATH: usar `python -m uv`. Node sigue sin instalar).
 - **Shell:** Windows con PowerShell 5.1 y Git Bash; en PowerShell no hay `&&`.
 - **Datos que nunca van a git:** `muestras/`, `plantillas/` reales, `modelos/`, `*.onnx`, BD y fotos
   de `%LOCALAPPDATA%\AutoEvalPsi`. Revisar `git status` antes de cada commit.
@@ -210,3 +211,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 |---|---|---|---|---|---|
 | 2026-11-06 | — (creación) | sin repo · sin commit | Bitácora y 7 planes creados a partir de `plan.md` | — | No cambia código. Aprobadas B-1 (`main`), BS-D1 (uv), CO-D3 (`tablas[]`); modo silencioso. Siguiente: Ola 0 (P-1, P-4). |
 | 2026-11-06 | Ola 0 (P-1, P-3, P-4) | `main` · commit inicial | Repo creado; `plan.md`, planes, `.gitignore` mínimo y `CLAUDE.md` commiteados. Cierra BS-05. | — (sin suite aún) | No cambia ninguna fase de código. Aviso: la identidad global de git es el marcador «Tu Nombre / tucorreo@example.com»; el commit salió con ella. Corregir con `git config --global user.name/user.email` y, si se quiere, reescribir el commit inicial. Pendiente humano: P-5 (repo GitHub) y uv. |
+| 2026-11-06 | BS-R0 | `fase-bs-0` → `main` | `pyproject.toml` (Py 3.12, layout `src/`, extras `app`/`ocr`, grupo `dev`), paquetes vacíos, `cli --version`, test de frontera de `core` (con test negativo), README con entorno, `uv.lock`. | — → 3 passed; ruff limpio | uv no está en el PATH: se usa `python -m uv`. Siguiente: CO-R0. |

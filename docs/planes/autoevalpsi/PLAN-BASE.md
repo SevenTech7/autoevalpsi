@@ -5,7 +5,7 @@ demás frentes. Prefijo `BS`.
 
 | Fase | Título | Estado |
 |---|---|---|
-| BS-R0 | Esqueleto del repo y entorno | pendiente |
+| BS-R0 | Esqueleto del repo y entorno | hecha |
 | BS-R1 | Formulario sintético y generador de fotos de prueba | pendiente |
 | BS-R2 | CI de tests en GitHub Actions | pendiente |
 
