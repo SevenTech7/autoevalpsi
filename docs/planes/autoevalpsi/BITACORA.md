@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0 hecha (entorno en Docker). Siguiente: CO-R0 (esquema y cargador de plantillas) en la rama `fase-co-0`. Pendiente humano: P-5 (repo GitHub). |
+| Siguiente acción | BS-R0 y CO-R0 hechas. Siguiente: BS-R1 (formulario sintético y generador de fotos) en la rama `fase-bs-1`, o OC-R0 / DI-R0 (no dependen del núcleo). Pendiente humano: P-5 (repo GitHub). |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 1 de 38 (BS-R0) |
+| Fases hechas | 2 de 38 (BS-R0, CO-R0) |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -77,7 +77,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | # | Fase | Qué cierra | Rama | Requiere | Esfuerzo | Estado |
 |---|---|---|---|---|---|---|
 | 1 | [BS-R0](PLAN-BASE.md#bs-r0--esqueleto-del-repo-y-entorno) | BS-01, BS-04 | `fase-bs-0` | P-1, BS-D1 | S | hecha |
-| 2 | [CO-R0](PLAN-CORE.md#co-r0--esquema-y-cargador-de-plantillas) | CO-04, CO-05 | `fase-co-0` | BS-R0, CO-D3 | S | pendiente |
+| 2 | [CO-R0](PLAN-CORE.md#co-r0--esquema-y-cargador-de-plantillas) | CO-04, CO-05 | `fase-co-0` | BS-R0, CO-D3 | S | hecha |
 | 3 | [BS-R1](PLAN-BASE.md#bs-r1--formulario-sintético-y-generador-de-fotos-de-prueba) | BS-02 | `fase-bs-1` | CO-R0 | M | pendiente |
 | 4 | [OC-R0](PLAN-OCR.md#oc-r0--prueba-de-viabilidad-de-pp-ocrv6-en-onnx) | OC-01, OC-03, OC-05 (medición) | `fase-oc-0` | BS-R0 | M | pendiente |
 | 5 | [DI-R0](PLAN-DIST.md#di-r0--prueba-temprana-de-empaquetado-spike) | DI-01 | `fase-di-0` | BS-R0 | M | pendiente |
@@ -215,3 +215,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | Ola 0 (P-1, P-3, P-4) | `main` · commit inicial | Repo creado; `plan.md`, planes, `.gitignore` mínimo y `CLAUDE.md` commiteados. Cierra BS-05. | — (sin suite aún) | No cambia ninguna fase de código. Aviso: la identidad global de git es el marcador «Tu Nombre / tucorreo@example.com»; el commit salió con ella. Corregir con `git config --global user.name/user.email` y, si se quiere, reescribir el commit inicial. Pendiente humano: P-5 (repo GitHub) y uv. |
 | 2026-11-06 | BS-R0 | `fase-bs-0` → `main` | `pyproject.toml` (Py 3.12, layout `src/`, extras `app`/`ocr`, grupo `dev`), paquetes vacíos, `cli --version`, test de frontera de `core` (con test negativo), README con entorno, `uv.lock`. | — → 3 passed; ruff limpio | uv no está en el PATH: se usa `python -m uv`. Siguiente: CO-R0. |
 | 2026-11-06 | BS-R0 (corrección) | `main` | Revertida la instalación de uv en el equipo (`pip uninstall uv`, borradas la caché de uv en `%LOCALAPPDATA%` y `.venv`). Añadidos `Dockerfile`, `docker-compose.yml`, `.dockerignore`; README y CLAUDE.md reescritos. | 3 passed y ruff limpio, dentro de Docker | Regla: todo en Docker Desktop, nada en la máquina ni variables globales. BS-D1 sigue siendo uv, pero dentro de la imagen. |
+| 2026-11-06 | CO-R0 | `fase-co-0` → `main` | `core/plantilla.py`: modelos pydantic `Plantilla`/`Pagina`/`Tabla`/`Fila`/`CampoCabecera`, `cargar_plantilla()`, `PlantillaInvalida` con el campo en el mensaje, `esquema_version` = 1. `tablas[]` con atajo plano (el ejemplo de `plan.md` carga). `item` único en toda la plantilla; umbrales OMR (`omr`) por plantilla (CO-02). | 3 → 17 passed (14 nuevos); ruff check limpio | **Contrato fijado:** formato de plantilla v1 (documentado en el docstring del módulo). `tests/` previos sin `ruff format` (preexistente). Siguiente: BS-R1. |

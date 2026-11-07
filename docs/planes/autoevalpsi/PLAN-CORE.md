@@ -5,7 +5,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 
 | Fase | Título | Estado |
 |---|---|---|
-| CO-R0 | Esquema y cargador de plantillas | pendiente |
+| CO-R0 | Esquema y cargador de plantillas | hecha |
 | CO-R1 | Carga de imagen y control de calidad | pendiente |
 | CO-R2 | Detección de hoja y corrección de perspectiva | pendiente |
 | CO-R3 | Registro fino contra la plantilla | pendiente |
