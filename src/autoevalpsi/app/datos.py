@@ -191,7 +191,7 @@ class Correccion:
     momento: str
 
 
-def _validar_id(id: str) -> str:
+def validar_id(id: str) -> str:
     if not _ID.fullmatch(id):
         raise IdInvalido(f"id de evaluación no válido: {id!r} (letras, números, «-» y «_»)")
     return id
@@ -324,7 +324,7 @@ class BaseDatos:
         recortes = recortes or {}
         recortes_cabecera = recortes_cabecera or {}
         ext = _extension(foto)
-        id = _validar_id(evaluacion_id if evaluacion_id is not None else resultado.foto_sha256[:12])
+        id = validar_id(evaluacion_id if evaluacion_id is not None else resultado.foto_sha256[:12])
         leidos = {c.campo: c for c in resultado.cabecera}
         paciente_leido = leidos["paciente"].texto if "paciente" in leidos else ""
         cabecera_leida = {
@@ -702,6 +702,14 @@ class BaseDatos:
                 (evaluacion_id,),
             ).fetchone()
         return r[0]
+
+    def evaluacion_de_foto(self, foto_sha256: str) -> str | None:
+        """Id de la evaluación que ya tiene esta foto (por SHA-256), o None (AP-R1: duplicados)."""
+        with self._candado:
+            r = self._con.execute(
+                "SELECT evaluacion_id FROM paginas WHERE foto_sha256 = ? LIMIT 1", (foto_sha256,)
+            ).fetchone()
+        return r[0] if r else None
 
     def cabecera_revisada(self, evaluacion_id: str) -> bool:
         with self._candado:

@@ -387,3 +387,10 @@ def test_los_json_guardados_son_json_valido(bd):
     finally:
         con.close()
     assert ev_id
+
+
+def test_evaluacion_de_foto_encuentra_el_id_por_sha(bd):
+    assert bd.evaluacion_de_foto("a" * 64) is None
+    id = _crear(bd)
+    assert bd.evaluacion_de_foto("a" * 64) == id
+    assert bd.evaluacion_de_foto("b" * 64) is None
