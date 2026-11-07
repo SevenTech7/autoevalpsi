@@ -19,7 +19,7 @@ ocr = ["onnxruntime"]
 autoevalpsi = "autoevalpsi.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "pyinstaller"]
+dev = ["pytest", "ruff", "pyinstaller", "pyyaml"]
 
 [build-system]
 requires = ["hatchling"]

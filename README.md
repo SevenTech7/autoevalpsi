@@ -23,6 +23,14 @@ docker compose run --rm dev python -m tools.sintetico.formulario   # regenera pl
 docker compose run --rm dev python -m tools.sintetico.lote --salida .datos/lote
 ```
 
+Modelos OCR (PP-OCRv6 medium ONNX, ~139 MB, fuera de git; hash verificado) y su prueba con el
+modelo real:
+
+```
+docker compose run --rm dev python -m tools.descargar_modelos
+docker compose run --rm dev pytest -m lento -o addopts=""
+```
+
 El entorno virtual y la caché de uv viven en volúmenes de Docker, no en la carpeta del proyecto.
 
 ## Reglas

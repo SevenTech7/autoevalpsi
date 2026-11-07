@@ -5,7 +5,7 @@ Paquete `autoevalpsi.core.ocr`. Cubre la Fase 2 de `plan.md` (paso 7 del pipelin
 | Fase | Título | Estado |
 |---|---|---|
 | OC-R0 | Prueba de viabilidad de PP-OCRv6 en ONNX | hecha (2026-11-06) |
-| OC-R1 | Lector OCR (detección + reconocimiento + confianza) | bloqueada (OC-D1) |
+| OC-R1 | Lector OCR (detección + reconocimiento + confianza) | hecha (2026-11-06) |
 | OC-R2 | Integración en el pipeline: recortes, observaciones y cabecera | pendiente |
 | OC-R3 | Medición de error por carácter con su letra (gate de Fase 2) | pendiente |
 
@@ -107,6 +107,22 @@ OC-R3. La decisión es del responsable.
 - **Tests:** marcador `lento` para el modelo real sobre texto impreso sintético (exactitud alta
   esperada); tests rápidos con un `Lector` falso para el resto del pipeline.
 
+### Informe OC-R1 (2026-11-06)
+
+- **Código:** `core/ocr/lector.py` (`Caja`, `Linea(texto, confianza, caja)`, protocolo `Lector`,
+  `LectorFalso`, `ordenar_lectura`); `core/ocr/onnx.py` (`LectorONNX`: sesiones perezosas y únicas
+  con 4 hilos por defecto, bajo candado; detección DB + reconocimiento CTC; entrada gris, BGR o
+  BGRA uint8; líneas sin texto se descartan; `ModelosNoEncontrados` con la orden de descarga);
+  `tools/descargar_modelos.py` (revisión de Hugging Face fijada, SHA-256 de `.onnx`,
+  `inference.yml` y `diccionario.txt`; idempotente; borra el parcial si el hash no coincide).
+- **Diccionario:** el runtime lee `modelos/pp-ocrv6/rec/diccionario.txt` (18 708 caracteres, un
+  carácter por línea, hash fijado) generado del yml; no usa PyYAML. `pyyaml` entra al grupo `dev`
+  (`uv.lock` actualizado) solo para la herramienta de descarga.
+- **Tests:** 13 rápidos (interfaz, orden de lectura, CTC, diccionario, imagen inválida, modelos
+  ausentes) y 4 `lento` con el modelo real (3 líneas impresas con tildes/ñ/¿: texto correcto,
+  confianza > 0,9, en orden y con la caja sobre su renglón; hoja en blanco → sin líneas; gris).
+- **Pendiente para OC-R2/R3:** el acierto con letra real sigue sin medirse (OC-02); la latencia
+  del Vivobook no está medida (OC-07).
 ## OC-R2 — Integración en el pipeline
 
 - **Requiere:** OC-R1, CO-R7.
@@ -131,7 +147,8 @@ OC-R3. La decisión es del responsable.
 
 ## Decisiones
 
-- **OC-D1 — Modelo OCR a usar** (cifras de OC-R0 en su informe arriba; propuesta: a).
+- **OC-D1 — Modelo OCR a usar** (cifras de OC-R0 en su informe arriba). **Aprobada: a)
+  (2026-11-06).**
   - a) PP-OCRv6 medium en ONNX, como dice `plan.md`.
   - b) La versión anterior disponible de PP-OCR con modelo de reconocimiento latino, si la v6 no
     tiene export ONNX usable o le faltan caracteres españoles.
