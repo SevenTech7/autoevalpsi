@@ -5,6 +5,8 @@ export type Ruta =
   | { pantalla: "inicio" }
   | { pantalla: "evaluaciones" }
   | { pantalla: "evaluacion"; id: string }
+  | { pantalla: "plantillas" }
+  | { pantalla: "plantilla"; id: string }
   | { pantalla: "configuracion" };
 
 export function analizarRuta(hash: string): Ruta {
@@ -12,6 +14,9 @@ export function analizarRuta(hash: string): Ruta {
   const [primera, id] = partes;
   if (primera === "evaluaciones") {
     return id ? { pantalla: "evaluacion", id: decodeURIComponent(id) } : { pantalla: "evaluaciones" };
+  }
+  if (primera === "plantillas") {
+    return id ? { pantalla: "plantilla", id: decodeURIComponent(id) } : { pantalla: "plantillas" };
   }
   if (primera === "configuracion") return { pantalla: "configuracion" };
   return { pantalla: "inicio" };
@@ -21,6 +26,8 @@ export const enlace = {
   inicio: "#/",
   evaluaciones: "#/evaluaciones",
   evaluacion: (id: string) => `#/evaluaciones/${encodeURIComponent(id)}`,
+  plantillas: "#/plantillas",
+  plantilla: (id: string) => `#/plantillas/${encodeURIComponent(id)}`,
   configuracion: "#/configuracion",
 };
 

@@ -6,13 +6,16 @@ import { ProveedorDialogos } from "./componentes/Dialogos";
 import { ContextoApi } from "./hooks";
 import { Configuracion } from "./pantallas/Configuracion";
 import { PantallaEvaluaciones } from "./pantallas/Evaluaciones";
+import { EditorPlantilla } from "./pantallas/EditorPlantilla";
 import { Inicio } from "./pantallas/Inicio";
+import { Plantillas } from "./pantallas/Plantillas";
 import { PantallaRevision } from "./pantallas/Revision";
 import { enlace, useRuta, type Ruta } from "./ruta";
 
 const MENU: { texto: string; href: string; pantallas: Ruta["pantalla"][] }[] = [
   { texto: "Inicio", href: enlace.inicio, pantallas: ["inicio"] },
   { texto: "Evaluaciones", href: enlace.evaluaciones, pantallas: ["evaluaciones", "evaluacion"] },
+  { texto: "Plantillas", href: enlace.plantillas, pantallas: ["plantillas", "plantilla"] },
   { texto: "Configuración", href: enlace.configuracion, pantallas: ["configuracion"] },
 ];
 
@@ -24,6 +27,10 @@ function Pantalla({ ruta }: { ruta: Ruta }) {
       return <PantallaEvaluaciones />;
     case "evaluacion":
       return <PantallaRevision id={ruta.id} />;
+    case "plantillas":
+      return <Plantillas />;
+    case "plantilla":
+      return <EditorPlantilla id={ruta.id} />;
     case "configuracion":
       return <Configuracion />;
   }
@@ -32,7 +39,7 @@ function Pantalla({ ruta }: { ruta: Ruta }) {
 export function App({ token }: { token: string | null }) {
   const ruta = useRuta();
   const api = useMemo(() => (token ? crearCliente({ token }) : null), [token]);
-  const ancha = ruta.pantalla === "evaluacion"; // la revisión usa todo el ancho: menos desplazarse
+  const ancha = ruta.pantalla === "evaluacion" || ruta.pantalla === "plantilla"; // revisión y editor usan todo el ancho
 
   return (
     <ProveedorDialogos>

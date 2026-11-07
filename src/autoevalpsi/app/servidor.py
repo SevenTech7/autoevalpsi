@@ -56,8 +56,10 @@ El control de calidad (rápido) se responde en la misma petición; la lectura pe
 import hashlib
 import ipaddress
 import logging
+import re
 import secrets
 import threading
+import unicodedata
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
@@ -66,6 +68,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qs
 
+import cv2
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
@@ -94,9 +97,11 @@ from autoevalpsi.app.plantillas import (
 from autoevalpsi.app.qr import RUTA_CAPTURA, qr_svg, url_captura
 from autoevalpsi.app.red import Interfaz, candidatas, elegir_ip, listar_interfaces
 from autoevalpsi.app.vinculo import Vinculos
+from autoevalpsi.core.borrador import plantilla_desde_foto
 from autoevalpsi.core.excel import ArchivoBloqueado, NombreArchivo, exportar
 from autoevalpsi.core.imagen import ImagenInvalida, cargar_imagen, evaluar_calidad
 from autoevalpsi.core.ocr.lector import Lector
+from autoevalpsi.core.ocr.onnx import LectorONNX
 from autoevalpsi.core.pipeline import procesar_foto
 
 log = logging.getLogger(__name__)
@@ -105,7 +110,11 @@ MAX_FOTO = 25 * 1024 * 1024
 MAX_ZIP = 100 * 1024 * 1024
 MAX_JSON = 1024 * 1024
 _SOBRECARGA_MULTIPART = 64 * 1024
-_SUBIDAS = {"/api/fotos": MAX_FOTO, "/api/plantillas/importar": MAX_ZIP}
+_SUBIDAS = {
+    "/api/fotos": MAX_FOTO,
+    "/api/plantillas/importar": MAX_ZIP,
+    "/api/plantillas/desde-foto": MAX_FOTO,
+}
 PUERTO = 8765
 PAGINA_CAPTURA = Path(__file__).parent / "captura" / "index.html"
 ESTATICOS = Path(__file__).parent / "estaticos"  # salida de `ui/` (vite build)
@@ -113,6 +122,10 @@ _CSP_INTERFAZ = (
     "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
     "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 )
+
+
+def _sin_tildes(texto: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", texto) if not unicodedata.combining(c))
 
 
 def _error(status: int, codigo: str, mensaje: str) -> HTTPException:
@@ -257,6 +270,13 @@ class PedidoConfiguracion(BaseModel):
 class PedidoBorrarFotos(BaseModel):
     model_config = ConfigDict(extra="forbid")
     incluir_recortes: bool = False
+
+
+class PedidoVersion(BaseModel):
+    """La plantilla editada completa (el servidor fija `id`, `version` y `esquema_version`)."""
+
+    model_config = ConfigDict(extra="forbid")
+    plantilla: dict
 
 
 class PedidoExportar(BaseModel):
@@ -661,6 +681,66 @@ def crear_app(
             raise _error(409, "plantilla_ya_instalada", str(e)) from e
         except ImportacionInvalida as e:
             raise _error(422, "zip_invalido", str(e)) from e
+
+    @app.get("/api/plantillas/{id}/referencia/{pagina}")
+    def referencia_de_plantilla(id: str, pagina: int, version: int | None = None) -> FileResponse:
+        """La imagen en blanco de la página (0-based): el fondo del editor de plantillas."""
+        inst = instalada(id, version)
+        if not 0 <= pagina < len(inst.plantilla.paginas):
+            raise _error(404, "pagina_inexistente", "Esa página no existe en la plantilla.")
+        return FileResponse(
+            plantillas.ruta_imagen(inst, pagina), headers={"Cache-Control": "private, no-store"}
+        )
+
+    @app.post("/api/plantillas/{id}/versiones", status_code=201)
+    def guardar_version(id: str, pedido: PedidoVersion) -> dict:
+        """FS-R3: la plantilla corregida se guarda como versión nueva; las viejas no se tocan."""
+        instalada(id)
+        try:
+            return resumen(plantillas.crear_version(id, pedido.plantilla))
+        except ImportacionInvalida as e:
+            raise _error(422, "plantilla_invalida", str(e)) from e
+        except PlantillaYaInstalada as e:
+            raise _error(409, "plantilla_ya_instalada", str(e)) from e
+
+    @app.post("/api/plantillas/desde-foto", status_code=201)
+    def plantilla_desde_foto_llena(
+        foto: Annotated[UploadFile, File()], nombre: Annotated[str, Form()]
+    ) -> dict:
+        """FS-R1: borrador preliminar a partir de la foto de un formulario lleno (necesita OCR)."""
+        nombre = nombre.strip()
+        if not nombre:
+            raise _error(422, "nombre_vacio", "Escribe un nombre para el formulario.")
+        if not isinstance(lector, LectorONNX):
+            raise _error(
+                409,
+                "ocr_no_disponible",
+                "Armar una plantilla desde una foto necesita el lector de texto (OCR), que esta "
+                "instalación no tiene activado.",
+            )
+        datos = foto.file.read(MAX_FOTO + 1)
+        if len(datos) > MAX_FOTO:
+            raise _error(413, "demasiado_grande", "La foto supera el máximo de 25 MB.")
+        try:
+            imagen = cargar_imagen(datos)
+        except ImagenInvalida as e:
+            raise _error(422, "foto_invalida", str(e)) from e
+        ident = re.sub(r"[^a-z0-9]+", "-", _sin_tildes(nombre).lower()).strip("-") or "formulario"
+        definicion, limpia, borrador = plantilla_desde_foto(imagen, lector, id=ident, nombre=nombre)
+        if not any(s["items"] for s in borrador["secciones"]):
+            raise _error(
+                422,
+                "sin_items",
+                "No encontré preguntas «Sí ( ) No ( )» en la foto. Prueba con una foto más "
+                "derecha, con buena luz y la hoja completa.",
+            )
+        ok, png = cv2.imencode(".png", limpia)
+        if not ok:
+            raise _error(500, "imagen", "No se pudo guardar la imagen de la plantilla.")
+        inst = plantillas.instalar_nueva(
+            definicion, {definicion["paginas"][0]["imagen_referencia"]: png.tobytes()}
+        )
+        return {**resumen(inst), "secciones": len(borrador["secciones"])}
 
     # --- vínculo del celular (AP-D2) y página de captura (AP-R2) ------------------------------
 

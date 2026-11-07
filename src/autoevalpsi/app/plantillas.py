@@ -7,6 +7,7 @@ evaluaciones ya guardadas citan la versión con que se leyeron (`BaseDatos.como_
 """
 
 import io
+import json
 import re
 import shutil
 import threading
@@ -16,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 import numpy as np
+from pydantic import ValidationError
 
 from autoevalpsi.core.plantilla import Plantilla, PlantillaInvalida, cargar_plantilla
 from autoevalpsi.core.registro import RegistroInvalido, cargar_referencia
@@ -24,6 +26,14 @@ NOMBRE_JSON = "plantilla.json"
 MAX_ARCHIVOS = 100
 MAX_DESCOMPRIMIDO = 200 * 1024 * 1024
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+def _resumen_errores(e: ValidationError) -> str:
+    lineas = []
+    for err in e.errors():
+        campo = ".".join(str(x) for x in err["loc"]) or "(raíz)"
+        lineas.append(f"{campo}: {str(err['msg']).removeprefix('Value error, ')}")
+    return "La plantilla editada no es válida: " + "; ".join(lineas)
 
 
 class PlantillaNoInstalada(LookupError):
@@ -129,6 +139,75 @@ class RepositorioPlantillas:
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
         return PlantillaInstalada(plantilla, final / NOMBRE_JSON)
+
+    # --- edición (FS-R3) ----------------------------------------------------------------
+
+    def crear_version(self, id: str, definicion: dict) -> PlantillaInstalada:
+        """Guarda `definicion` (la plantilla editada) como la **versión siguiente** de `id`.
+
+        Una versión instalada nunca se pisa (las evaluaciones ya guardadas la citan): la corrección
+        queda como `v<más alta + 1>`. Las imágenes en blanco se copian de la versión más nueva y la
+        definición no puede citar otras.
+        """
+        base = self.obtener(id)
+        datos = {**definicion, "id": id, "version": base.plantilla.version + 1}
+        datos["esquema_version"] = base.plantilla.esquema_version
+        nombres = {pg.imagen_referencia for pg in base.plantilla.paginas}
+        try:
+            plantilla = Plantilla.model_validate(datos)
+        except ValidationError as e:
+            raise ImportacionInvalida(_resumen_errores(e)) from e
+        citadas = [pg.imagen_referencia for pg in plantilla.paginas]
+        if len(citadas) != len(base.plantilla.paginas) or any(c not in nombres for c in citadas):
+            raise ImportacionInvalida(
+                "No se pueden cambiar las imágenes ni el número de páginas de la plantilla."
+            )
+        origen = base.ruta.parent
+        tmp = self.carpeta / f".editando-{uuid.uuid4().hex}"
+        try:
+            shutil.copytree(origen, tmp)
+            (tmp / NOMBRE_JSON).write_text(
+                json.dumps(plantilla.model_dump(mode="json"), indent=1, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            final = self.carpeta / id / f"v{plantilla.version}"
+            with self._candado:
+                if final.exists():
+                    raise PlantillaYaInstalada(
+                        "Alguien guardó otra versión a la vez; vuelve a abrir."
+                    )
+                tmp.rename(final)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        return PlantillaInstalada(plantilla, final / NOMBRE_JSON)
+
+    def instalar_nueva(self, definicion: dict, imagenes: dict[str, bytes]) -> PlantillaInstalada:
+        """Instala una plantilla recién armada (versión 1). Si el id ya existe, le pone « -2», «-3»…"""
+        base_id = definicion["id"]
+        ocupados = {i.plantilla.id for i in self.listar()}
+        id = base_id
+        n = 1
+        while id in ocupados:
+            n += 1
+            id = f"{base_id}-{n}"
+        datos = {**definicion, "id": id, "version": 1}
+        tmp = self.carpeta / f".creando-{uuid.uuid4().hex}"
+        try:
+            tmp.mkdir()
+            for nombre, contenido in imagenes.items():
+                (tmp / self._ruta_segura(nombre).name).write_bytes(contenido)
+            (tmp / NOMBRE_JSON).write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+            plantilla = self._validar(tmp / NOMBRE_JSON)
+            final = self.carpeta / id / "v1"
+            final.parent.mkdir(parents=True, exist_ok=True)
+            with self._candado:
+                tmp.rename(final)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        return PlantillaInstalada(plantilla, final / NOMBRE_JSON)
+
+    def ruta_imagen(self, inst: PlantillaInstalada, pagina: int) -> Path:
+        return inst.ruta.parent / inst.plantilla.paginas[pagina].imagen_referencia
 
     @staticmethod
     def _ruta_segura(nombre: str) -> PurePosixPath:

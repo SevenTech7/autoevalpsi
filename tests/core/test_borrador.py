@@ -1,4 +1,4 @@
-from tools.sino_desde_foto import LineaCar, construir, encontrar_grupos
+from autoevalpsi.core.borrador import LineaCar, construir, encontrar_grupos
 
 
 def linea(texto: str, x0: int, y0: int, paso: int = 10) -> LineaCar:
@@ -40,8 +40,8 @@ def test_la_letra_suelta_del_margen_no_rompe_el_encabezado_y_el_puntaje_se_ubica
 
 def test_a_plantilla_da_una_tabla_por_item_valida_y_una_referencia_sin_marcas():
     import numpy as np
-    from tools.sino_desde_foto import a_plantilla
 
+    from autoevalpsi.core.borrador import a_plantilla
     from autoevalpsi.core.plantilla import Plantilla
 
     ln = linea("1. Tren Si ( ) No ( )", 20, 30)
