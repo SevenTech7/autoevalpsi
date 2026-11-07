@@ -10,7 +10,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 | CO-R2 | Detección de hoja y corrección de perspectiva | hecha |
 | CO-R3 | Registro fino contra la plantilla | hecha |
 | CO-R4 | Identificación del formulario | pendiente |
-| CO-R5 | Lectura de casillas y banderas (OMR) | pendiente |
+| CO-R5 | Lectura de casillas y banderas (OMR) | hecha |
 | CO-R6 | Exportador Excel | bloqueada (CO-D1, CO-D2) |
 | CO-R7 | Comando de foto a Excel e imágenes de depuración | pendiente |
 | CO-R8 | Banco de validación con fotos reales (gate de Fase 1) | pendiente |
@@ -160,6 +160,29 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 - **Tests:** caracterización sobre el lote sintético (X, ✓, círculo, relleno, azul/negro).
   **Test negativo clave:** en ningún caso del lote una fila sale con una opción equivocada **sin**
   bandera (cero errores silenciosos).
+- **Hecha (2026-11-06):** `core/casillas.py`: `leer_casillas(registro, plantilla, referencia,
+  pagina=0, parametros=None)` → `ResultadoPagina(filas, registro_ok)` con
+  `ResultadoFila(item, opcion|None, proporciones, banderas, contraste)` (`.ok` = sin banderas).
+  Decisión por fila con `Plantilla.omr` (CO-02): `p1 < tinta_minima` → `sin_marca`; `p2 ≥
+  tinta_minima` → `doble_marca` y, si `p2 > (1 − margen_relativo)·p1`, `opcion=None` (no se
+  adivina; si `p1` domina se conserva la ganadora *con* bandera); ganadora con profundidad de tinta
+  < 100 → `contraste_bajo`; registro dudoso → `registro_dudoso` en todas las filas. Parámetros de
+  medición en `ParametrosLectura` (no son contrato de plantilla). **Desviación del plan:** no se
+  recorta con margen interior; se mide la **celda completa menos lo impreso** (máscara de la imagen
+  en blanco, engrosada 3 % del lado de la celda), porque un círculo grande con el trazo sobre el
+  borde de la celda caía fuera del margen y se leía en la vecina **sin bandera** (lo encontró el
+  lote de otra semilla). Fondo = percentil 85 de una ventana de 2×2 celdas (una marca que llena
+  la celda no se confunde con papel). Fracción de tinta: X/✓/círculo/relleno limpios 0,07–0,30;
+  tenue 0,05–0,08; relleno desbordado ~0,77; papel vacío 0,000. Resultado: lote base (6 fotos) y
+  lote de semilla 777 (12 fotos): **0 errores silenciosos**; tachón siempre con `doble_marca`.
+  **Contrato afectado (menor):** el valor por defecto de `omr.tinta_minima` baja de 0,15 a 0,03
+  (el 0,15 de CO-R0 era una suposición: dejaba las ✓ en `sin_marca`); el esquema no cambia.
+  **Hallazgo para CO-R3/CO-R8:** con la semilla 777, `foto_09` registra con ~62 px de error
+  (inliers 817, proporción 0,57, pero cobertura 0,29 y correlación de líneas 0,11): el registro la
+  marca dudosa, así que es seguro, pero indica que ORB puede engancharse desfasado en cuadrículas
+  repetitivas (1 de 18 fotos sintéticas). Revisar con fotos reales. **Para CO-R7:** pasar la
+  referencia de `cargar_referencia` a `leer_casillas`. **Pendiente CO-R8:** recalibrar
+  `tinta_minima`, `delta_tinta` y `contraste_min` con fotos reales (tinta de bolígrafo, lápiz).
 
 ## CO-R6 — Exportador Excel
 

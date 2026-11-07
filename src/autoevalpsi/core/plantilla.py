@@ -140,7 +140,7 @@ class Pagina(_Modelo):
 class UmbralesOMR(_Modelo):
     """CO-02: parámetros de decisión de casilla; se ajustan por plantilla (PI-R2)."""
 
-    tinta_minima: float = Field(default=0.15, ge=0, le=1)
+    tinta_minima: float = Field(default=0.03, ge=0, le=1)
     margen_relativo: float = Field(default=0.25, ge=0, le=1)
 
 
