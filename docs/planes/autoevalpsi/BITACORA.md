@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0 y OC-R1 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). CO-R6 bloqueada (CO-D1, CO-D2). Sin fase ejecutable sin decisión o insumo: se necesita CO-D1/CO-D2, PL-D2 + fotos (PL-R0/R1) o B-2 (BS-R2). OC-R2 espera CO-R7 (que espera CO-R6). Pendiente humano: P-5. |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, OC-R0 y OC-R1 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: CO-R7** (desbloquea OC-R2 y AP-R0). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 9 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0, OC-R1); DI-R0 parcial |
+| Fases hechas | 10 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, OC-R0, OC-R1); DI-R0 parcial |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -92,7 +92,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | 9 | [CO-R2](PLAN-CORE.md#co-r2--detección-de-hoja-y-corrección-de-perspectiva) | — | `fase-co-2` | CO-R1 | M | hecha |
 | 10 | [CO-R3](PLAN-CORE.md#co-r3--registro-fino-contra-la-plantilla) | CO-09 | `fase-co-3` | CO-R2 | L | hecha |
 | 11 | [CO-R5](PLAN-CORE.md#co-r5--lectura-de-casillas-y-banderas-omr) | CO-02 | `fase-co-5` | CO-R3 | M | hecha |
-| 12 | [CO-R6](PLAN-CORE.md#co-r6--exportador-excel) | CO-06, CO-07, CO-08 | `fase-co-6` | CO-R5, CO-D1, CO-D2 | M | bloqueada (CO-D1, CO-D2) |
+| 12 | [CO-R6](PLAN-CORE.md#co-r6--exportador-excel) | CO-06, CO-07, CO-08 | `fase-co-6` | CO-R5, CO-D1, CO-D2 | M | hecha |
 | 13 | [CO-R7](PLAN-CORE.md#co-r7--comando-de-foto-a-excel-e-imágenes-de-depuración) | — | `fase-co-7` | CO-R6 | S | pendiente |
 | 14 | [PL-R1](PLAN-PLANTILLAS.md#pl-r1--plantilla-del-primer-formulario-y-visor-de-plantillas) | — | `fase-pl-1` | PL-R0, CO-R0, PL-D2 | M | pendiente |
 | 15 | [CO-R8](PLAN-CORE.md#co-r8--banco-de-validación-con-fotos-reales-gate-de-fase-1) | gate Fase 1 | `fase-co-8` | CO-R7, PL-R1 | M | pendiente |
@@ -162,9 +162,9 @@ Detalle, opciones y recomendación en el plan de cada frente.
 | B-2 | Crear el repo privado en GitHub (lo hace el responsable) | P-5, BS-R2, DI-R3 | pendiente |
 | BS-D1 | Gestor de entorno. **Rec.: uv con lockfile** (alternativa: venv + pip) | BS-R0 | aprobada: uv + lockfile (2026-11-06) |
 | CO-D3 | ¿Varias tablas por página en el esquema? **Rec.: sí** (`tablas[]`, formato plano como atajo) | CO-R0 | aprobada: `tablas[]` (2026-11-06) |
-| PL-D2 | ¿Dónde viven las plantillas reales? **Rec.: fuera del repo, importadas desde .zip** | PL-R1, DI-R1 | pendiente |
-| CO-D1 | Estructura del Excel. **Rec.: por evaluación + consolidado por formulario** | CO-R6 | pendiente |
-| CO-D2 | ¿Nombre del paciente en el archivo? **Rec.: sí, saneado, con opción de iniciales** | CO-R6 | pendiente |
+| PL-D2 | ¿Dónde viven las plantillas reales? **Rec.: fuera del repo, importadas desde .zip** | PL-R1, DI-R1 | aprobada: rec. (2026-11-06) |
+| CO-D1 | Estructura del Excel. **Rec.: por evaluación + consolidado por formulario** | CO-R6 | aprobada: a) (2026-11-06) |
+| CO-D2 | ¿Nombre del paciente en el archivo? **Rec.: sí, saneado, con opción de iniciales** | CO-R6 | aprobada: a) (2026-11-06) |
 | PL-D1 | ¿Reimprimir hojas con ArUco y QR? **Rec.: sí para las que ella imprime; v1 funciona sin ellas** | PL-R5 | pendiente |
 | OC-D1 | Modelo OCR definitivo. **a) PP-OCRv6 medium ONNX** (cifras en PLAN-OCR) | OC-R1 | aprobada: a) (2026-11-06) |
 | OC-D2 | Texto como sugerencia, solo imagen o según confianza. **Rec.: según confianza**; se decide con el CER de OC-R3 | AP-R5 (parcial) | pendiente (tras OC-R3) |
@@ -224,3 +224,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | OC-R0 | `fase-oc-0` → `main` | Spike `tools/spike_ocr/`: PP-OCRv6 medium det+rec en ONNX (Apache-2.0, 62+77 MB, SHA-256 verificados) corre con onnxruntime CPU. Diccionario con todo el español salvo `¡`. Impreso 4/4 líneas, cursiva de fuente 12/12 detectadas, 1 error. Carga ≈ 2 s; detección 0,2–0,3 s por franja; reconocimiento 0,13–0,23 s/línea. | 126 → 126 passed (spike sin tests; ruff limpio) | Sin contrato público afectado. **No hay manuscrito real aún:** el acierto con su letra lo mide OC-R3. OC-D1: propuesta a). Siguiente: DI-R0. |
 | 2026-11-06 | DI-R0 (parcial) | `fase-di-0` → `main` | Spike `tools/spike_empaquetado/` (cv2 + onnxruntime con ONNX mínimo + uvicorn en hilo + pywebview) empaquetado con PyInstaller `onedir` **en Linux/Docker**: 261 MB, arranque en frío ≈ 1,05 s, 0 `hiddenimports`, 0 avisos. | 126 → 126 passed (spike sin tests; ruff limpio) | Sin contrato público afectado. DI-08: Docker no puede producir el .exe; falta correrlo en Windows (CI tras B-2, o a mano) y pasar Defender/SmartScreen: **no verificado**. Siguiente: ninguna fase libre; ver §1. |
 | 2026-11-06 | OC-R1 | `fase-oc-1` → `main` | `core/ocr`: interfaz `Lector`/`Linea`/`Caja`, `LectorFalso`, `LectorONNX` (PP-OCRv6 medium, sesiones perezosas, 4 hilos, orden de lectura); `tools/descargar_modelos.py` con revisión fijada y SHA-256 (también del diccionario). Cierra OC-04, OC-06. | 126 → 139 passed + 4 `lento` con el modelo real (13 + 4 nuevos); ruff limpio | **Contrato nuevo:** interfaz `Lector` (OC-R2 y el plan B dependen de ella). `pyyaml` al grupo `dev` (uv.lock). Aprobada OC-D1 a). Acierto con letra real sigue sin medirse (OC-R3). Siguiente: ninguna fase libre; ver §1. |
+| 2026-11-06 | CO-R6 | `fase-co-6` → `main` | `core/excel.py`: archivo por evaluación (hoja «Evaluación», forma del papel, recortes opcionales) y consolidado por formulario sin duplicar por id; nombre saneado con opción de iniciales; `ArchivoBloqueado` con escritura atómica. Cierra CO-06, CO-07, CO-08. | 139 → 164 passed (25 nuevos); ruff limpio | **Contrato nuevo:** forma del Excel. Aprobadas CO-D1 a), CO-D2 a) y PL-D2 (rec.). Bloqueo probado simulando `PermissionError`; con Excel abierto en Windows **no verificado**. Siguiente: CO-R7. |

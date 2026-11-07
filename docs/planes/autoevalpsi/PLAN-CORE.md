@@ -11,7 +11,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 | CO-R3 | Registro fino contra la plantilla | hecha |
 | CO-R4 | Identificación del formulario | pendiente |
 | CO-R5 | Lectura de casillas y banderas (OMR) | hecha |
-| CO-R6 | Exportador Excel | bloqueada (CO-D1, CO-D2) |
+| CO-R6 | Exportador Excel | hecha |
 | CO-R7 | Comando de foto a Excel e imágenes de depuración | pendiente |
 | CO-R8 | Banco de validación con fotos reales (gate de Fase 1) | pendiente |
 
@@ -194,6 +194,22 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
   archivo saneado (CO-07); manejo del archivo bloqueado (CO-08).
 - **Tests:** abrir el .xlsx generado con openpyxl y comprobar celdas; reexportar la misma
   evaluación no duplica la fila del consolidado; consolidado bloqueado → error tipado.
+- **Hecha (2026-11-06):** `core/excel.py`. API: `Evaluacion(id, plantilla, fecha, paciente, filas,
+  cabecera)` con `FilaEvaluacion(item, opcion|None, observacion, revisado, recorte)`;
+  `exportar_evaluacion`, `actualizar_consolidado`, `exportar` (→ `ResultadoExportacion`);
+  `NombreArchivo.PACIENTE|INICIALES`; `sanear_nombre`, `nombre_archivo`, `ArchivoBloqueado`.
+  Hoja «Evaluación»: cabecera (Formulario, Fecha, Paciente + extras) y, por tabla, `Ítem |
+  Descripción | <opciones> | Observación | Revisado [| Recorte]` con `X` en la opción. Consolidado
+  `consolidado_<id plantilla>.xlsx`, hoja «Consolidado»: `ID evaluación | Fecha | Paciente |
+  Versión plantilla | Ítem N…` con el texto de la opción; si la plantilla crece se añaden columnas.
+  Idempotencia por `Evaluacion.id` (propiedad `identifier` del libro y columna A del
+  consolidado); mismo nombre con otro id → sufijo « (2)». Escritura a temporal + `os.replace`: con
+  el archivo abierto en Excel se lanza `ArchivoBloqueado` y el anterior queda intacto; `exportar`
+  guarda antes el de la evaluación, así que reintentar `actualizar_consolidado` basta. Textos con
+  `=` inicial se guardan como texto. **Contrato afectado:** forma del Excel (columnas y orden),
+  fijada aquí. **Límite:** el bloqueo se probó simulando `PermissionError` en `os.replace`; el
+  comportamiento real con Excel abierto en Windows no está verificado. Para CO-R7: construir
+  `Evaluacion` desde `ResultadoPagina` (`revisado=False` si la fila tiene banderas).
 
 ## CO-R7 — Comando de foto a Excel e imágenes de depuración
 
@@ -223,11 +239,13 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
   - b) Un archivo por paciente con una hoja por evaluación.
   - c) Solo el consolidado por formulario.
   - **Recomendación: a)** — es lo ya descrito, sirve para archivar y para analizar.
+  - **Decisión (2026-11-06): a).**
 - **CO-D2 — ¿Nombre del paciente en el nombre del archivo?**
   - a) Sí, saneado: `AAAA-MM-DD_<formulario>_<paciente>.xlsx` (como `plan.md`).
   - b) Iniciales o un código de paciente que ella asigna.
   - **Recomendación: a) saneado y con opción de cambiar a b) en la configuración** — ella
     necesita encontrar los archivos; la carpeta de destino ya está en su equipo cifrado.
+  - **Decisión (2026-11-06): a) saneado, con opción de iniciales (`NombreArchivo.INICIALES`).**
 - **CO-D3 — ¿Varias tablas por página en el esquema?**
   - a) Esquema plano de `plan.md` (una tabla por página).
   - b) `paginas[].tablas[]`, cada una con sus `opciones`, `columnas_x`, `observacion_x` y
