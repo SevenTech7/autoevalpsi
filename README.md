@@ -31,6 +31,12 @@ docker compose run --rm dev python -m tools.descargar_modelos
 docker compose run --rm dev pytest -m lento -o addopts=""
 ```
 
+Foto a Excel, con OCR de observaciones y cabecera (necesita los modelos de arriba):
+
+```
+docker compose run --rm dev autoevalpsi procesar FOTO --plantilla ID --salida DIR --ocr --recortes
+```
+
 El entorno virtual y la caché de uv viven en volúmenes de Docker, no en la carpeta del proyecto.
 
 ## Reglas

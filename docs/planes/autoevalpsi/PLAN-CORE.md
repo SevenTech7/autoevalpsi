@@ -28,7 +28,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
   relativo** entre la primera y la segunda celda (doble marca/tachón). Ambos configurables por
   plantilla y ajustables en el piloto (PI-R2).
 - **CO-03** — Los campos de cabecera (paciente, fecha) están escritos a mano: necesitan OCR
-  (OC-R2). Hasta entonces, la cabecera se completa a mano en la revisión.
+  (OC-R2, hecha: `--ocr`). Sin OCR, la cabecera se completa a mano en la revisión.
 - **CO-04** — El ejemplo usa `tamano_px: [2480, 3508]` (A4 a 300 dpi). En Bolivia es común el
   tamaño Carta (2550×3300). El esquema no debe asumir A4; todas las coordenadas son relativas a
   la imagen de referencia de cada página.

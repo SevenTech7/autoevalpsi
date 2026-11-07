@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0 y OC-R1 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: OC-R2 o AP-R0** (CO-R7 las desbloquea). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1 y OC-R2 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: AP-R0** (CO-R7 la desbloquea; OC-R3 y PL-R0 esperan las fotos de la usuaria). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 11 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1); DI-R0 parcial |
+| Fases hechas | 12 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2); DI-R0 parcial |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -102,7 +102,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | # | Fase | Qué cierra | Rama | Requiere | Esfuerzo | Estado |
 |---|---|---|---|---|---|---|
 | 16 | [OC-R1](PLAN-OCR.md#oc-r1--lector-ocr) | OC-04, OC-06 | `fase-oc-1` | OC-R0, OC-D1 | M | hecha |
-| 17 | [OC-R2](PLAN-OCR.md#oc-r2--integración-en-el-pipeline) | OC-05, CO-03 | `fase-oc-2` | OC-R1, CO-R7 | M | pendiente |
+| 17 | [OC-R2](PLAN-OCR.md#oc-r2--integración-en-el-pipeline) | OC-05, CO-03 | `fase-oc-2` | OC-R1, CO-R7 | M | hecha |
 | 18 | [OC-R3](PLAN-OCR.md#oc-r3--medición-de-error-por-carácter-con-su-letra-gate-de-fase-2) | gate Fase 2 → OC-D2 | `fase-oc-3` | OC-R2, PL-R0 | M | pendiente |
 
 ### Ola 4 — Aplicación (Fase 3)
@@ -226,3 +226,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | OC-R1 | `fase-oc-1` → `main` | `core/ocr`: interfaz `Lector`/`Linea`/`Caja`, `LectorFalso`, `LectorONNX` (PP-OCRv6 medium, sesiones perezosas, 4 hilos, orden de lectura); `tools/descargar_modelos.py` con revisión fijada y SHA-256 (también del diccionario). Cierra OC-04, OC-06. | 126 → 139 passed + 4 `lento` con el modelo real (13 + 4 nuevos); ruff limpio | **Contrato nuevo:** interfaz `Lector` (OC-R2 y el plan B dependen de ella). `pyyaml` al grupo `dev` (uv.lock). Aprobada OC-D1 a). Acierto con letra real sigue sin medirse (OC-R3). Siguiente: ninguna fase libre; ver §1. |
 | 2026-11-06 | CO-R6 | `fase-co-6` → `main` | `core/excel.py`: archivo por evaluación (hoja «Evaluación», forma del papel, recortes opcionales) y consolidado por formulario sin duplicar por id; nombre saneado con opción de iniciales; `ArchivoBloqueado` con escritura atómica. Cierra CO-06, CO-07, CO-08. | 139 → 164 passed (25 nuevos); ruff limpio | **Contrato nuevo:** forma del Excel. Aprobadas CO-D1 a), CO-D2 a) y PL-D2 (rec.). Bloqueo probado simulando `PermissionError`; con Excel abierto en Windows **no verificado**. Siguiente: CO-R7. |
 | 2026-11-06 | CO-R7 | `fase-co-7` → `main` | `core/pipeline.py` (`procesar_foto`, `ResultadoProcesamiento` serializable, `a_evaluacion`), `core/depuracion.py` (hoja enderezada con cuadrícula y celdas coloreadas) y comando `autoevalpsi procesar FOTO --plantilla --salida [--depuracion]`. | 164 → 180 passed (16 nuevos); ruff limpio | **Contrato nuevo:** CLI `procesar` y forma del resultado JSON (la usará AP-R1). Cabecera (paciente/fecha) por flags, sin OCR hasta OC-R2. Depuración revisada a ojo sobre una foto sintética. Siguiente: OC-R2 o AP-R0. |
+| 2026-11-06 | OC-R2 | `fase-oc-2` → `main` | `core/ocr/texto.py`: `leer_texto` (franja de observaciones limpia y una sola lectura por tabla, líneas asignadas a su fila, filas sin tinta blanqueadas y sin llamada si ninguna tiene tinta; cabecera por campo); `procesar_foto(lector=)`, `a_evaluacion(recortes=)` y `procesar --ocr --recortes`. Banderas `ocr_confianza_baja`, `ocr_sin_texto`, `ocr_error`, `cabecera_vacia`; recorte de cada fila con tinta aunque el lector falle. Cierra OC-05, CO-03. | 180 → 197 passed (17 nuevos) + 1 `lento` nuevo con el modelo real (6/6 observaciones y 2/2 campos de cabecera exactos sobre letra sintética); ruff limpio | **Contrato nuevo:** resultado JSON ampliado (`ocr_activo`, `observaciones[]`, `cabecera[]`) y flags del CLI. Modelos ausentes no se disfrazan de `ocr_error`. Umbrales (tinta 0,004; confianza 0,85) provisionales: los calibra OC-R3 con letra real. La fecha manuscrita va como texto, no se interpreta. Siguiente: AP-R0. |
