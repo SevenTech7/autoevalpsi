@@ -7,7 +7,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 |---|---|---|
 | AP-R0 | Capa de datos local (SQLite + imágenes) | hecha |
 | AP-R1 | Servidor FastAPI y cola de procesamiento | hecha |
-| AP-R2 | Página de captura en el celular, QR e IP local | pendiente |
+| AP-R2 | Página de captura en el celular, QR e IP local | hecha |
 | AP-R3 | Ventana de escritorio con pywebview | pendiente |
 | AP-R4 | Interfaz React base | pendiente (requiere Node, BS-03) |
 | AP-R5 | Pantalla de revisión | pendiente |
@@ -69,6 +69,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 ## AP-R2 — Página de captura en el celular, QR e IP local
 
 - **Requiere:** AP-R1.
+- **Estado:** hecha (2026-11-06). `app/red.py`, `app/qr.py`, `app/captura/index.html` y dos rutas en `servidor.py`; 23 tests en `tests/app/test_{red,qr,captura}.py`. Pendiente humano: prueba con el A32 real, por WiFi.
 - **Esfuerzo:** M.
 - **Pasos:** `app/red.py` (AP-02); `app/qr.py` con segno (URL con IP, puerto y token); página
   `captura/index.html` con dos botones (`capture="environment"` y galería), barra de progreso,
