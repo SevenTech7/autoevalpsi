@@ -4,8 +4,8 @@ Para retomar el trabajo: **«Continúa según `docs/planes/autoevalpsi/BITACORA.
 
 | Archivo | Frente | Prefijo | Fases | Hechas |
 |---|---|---|---|---|
-| [BITACORA.md](BITACORA.md) | Estado, orden por olas, decisiones, diario | — | 38 | 2 |
-| [PLAN-BASE.md](PLAN-BASE.md) | Repo, entorno, datos sintéticos, CI de tests | BS | 3 | 1 |
+| [BITACORA.md](BITACORA.md) | Estado, orden por olas, decisiones, diario | — | 38 | 3 |
+| [PLAN-BASE.md](PLAN-BASE.md) | Repo, entorno, datos sintéticos, CI de tests | BS | 3 | 2 |
 | [PLAN-CORE.md](PLAN-CORE.md) | Plantillas, registro, casillas (OMR), Excel | CO | 9 | 1 |
 | [PLAN-OCR.md](PLAN-OCR.md) | Observaciones y cabecera manuscritas | OC | 4 | 0 |
 | [PLAN-APP.md](PLAN-APP.md) | Datos, servidor local, captura, revisión | AP | 8 | 0 |
@@ -15,4 +15,4 @@ Para retomar el trabajo: **«Continúa según `docs/planes/autoevalpsi/BITACORA.
 
 Documento de producto: [`plan.md`](../../../plan.md).
 
-Estado global: **Ola 0 hecha salvo P-5 (humano); BS-R0 y CO-R0 hechas**. Siguiente: BS-R1.
+Estado global: **Ola 0 hecha salvo P-5 (humano); BS-R0, CO-R0 y BS-R1 hechas**. Siguiente: CO-R1.

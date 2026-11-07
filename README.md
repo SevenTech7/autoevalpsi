@@ -16,6 +16,13 @@ docker compose run --rm dev autoevalpsi --version
 docker compose run --rm dev uv add <paquete>       # cambia dependencias y uv.lock
 ```
 
+Datos de prueba sintéticos (sin fotos reales):
+
+```
+docker compose run --rm dev python -m tools.sintetico.formulario   # regenera plantillas_demo/
+docker compose run --rm dev python -m tools.sintetico.lote --salida .datos/lote
+```
+
 El entorno virtual y la caché de uv viven en volúmenes de Docker, no en la carpeta del proyecto.
 
 ## Reglas

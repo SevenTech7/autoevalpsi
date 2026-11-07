@@ -30,6 +30,7 @@ packages = ["src/autoevalpsi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]  # para importar `tools` (BS-R1)
 markers = [
     "real: banco de fotos reales (lento, no corre en CI)",
     "lento: OCR con modelo real",
