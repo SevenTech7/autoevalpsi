@@ -60,6 +60,9 @@
     <input id="f-galeria" type="file" accept="image/jpeg,image/png">
   </form>
 
+  <p class="guia" id="atajo" hidden>Este celular ya quedó vinculado: no hace falta volver a leer el QR.
+  Para entrar rápido la próxima vez, en el menú del navegador (⋮) elige «Añadir a la pantalla de inicio».</p>
+
   <progress id="progreso" value="0" max="100" hidden></progress>
   <div id="estado" role="status" aria-live="polite"></div>
 </main>
@@ -150,6 +153,7 @@ function pedir(metodo, url, cuerpo, alTerminar) {
 
 function mostrarSinVinculo(detalle) {
   form.hidden = true;
+  document.getElementById("atajo").hidden = true;
   sinVinculo.hidden = false;
   if (detalle) detalleVinculo.textContent = detalle;
 }
@@ -157,6 +161,7 @@ function mostrarSinVinculo(detalle) {
 function mostrarFormulario(plantillas) {
   sinVinculo.hidden = true;
   form.hidden = false;
+  document.getElementById("atajo").hidden = false;
   paginas = {};
   selPlantilla.replaceChildren();
   // `/api/plantillas` lista todas las versiones; se usa la más nueva de cada id

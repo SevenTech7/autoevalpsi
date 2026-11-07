@@ -60,14 +60,19 @@ def _cod(r) -> str:
 # --- la interfaz compilada ---------------------------------------------------------------------
 
 
-def test_la_raiz_sirve_el_index_sin_token_y_sin_cache(entorno):
+def test_la_raiz_sirve_el_index_a_la_laptop_sin_token_y_sin_cache(entorno):
+    r = TestClient(entorno[2], client=LAPTOP).get("/")
+    assert r.status_code == 200 and "<title>UI</title>" in r.text
+    assert r.headers["cache-control"] == "no-store"
+    assert r.headers["referrer-policy"] == "no-referrer"
+    assert "default-src 'self'" in r.headers["content-security-policy"]
+
+
+def test_el_celular_que_entra_a_la_raiz_va_a_la_pagina_de_captura(entorno):
     _, celular, _, _ = entorno
-    for cliente in (TestClient(entorno[2], client=LAPTOP), celular):
-        r = cliente.get("/")
-        assert r.status_code == 200 and "<title>UI</title>" in r.text
-        assert r.headers["cache-control"] == "no-store"
-        assert r.headers["referrer-policy"] == "no-referrer"
-        assert "default-src 'self'" in r.headers["content-security-policy"]
+    r = celular.get("/", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "/captura"
+    assert celular.get("/").status_code == 200  # y llega a la página del celular
 
 
 def test_los_assets_se_sirven_y_no_se_escapan_de_la_carpeta(entorno, tmp_path):
