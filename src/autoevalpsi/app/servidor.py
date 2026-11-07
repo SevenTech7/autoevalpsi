@@ -15,6 +15,8 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     POST /api/evaluaciones/{id}/exportar     a Excel; 409 si hay algo sin revisar (AP-06)
     GET  /api/plantillas[/{id}]              plantillas instaladas
     POST /api/plantillas/importar            .zip con el .json y las imágenes en blanco (PL-D2)
+    GET  /api/captura/enlace[?ip=]           URL de captura, su QR (SVG) y las IP posibles (AP-02)
+    GET  /captura?token=                     página del celular (HTML); AP-R2, AP-07
 
 **Token (AP-03).** Cada arranque genera uno de 128 bits; todo `/api` salvo `/api/salud` lo exige,
 en `Authorization: Bearer <token>`, `X-Token` o `?token=` (la URL del QR). Se compara en tiempo
@@ -30,18 +32,21 @@ El control de calidad (rápido) se responde en la misma petición; la lectura pe
 """
 
 import hashlib
+import html
+import json
 import logging
 import secrets
 import threading
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from autoevalpsi.app.cola import ColaLlena, ColaProcesamiento, FotoEnProceso, Trabajo
@@ -57,6 +62,8 @@ from autoevalpsi.app.plantillas import (
     PlantillaYaInstalada,
     RepositorioPlantillas,
 )
+from autoevalpsi.app.qr import RUTA_CAPTURA, qr_svg, url_captura
+from autoevalpsi.app.red import Interfaz, candidatas, elegir_ip, listar_interfaces
 from autoevalpsi.core.excel import ArchivoBloqueado, NombreArchivo, exportar
 from autoevalpsi.core.imagen import ImagenInvalida, cargar_imagen, evaluar_calidad
 from autoevalpsi.core.ocr.lector import Lector
@@ -70,6 +77,8 @@ MAX_JSON = 1024 * 1024
 _SOBRECARGA_MULTIPART = 64 * 1024
 _SUBIDAS = {"/api/fotos": MAX_FOTO, "/api/plantillas/importar": MAX_ZIP}
 _SIN_TOKEN = {"/api/salud"}
+PUERTO = 8765
+PAGINA_CAPTURA = Path(__file__).parent / "captura" / "index.html"
 
 
 def _error(status: int, codigo: str, mensaje: str) -> HTTPException:
@@ -97,9 +106,9 @@ class Guardia:
         return any(secrets.compare_digest(c.encode(), self._token) for c in candidatos if c)
 
     async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith("/api"):
+        ruta = scope["path"].rstrip("/") if scope["type"] == "http" else ""
+        if scope["type"] != "http" or not (ruta.startswith("/api") or ruta == RUTA_CAPTURA):
             return await self.app(scope, receive, send)
-        ruta = scope["path"].rstrip("/")
         if ruta not in _SIN_TOKEN and not self._token_valido(scope):
             r = _respuesta(401, "sin_token", "Esta página necesita el código QR de la aplicación.")
             return await r(scope, receive, send)
@@ -169,9 +178,12 @@ def crear_app(
     *,
     token: str | None = None,
     lector: Lector | None = None,
+    puerto: int = PUERTO,
+    interfaces: Callable[[], list[Interfaz]] = listar_interfaces,
 ) -> FastAPI:
     """`lector` (OCR) es opcional: sin él solo se leen las casillas. `app.state.token` es el
-    token del arranque y `app.state.cola` la cola, por si quien arranca los necesita."""
+    token del arranque y `app.state.cola` la cola, por si quien arranca los necesita. `puerto` e
+    `interfaces` (IP de la red local, AP-02) arman la URL del QR."""
     token = token or secrets.token_urlsafe(16)
 
     def ejecutar(trabajo: Trabajo, subida: object) -> bool:
@@ -441,5 +453,47 @@ def crear_app(
             raise _error(409, "plantilla_ya_instalada", str(e)) from e
         except ImportacionInvalida as e:
             raise _error(422, "zip_invalido", str(e)) from e
+
+    # --- captura desde el celular (AP-R2) -----------------------------------------------
+
+    @app.get("/api/captura/enlace")
+    def enlace_captura(ip: str | None = None) -> dict:
+        """`ip` opcional: la que la usuaria eligió de `ips`; si no sirve se usa la mejor."""
+        lista = candidatas(interfaces())
+        elegida = elegir_ip(lista, ip)
+        if elegida is None:
+            return {"url": None, "qr_svg": None, "ip": None, "puerto": puerto, "ips": [],
+                    "mensaje": "La laptop no está en una red WiFi o cable con IP privada. "
+                               "Conéctala al WiFi de la casa."}  # fmt: skip
+        url = url_captura(elegida, puerto, token)
+        return {"url": url, "qr_svg": qr_svg(url), "ip": elegida, "puerto": puerto,
+                "ips": [i.ip for i in lista], "mensaje": ""}  # fmt: skip
+
+    @app.get(RUTA_CAPTURA, response_class=HTMLResponse)
+    def pagina_captura() -> HTMLResponse:
+        """La página del celular: HTML liviano sin build (AP-07). El token ya lo validó la
+        `Guardia`; se incrusta el mismo para que la página llame a la API."""
+        instaladas = plantillas.listar()
+        ultimas = {}
+        for i in instaladas:  # la versión más nueva de cada id (`listar` ordena por id y versión)
+            ultimas[i.plantilla.id] = i.plantilla
+        opciones = (
+            "\n".join(
+                f'<option value="{html.escape(p.id)}">{html.escape(p.nombre)}</option>'
+                for p in ultimas.values()
+            )
+            or '<option value="" disabled selected>Sin formularios instalados</option>'
+        )
+        paginas = {p.id: len(p.paginas) for p in ultimas.values()}
+        cuerpo = (
+            PAGINA_CAPTURA.read_text(encoding="utf-8")
+            .replace("{{OPCIONES}}", opciones)
+            .replace("{{PAGINAS}}", html.escape(json.dumps(paginas), quote=True))
+            .replace("{{TOKEN_URL}}", html.escape(quote(token, safe=""), quote=True))
+            .replace("{{TOKEN}}", html.escape(token, quote=True))
+        )
+        return HTMLResponse(
+            cuerpo, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
+        )
 
     return app

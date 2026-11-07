@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>AutoEvalPsi · Enviar foto</title>
+<style>
+  :root { --azul: #1d4ed8; --verde: #15803d; --rojo: #b91c1c; --ambar: #b45309; --gris: #475569; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; font: 20px/1.4 system-ui, sans-serif; color: #0f172a; background: #f8fafc; }
+  main { max-width: 32rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  p.guia { margin: 0 0 1rem; color: var(--gris); }
+  label.campo { display: block; margin: 1rem 0 .25rem; font-weight: 600; }
+  select, input[type=text] { width: 100%; padding: .7rem; font-size: 1rem; border: 2px solid #94a3b8; border-radius: 10px; background: #fff; }
+  .boton { display: block; width: 100%; margin: .75rem 0; padding: 1.1rem; text-align: center; font-size: 1.25rem; font-weight: 700; color: #fff; background: var(--azul); border: 0; border-radius: 14px; }
+  .boton.sec { background: #fff; color: var(--azul); border: 3px solid var(--azul); }
+  .boton[aria-disabled=true] { opacity: .45; }
+  input[type=file] { display: none; }
+  progress { width: 100%; height: 1.5rem; margin: .5rem 0; }
+  #estado { margin-top: 1rem; padding: 1rem; border-radius: 12px; background: #e2e8f0; display: none; }
+  #estado.ok { background: #dcfce7; color: var(--verde); }
+  #estado.aviso { background: #fef3c7; color: var(--ambar); }
+  #estado.mal { background: #fee2e2; color: var(--rojo); }
+  #estado ul { margin: .5rem 0 0; padding-left: 1.2rem; }
+  #paso { font-weight: 700; margin: 1rem 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Enviar foto del formulario</h1>
+  <p class="guia">Pon la hoja plana, con buena luz y entera en la foto.</p>
+
+  <form id="formulario" method="post" action="/api/fotos?token={{TOKEN_URL}}" enctype="multipart/form-data"
+        data-token="{{TOKEN}}" data-paginas='{{PAGINAS}}'>
+    <input type="hidden" name="token" value="{{TOKEN}}">
+    <label class="campo" for="plantilla">Formulario</label>
+    <select id="plantilla" name="plantilla" required>
+      {{OPCIONES}}
+    </select>
+
+    <label class="campo" for="paciente">Nombre de la persona (opcional)</label>
+    <input id="paciente" name="paciente" type="text" autocomplete="off" maxlength="120">
+
+    <p id="paso" aria-live="polite"></p>
+
+    <label class="boton" id="b-camara" for="f-camara" role="button">📷 Tomar foto</label>
+    <input id="f-camara" type="file" accept="image/jpeg,image/png" capture="environment">
+    <label class="boton sec" id="b-galeria" for="f-galeria" role="button">🖼️ Elegir de la galería</label>
+    <input id="f-galeria" type="file" accept="image/jpeg,image/png">
+  </form>
+
+  <progress id="progreso" value="0" max="100" hidden></progress>
+  <div id="estado" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+"use strict";
+const form = document.getElementById("formulario");
+const token = form.dataset.token;
+const paginas = JSON.parse(form.dataset.paginas);
+const selPlantilla = document.getElementById("plantilla");
+const progreso = document.getElementById("progreso");
+const estado = document.getElementById("estado");
+const paso = document.getElementById("paso");
+const botones = [document.getElementById("b-camara"), document.getElementById("b-galeria")];
+const entradas = [document.getElementById("f-camara"), document.getElementById("f-galeria")];
+
+let evaluacion = null;   // solo se fija en formularios de varias hojas
+let pagina = 0;
+let ocupado = false;
+
+function nuevoId() {
+  return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function mostrar(clase, titulo, lista) {
+  estado.className = clase;
+  estado.style.display = "block";
+  estado.replaceChildren();
+  const t = document.createElement("strong");
+  t.textContent = titulo;
+  estado.append(t);
+  if (lista && lista.length) {
+    const ul = document.createElement("ul");
+    for (const x of lista) {
+      const li = document.createElement("li");
+      li.textContent = x;
+      ul.append(li);
+    }
+    estado.append(ul);
+  }
+}
+
+function pasoActual() {
+  const total = paginas[selPlantilla.value] || 1;
+  paso.textContent = total > 1 ? "Hoja " + (pagina + 1) + " de " + total : "";
+}
+
+function bloquear(si) {
+  ocupado = si;
+  for (const b of botones) b.setAttribute("aria-disabled", String(si));
+  for (const e of entradas) e.disabled = si;
+  selPlantilla.disabled = si;
+}
+
+function reiniciarFormulario() {
+  evaluacion = null;
+  pagina = 0;
+  pasoActual();
+}
+
+selPlantilla.addEventListener("change", reiniciarFormulario);
+
+function mensajeDe(xhr) {
+  try {
+    const d = JSON.parse(xhr.responseText).detail;
+    if (d && d.mensaje) return d.mensaje;
+  } catch (e) { /* respuesta que no es JSON */ }
+  if (xhr.status === 0) return "No hay conexión con la laptop. Revisa que el celular esté en el mismo WiFi.";
+  if (xhr.status === 401) return "Este enlace ya no sirve. Vuelve a leer el código QR de la laptop.";
+  return "No se pudo enviar la foto (error " + xhr.status + ").";
+}
+
+function seguirTrabajo(id, total, ultima) {
+  const consulta = () => {
+    const x = new XMLHttpRequest();
+    x.open("GET", "/api/cola/" + encodeURIComponent(id) + "?token=" + encodeURIComponent(token));
+    x.onload = () => {
+      let t = null;
+      try { t = JSON.parse(x.responseText); } catch (e) { /* se reintenta */ }
+      if (!t || t.estado === "en_cola" || t.estado === "procesando") return setTimeout(consulta, 1500);
+      if (t.estado === "error") return mostrar("mal", "No se pudo leer la foto", [t.mensaje || "Intenta tomarla de nuevo."]);
+      if (!ultima) return;  // aún faltan hojas: el aviso de «sigue la hoja N» ya está en pantalla
+      mostrar("ok", "Lista ✓ Ya puedes revisarla en la laptop.");
+    };
+    x.onerror = () => setTimeout(consulta, 3000);
+    x.send();
+  };
+  consulta();
+}
+
+function enviar(archivo) {
+  if (!archivo || ocupado) return;
+  const total = paginas[selPlantilla.value] || 1;
+  if (total > 1 && evaluacion === null) evaluacion = nuevoId();
+  const datos = new FormData();
+  datos.append("foto", archivo, archivo.name || "foto.jpg");
+  datos.append("plantilla", selPlantilla.value);
+  datos.append("pagina", String(pagina));
+  datos.append("paciente", document.getElementById("paciente").value);
+  if (evaluacion !== null) datos.append("evaluacion", evaluacion);
+
+  bloquear(true);
+  progreso.hidden = false;
+  progreso.value = 0;
+  mostrar("aviso", "Enviando la foto…");
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/fotos?token=" + encodeURIComponent(token));
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) progreso.value = (100 * e.loaded) / e.total; };
+  xhr.onerror = () => { progreso.hidden = true; bloquear(false); mostrar("mal", mensajeDe(xhr)); };
+  xhr.onload = () => {
+    progreso.hidden = true;
+    bloquear(false);
+    if (xhr.status !== 202) return mostrar("mal", mensajeDe(xhr));
+    const r = JSON.parse(xhr.responseText);
+    if (r.repetir) {
+      return mostrar("aviso", "Mejor repite la foto", r.problemas_calidad);
+    }
+    const ultima = pagina + 1 >= total;
+    if (ultima) {
+      reiniciarFormulario();
+      mostrar("aviso", "Foto recibida. La estoy leyendo…");
+    } else {
+      pagina += 1;
+      pasoActual();
+      mostrar("ok", "Foto recibida ✓ Ahora toma la hoja " + (pagina + 1) + " de " + total + ".");
+    }
+    seguirTrabajo(r.trabajo.id, total, ultima);
+  };
+  xhr.send(datos);
+}
+
+for (const e of entradas) {
+  e.addEventListener("change", () => {
+    const f = e.files[0];
+    e.value = "";  // permite elegir la misma foto otra vez
+    enviar(f);
+  });
+}
+pasoActual();
+</script>
+</body>
+</html>
