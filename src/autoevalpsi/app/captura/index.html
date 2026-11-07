@@ -27,6 +27,12 @@
   #paso { font-weight: 700; margin: 1rem 0 0; }
   .aviso-vinculo { padding: 1rem; border-radius: 12px; background: #fef3c7; color: var(--ambar); }
   .aviso-vinculo p { margin: .5rem 0 0; }
+  #ventana { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .55); }
+  #ventana .panel { width: 100%; max-width: 28rem; padding: 1.25rem; border-radius: 16px; background: #fff; border-top: 8px solid var(--gris); box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  #ventana.ok .panel { border-top-color: var(--verde); }
+  #ventana.aviso .panel { border-top-color: var(--ambar); }
+  #ventana.mal .panel { border-top-color: var(--rojo); }
+  #ventana ul { margin: .5rem 0 0; padding-left: 1.2rem; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -66,6 +72,14 @@
   <progress id="progreso" value="0" max="100" hidden></progress>
   <div id="estado" role="status" aria-live="polite"></div>
 </main>
+
+<div id="ventana" hidden>
+  <div class="panel" role="alertdialog" aria-modal="true" aria-labelledby="ventana-titulo">
+    <strong id="ventana-titulo"></strong>
+    <ul id="ventana-lista"></ul>
+    <button type="button" class="boton" id="ventana-aceptar">Aceptar</button>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -118,6 +132,26 @@ function mostrar(clase, titulo, lista) {
     estado.append(ul);
   }
 }
+
+// Lo que hay que leer o decidir sale en una ventana emergente; el avance («Enviando…») queda en pantalla.
+function ventana(clase, titulo, lista) {
+  const v = document.getElementById("ventana");
+  estado.style.display = "none";
+  v.className = clase;
+  document.getElementById("ventana-titulo").textContent = titulo;
+  const ul = document.getElementById("ventana-lista");
+  ul.replaceChildren();
+  for (const x of lista || []) {
+    const li = document.createElement("li");
+    li.textContent = x;
+    ul.append(li);
+  }
+  v.hidden = false;
+  document.getElementById("ventana-aceptar").focus();
+}
+document.getElementById("ventana-aceptar").addEventListener("click", () => {
+  document.getElementById("ventana").hidden = true;
+});
 
 function pasoActual() {
   const total = paginas[selPlantilla.value] || 1;
@@ -254,9 +288,9 @@ function seguirTrabajo(id, total, ultima) {
       let t = null;
       try { t = JSON.parse(x.responseText); } catch (e) { /* se reintenta */ }
       if (!t || t.estado === "en_cola" || t.estado === "procesando") return setTimeout(consulta, 1500);
-      if (t.estado === "error") return mostrar("mal", "No se pudo leer la foto", [t.mensaje || "Intenta tomarla de nuevo."]);
+      if (t.estado === "error") return ventana("mal", "No se pudo leer la foto", [t.mensaje || "Intenta tomarla de nuevo."]);
       if (!ultima) return;  // aún faltan hojas: el aviso de «sigue la hoja N» ya está en pantalla
-      mostrar("ok", "Lista ✓ Ya puedes revisarla en la laptop.");
+      ventana("ok", "Lista ✓ Ya puedes revisarla en la laptop.");
     });
   };
   consulta();
@@ -282,7 +316,7 @@ function enviar(archivo) {
   xhr.open("POST", "/api/fotos");
   xhr.setRequestHeader("X-Dispositivo", leerCredencial());
   xhr.upload.onprogress = (e) => { if (e.lengthComputable) progreso.value = (100 * e.loaded) / e.total; };
-  xhr.onerror = () => { progreso.hidden = true; bloquear(false); mostrar("mal", mensajeDe(xhr)); };
+  xhr.onerror = () => { progreso.hidden = true; bloquear(false); ventana("mal", "No se pudo enviar la foto", [mensajeDe(xhr)]); };
   xhr.onload = () => {
     progreso.hidden = true;
     bloquear(false);
@@ -290,10 +324,10 @@ function enviar(archivo) {
       guardarCredencial("");
       return mostrarSinVinculo(mensajeDe(xhr));
     }
-    if (xhr.status !== 202) return mostrar("mal", mensajeDe(xhr));
+    if (xhr.status !== 202) return ventana("mal", "No se pudo enviar la foto", [mensajeDe(xhr)]);
     const r = JSON.parse(xhr.responseText);
     if (r.repetir) {
-      return mostrar("aviso", "Mejor repite la foto", r.problemas_calidad);
+      return ventana("aviso", "Mejor repite la foto", r.problemas_calidad);
     }
     const ultima = pagina + 1 >= total;
     if (ultima) {
@@ -302,7 +336,7 @@ function enviar(archivo) {
     } else {
       pagina += 1;
       pasoActual();
-      mostrar("ok", "Foto recibida ✓ Ahora toma la hoja " + (pagina + 1) + " de " + total + ".");
+      ventana("ok", "Foto recibida ✓ Ahora toma la hoja " + (pagina + 1) + " de " + total + ".");
     }
     seguirTrabajo(r.trabajo.id, total, ultima);
   };

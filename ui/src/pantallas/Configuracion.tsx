@@ -1,40 +1,41 @@
 import { useState } from "react";
 
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
+import { useDialogos } from "../componentes/Dialogos";
 import { mensajeDe, useApi, useCarga } from "../hooks";
 import { elegirCarpetaNativa } from "../puente";
 
 function TarjetaCarpeta() {
   const api = useApi();
+  const { avisar } = useDialogos();
   const config = useCarga(() => api.configuracion());
   const [escrita, setEscrita] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [guardada, setGuardada] = useState(false);
   const nativo = elegirCarpetaNativa();
 
+  const guardada = () =>
+    void avisar({ tipo: "ok", titulo: "Carpeta guardada", mensaje: "Listo, la carpeta quedó guardada." });
+  const fallo = (e: unknown) =>
+    void avisar({ tipo: "error", titulo: "No se pudo guardar la carpeta", mensaje: mensajeDe(e) });
+
   async function accion(hacer: () => Promise<unknown>) {
-    setError(null);
-    setGuardada(false);
     try {
       await hacer();
-      setGuardada(true);
+      guardada();
       config.recargar();
     } catch (e) {
-      setError(mensajeDe(e));
+      fallo(e);
     }
   }
 
   /** El diálogo nativo guarda la carpeta por su cuenta (Puente); cancelar no cambia nada. */
   async function elegirConElDialogo(elegir: () => Promise<string | null>) {
-    setError(null);
-    setGuardada(false);
     try {
       if (await elegir()) {
-        setGuardada(true);
+        guardada();
         config.recargar();
       }
     } catch (e) {
-      setError(mensajeDe(e));
+      fallo(e);
     }
   }
 
@@ -42,8 +43,6 @@ function TarjetaCarpeta() {
     <Tarjeta titulo="Carpeta de los Excel">
       <div className="space-y-4">
         {config.error && <Aviso>{config.error}</Aviso>}
-        {error && <Aviso>{error}</Aviso>}
-        {guardada && <Aviso tipo="ok">Listo, la carpeta quedó guardada.</Aviso>}
         {config.datos && (
           <p>
             Los Excel se guardan en: <strong className="break-all">{config.datos.carpeta_exportacion_efectiva}</strong>
@@ -86,37 +85,38 @@ function TarjetaCarpeta() {
 
 function TarjetaBorrarFotos() {
   const api = useApi();
-  const [resultado, setResultado] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { avisar, confirmar } = useDialogos();
   const [ocupado, setOcupado] = useState(false);
 
   async function borrar() {
-    setError(null);
-    setResultado(null);
     setOcupado(true);
     try {
       const exportadas = (await api.evaluaciones()).filter((e) => e.estado === "exportada");
       if (exportadas.length === 0) {
-        setResultado("Todavía no hay evaluaciones exportadas.");
+        await avisar({ tipo: "info", mensaje: "Todavía no hay evaluaciones exportadas." });
         return;
       }
-      if (
-        !window.confirm(
+      const acepto = await confirmar({
+        titulo: "Borrar las fotos",
+        mensaje:
           `Se borrarán las fotos de ${exportadas.length} evaluación(es) ya exportada(s). ` +
-            "Los Excel y lo que revisaste no se tocan. ¿Seguro?",
-        )
-      ) {
-        return;
-      }
+          "Los Excel y lo que revisaste no se tocan. ¿Seguro?",
+        confirmar: "Sí, borrar las fotos",
+        peligro: true,
+      });
+      if (!acepto) return;
       let archivos = 0;
       for (const e of exportadas) archivos += (await api.borrarFotos(e.id)).borrados;
-      setResultado(
-        archivos === 0
-          ? "No había fotos que borrar."
-          : `Listo: se borraron ${archivos} foto(s) de ${exportadas.length} evaluación(es).`,
-      );
+      await avisar({
+        tipo: "ok",
+        titulo: "Fotos borradas",
+        mensaje:
+          archivos === 0
+            ? "No había fotos que borrar."
+            : `Listo: se borraron ${archivos} foto(s) de ${exportadas.length} evaluación(es).`,
+      });
     } catch (e) {
-      setError(mensajeDe(e));
+      await avisar({ tipo: "error", titulo: "No se pudieron borrar las fotos", mensaje: mensajeDe(e) });
     } finally {
       setOcupado(false);
     }
@@ -129,8 +129,6 @@ function TarjetaBorrarFotos() {
           La aplicación guarda las fotos en esta laptop y no las borra sola. Cuando ya no las necesites, puedes
           borrar las de las evaluaciones que ya exportaste.
         </p>
-        {error && <Aviso>{error}</Aviso>}
-        {resultado && <Aviso tipo="ok">{resultado}</Aviso>}
         <Boton variante="suave" disabled={ocupado} onClick={() => void borrar()}>
           Borrar las fotos de lo ya exportado
         </Boton>

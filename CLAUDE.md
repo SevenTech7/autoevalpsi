@@ -16,3 +16,7 @@ Reglas fijas:
 - Todo en Docker Desktop: no instalar nada en la máquina del usuario (ni `pip --user`, uv, Node,
   venv locales) ni tocar variables globales. Comandos: `docker compose run --rm dev <cmd>`.
 - Nunca commitear `muestras/`, `plantillas/` reales, `modelos/`, `*.onnx`, BD ni fotos.
+- Todo aviso, error o confirmación para la usuaria sale en una **ventana emergente** de la app
+  (`useDialogos` en `ui/`, `ventana()` en `captura/index.html`, `avisar` en el escritorio); nunca
+  solo en la consola, ni con `window.confirm`/`alert`. Lo que se reintenta solo (sondeos) y el
+  estado permanente de una pantalla pueden ir en la página.

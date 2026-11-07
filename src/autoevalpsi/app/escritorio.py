@@ -181,12 +181,14 @@ def _abrir_en_explorador(carpeta: Path) -> None:  # pragma: no cover - solo Wind
 
 
 def avisar(mensaje: str) -> None:
-    """Sin consola (PyInstaller `--windowed`) un `print` no lo ve nadie: cuadro de Windows."""
-    print(mensaje, file=sys.stderr)
+    """Sin consola (PyInstaller `--windowed`) un `print` no lo ve nadie: cuadro de Windows.
+    La usuaria no lee la consola; solo fuera de Windows (desarrollo) se escribe en ella."""
     if os.name == "nt":
         import ctypes
 
         ctypes.windll.user32.MessageBoxW(None, mensaje, TITULO, 0x10)
+    else:
+        print(mensaje, file=sys.stderr)
 
 
 def abrir_ventana(url: str, bd: BaseDatos) -> None:  # pragma: no cover - ventana real

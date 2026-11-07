@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import { crearCliente } from "./api/cliente";
 import { Aviso } from "./componentes/base";
+import { ProveedorDialogos } from "./componentes/Dialogos";
 import { ContextoApi } from "./hooks";
 import { Configuracion } from "./pantallas/Configuracion";
 import { PantallaEvaluaciones } from "./pantallas/Evaluaciones";
@@ -34,6 +35,7 @@ export function App({ token }: { token: string | null }) {
   const ancha = ruta.pantalla === "evaluacion"; // la revisión usa todo el ancho: menos desplazarse
 
   return (
+    <ProveedorDialogos>
     <div className={ancha ? "px-3 py-2" : "mx-auto max-w-5xl px-6 py-6"}>
       <header className={`flex flex-wrap items-center justify-between gap-4 ${ancha ? "mb-2" : "mb-6"}`}>
         <h1 className="text-2xl font-bold text-acento">AutoEvalPsi</h1>
@@ -68,5 +70,6 @@ export function App({ token }: { token: string | null }) {
         )}
       </main>
     </div>
+    </ProveedorDialogos>
   );
 }

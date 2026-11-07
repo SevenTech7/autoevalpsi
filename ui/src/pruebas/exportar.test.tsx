@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import { ErrorApi } from "../api/cliente";
 import type { Evaluacion } from "../api/tipos";
 import { Exportar, motivoBloqueo } from "../componentes/Exportar";
 import { Revision } from "../pantallas/Revision";
+import { render } from "./render";
 import { clienteFalso, evaluacion, fila, plantilla } from "./datos";
 
 afterEach(() => {
@@ -69,11 +70,15 @@ describe("botón de exportar", () => {
     const { alExportar } = montar(api);
     expect(boton()).toBeEnabled();
     await userEvent.click(boton());
-    await waitFor(() => expect(alExportar).toHaveBeenCalledWith(exportada));
+    const popup = await screen.findByRole("dialog");
+    expect(alExportar).toHaveBeenCalledWith(exportada);
     expect(exportar).toHaveBeenCalledWith("ev1", false);
-    expect(screen.getByText(/Ana_Perez_2026-11-07\.xlsx/)).toBeInTheDocument();
-    expect(screen.getByText("C:\\Excel")).toBeInTheDocument();
+    expect(popup).toHaveTextContent("Excel exportado");
+    expect(popup).toHaveTextContent("Ana_Perez_2026-11-07.xlsx");
+    expect(popup).toHaveTextContent("C:\\Excel");
     expect(screen.queryByRole("button", { name: "Abrir la carpeta" })).not.toBeInTheDocument(); // sin ventana
+    await userEvent.click(screen.getByRole("button", { name: "Aceptar" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("las iniciales se piden con la casilla", async () => {
@@ -92,7 +97,7 @@ describe("botón de exportar", () => {
 });
 
 describe("archivo abierto y otros errores", () => {
-  it("si el Excel está abierto lo dice con el mensaje del servidor y deja reintentar", async () => {
+  it("si el Excel está abierto lo dice en una ventana con el mensaje del servidor y deja reintentar", async () => {
     const exportar = vi
       .fn()
       .mockRejectedValueOnce(
@@ -101,12 +106,15 @@ describe("archivo abierto y otros errores", () => {
       .mockResolvedValueOnce(resultado);
     const { alExportar } = montar(clienteFalso({ exportar, evaluacion: vi.fn().mockResolvedValue(lista()) }));
     await userEvent.click(boton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("Si está abierto en Excel, ciérralo.");
+    const popup = await screen.findByRole("alertdialog");
+    expect(popup).toHaveTextContent("Si está abierto en Excel, ciérralo.");
     expect(alExportar).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Aceptar" }));
     expect(boton()).toBeEnabled();
     await userEvent.click(boton());
     await waitFor(() => expect(alExportar).toHaveBeenCalled());
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Excel exportado");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 });
 
@@ -118,7 +126,8 @@ describe("carpeta y ventana de escritorio", () => {
     const configuracion = vi.fn().mockResolvedValue({ carpeta_exportacion: null, carpeta_exportacion_efectiva: "x" });
     montar(clienteFalso({ exportar, configuracion, evaluacion: vi.fn().mockResolvedValue(lista()) }));
     await userEvent.click(boton());
-    await waitFor(() => expect(exportar).toHaveBeenCalled());
+    await screen.findByRole("dialog");
+    expect(exportar).toHaveBeenCalled();
     expect(elegir).toHaveBeenCalledTimes(1);
   });
 
@@ -128,7 +137,7 @@ describe("carpeta y ventana de escritorio", () => {
     const configuracion = vi.fn().mockResolvedValue({ carpeta_exportacion: null, carpeta_exportacion_efectiva: "x" });
     montar(clienteFalso({ exportar, configuracion }));
     await userEvent.click(boton());
-    expect(await screen.findByText(/No se exportó: elige la carpeta/)).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toHaveTextContent("No se exportó: elige la carpeta");
     expect(exportar).not.toHaveBeenCalled();
   });
 
@@ -154,28 +163,43 @@ describe("borrar las fotos (AP-D1)", () => {
     const exportar = vi.fn().mockResolvedValue(resultado);
     montar(clienteFalso({ exportar, borrarFotos, evaluacion: vi.fn().mockResolvedValue(lista()) }));
     await userEvent.click(boton());
-    await waitFor(() => expect(exportar).toHaveBeenCalled());
+    await screen.findByRole("dialog");
+    expect(exportar).toHaveBeenCalled();
     expect(borrarFotos).not.toHaveBeenCalled();
   });
 
-  it("con la casilla y la confirmación borra las fotos después de exportar", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("con la casilla y la confirmación en la ventana borra las fotos después de exportar", async () => {
     const borrarFotos = vi.fn().mockResolvedValue({ borrados: 1 });
     const exportar = vi.fn().mockResolvedValue(resultado);
     montar(clienteFalso({ exportar, borrarFotos, evaluacion: vi.fn().mockResolvedValue(lista()) }));
     await userEvent.click(screen.getByLabelText(/Borrar las fotos de esta evaluación/));
     await userEvent.click(boton());
+    expect(await screen.findByRole("dialog")).toHaveTextContent("se borrarán las fotos");
+    await userEvent.click(screen.getByRole("button", { name: "Sí, exportar y borrar" }));
     await waitFor(() => expect(borrarFotos).toHaveBeenCalledWith("ev1"));
     expect(exportar).toHaveBeenCalled();
   });
 
-  it("si no confirma, no exporta ni borra", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("si cancela la ventana, no exporta ni borra", async () => {
     const exportar = vi.fn();
     montar(clienteFalso({ exportar }));
     await userEvent.click(screen.getByLabelText(/Borrar las fotos de esta evaluación/));
     await userEvent.click(boton());
+    await userEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
     expect(exportar).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("si el Excel sale pero las fotos no se borran, la ventana lo dice", async () => {
+    const borrarFotos = vi.fn().mockRejectedValue(new ErrorApi(500, "x", "Sin permiso."));
+    const exportar = vi.fn().mockResolvedValue(resultado);
+    montar(clienteFalso({ exportar, borrarFotos, evaluacion: vi.fn().mockResolvedValue(lista()) }));
+    await userEvent.click(screen.getByLabelText(/Borrar las fotos de esta evaluación/));
+    await userEvent.click(boton());
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, exportar y borrar" }));
+    const popup = await screen.findByRole("dialog");
+    expect(popup).toHaveTextContent("Excel exportado");
+    expect(popup).toHaveTextContent("Las fotos no se pudieron borrar: Sin permiso.");
   });
 });
 

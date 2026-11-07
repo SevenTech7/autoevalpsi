@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Cliente } from "../api/cliente";
 import type { Evaluacion, FilaGuardada, PaginaGuardada, Plantilla } from "../api/tipos";
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
+import { hayDialogoAbierto, useDialogos } from "../componentes/Dialogos";
 import { Exportar } from "../componentes/Exportar";
 import { fechaLegible } from "../componentes/TablaEvaluaciones";
 import { mensajeDe, useApi, useCarga } from "../hooks";
@@ -454,7 +455,7 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
   const [activa, setActiva] = useState<number | null>(() => (filas.find((f) => !f.revisada) ?? filas[0])?.item ?? null);
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { avisar, confirmar } = useDialogos();
   const [cabeceraSinConfirmar, setCabeceraSinConfirmar] = useState(false);
 
   useEffect(() => {
@@ -477,19 +478,18 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
   const guardar = useCallback(
     async (cambio: Parameters<Cliente["corregirEvaluacion"]>[1]) => {
       setGuardando(true);
-      setError(null);
       try {
         const nueva = await api.corregirEvaluacion(evaluacion.id, cambio);
         alActualizar(nueva);
         return nueva;
       } catch (e) {
-        setError(mensajeDe(e));
+        void avisar({ tipo: "error", titulo: "No se pudo guardar", mensaje: mensajeDe(e) });
         return null;
       } finally {
         setGuardando(false);
       }
     },
-    [api, evaluacion.id, alActualizar],
+    [api, evaluacion.id, alActualizar, avisar],
   );
 
   const confirmarFila = useCallback(
@@ -523,9 +523,11 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
         ? `${conAvisos} de ellas tienen avisos (marca dudosa, doble o sin marca). `
         : "";
     if (
-      !window.confirm(
-        `Vas a confirmar ${porConfirmar.length} fila(s) sin revisarlas una por una. ${aviso}¿Confirmar todas?`,
-      )
+      !(await confirmar({
+        titulo: "Confirmar todas las filas",
+        mensaje: `Vas a confirmar ${porConfirmar.length} fila(s) sin revisarlas una por una. ${aviso}¿Confirmar todas?`,
+        confirmar: "Sí, confirmar todas",
+      }))
     ) {
       return;
     }
@@ -536,14 +538,14 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
       }),
     });
     if (nueva) setBorradores({});
-  }, [filas, borradores, guardar]);
+  }, [filas, borradores, guardar, confirmar]);
 
   // Teclado: ↑/↓ cambian de fila, 1–9 eligen la opción, 0 «sin respuesta», Enter confirma.
   const tecla = useRef<(e: KeyboardEvent) => void>(() => undefined);
   tecla.current = (e) => {
     const destino = e.target as HTMLElement | null;
     if (destino && ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "SUMMARY"].includes(destino.tagName)) return;
-    if (e.ctrlKey || e.metaKey || e.altKey || activa === null || guardando) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || activa === null || guardando || hayDialogoAbierto()) return;
     const pos = visibles.findIndex((f) => f.item === activa);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -578,16 +580,16 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
 
   return (
     <div className="space-y-3">
-      <div className="sticky top-0 z-20 flex h-14 flex-wrap items-center gap-x-5 gap-y-0 overflow-hidden rounded-lg border border-slate-200 bg-white/95 px-3 shadow-sm">
-        <h2 className="truncate text-lg font-semibold">
+      <div className="sticky top-0 z-20 flex h-14 items-center gap-x-4 rounded-lg border border-slate-200 bg-white/95 px-3 shadow-sm">
+        <h2 className="min-w-0 shrink truncate text-lg font-semibold">
           {evaluacion.paciente || "Paciente sin nombre"}
           <span className="ml-2 text-base font-normal text-slate-600">{plantilla.nombre}</span>
         </h2>
-        <p role="status" className="text-base font-semibold">
+        <p role="status" className="shrink-0 whitespace-nowrap text-base font-semibold">
           {textoFaltan(pendientes)}
           {pendientes === 0 && evaluacion.cabecera_revisada ? " · Lista para exportar" : ""}
         </p>
-        <label className="flex items-center gap-2 text-base">
+        <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-base">
           <input
             type="checkbox"
             checked={soloPendientes}
@@ -598,7 +600,7 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
         </label>
         <Boton
           variante="suave"
-          className="px-3 py-1 text-sm"
+          className="shrink-0 whitespace-nowrap px-3 py-1 text-sm"
           disabled={guardando || (pendientes === 0 && Object.keys(borradores).length === 0)}
           onClick={() => void confirmarTodas()}
         >
@@ -607,12 +609,10 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
         <p className="hidden text-sm text-slate-600 2xl:block">
           Teclado: ↑ ↓ fila · 1, 2, 3… respuesta · 0 sin respuesta · Enter confirma
         </p>
-        <a className="ml-auto text-acento underline" href={enlace.evaluaciones}>
+        <a className="ml-auto shrink-0 whitespace-nowrap text-acento underline" href={enlace.evaluaciones}>
           Volver a la lista
         </a>
       </div>
-
-      {error && <Aviso>{error}</Aviso>}
 
       <Cabecera
         key={`${evaluacion.id}-${evaluacion.paciente}-${JSON.stringify(evaluacion.cabecera)}`}
@@ -635,13 +635,14 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
               className="px-3 py-0.5 text-sm"
               disabled={guardando}
               onClick={() => {
-                if (
-                  window.confirm(
-                    "¿Descartar esta foto? Se borra la foto y lo leído de ella, para que puedas volver a sacarla.",
-                  )
-                ) {
-                  void alDescartar(pagina.pagina);
-                }
+                void confirmar({
+                  titulo: "Descartar esta foto",
+                  mensaje: "Se borra la foto y lo leído de ella, para que puedas volver a sacarla.",
+                  confirmar: "Sí, descartar",
+                  peligro: true,
+                }).then((acepto) => {
+                  if (acepto) void alDescartar(pagina.pagina);
+                });
               }}
             >
               Descartar esta foto
@@ -721,7 +722,7 @@ export function PantallaRevision({ id }: { id: string }) {
     return { ev, plantilla: await api.plantilla(ev.plantilla_id, ev.plantilla_version) };
   });
   const [actual, setActual] = useState<Evaluacion | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { avisar } = useDialogos();
 
   useEffect(() => setActual(null), [id]);
   const evaluacion = actual ?? carga.datos?.ev ?? null;
@@ -733,10 +734,10 @@ export function PantallaRevision({ id }: { id: string }) {
         if (r.evaluacion_eliminada) window.location.hash = enlace.evaluaciones;
         else setActual(await api.evaluacion(id));
       } catch (e) {
-        setError(mensajeDe(e));
+        void avisar({ tipo: "error", titulo: "No se pudo descartar", mensaje: mensajeDe(e) });
       }
     },
-    [api, id],
+    [api, id, avisar],
   );
 
   if (carga.error && !evaluacion) {
@@ -754,7 +755,6 @@ export function PantallaRevision({ id }: { id: string }) {
   if (!evaluacion || !carga.datos) return <p className="text-slate-600">Cargando…</p>;
   return (
     <>
-      {error && <Aviso>{error}</Aviso>}
       <Revision
         key={evaluacion.id}
         api={api}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { InicioVinculo } from "../api/tipos";
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
+import { useDialogos } from "../componentes/Dialogos";
 import { TablaEvaluaciones } from "../componentes/TablaEvaluaciones";
 import { mensajeDe, useApi, useCarga } from "../hooks";
 import { enlace } from "../ruta";
@@ -19,36 +20,37 @@ function urlQr(svg: string): string {
 /** Vincular el celular (AP-D2): un código de un solo uso que vence en 5 minutos. */
 export function TarjetaCelular({ sondeoMs = 2000 }: { sondeoMs?: number }) {
   const api = useApi();
+  const { avisar, confirmar } = useDialogos();
   const vinculo = useCarga(() => api.vinculo());
   const [sesion, setSesion] = useState<InicioVinculo | null>(null);
   const [restante, setRestante] = useState(0);
   const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [recienVinculado, setRecienVinculado] = useState(false);
   const creadoPrevio = useRef<string | null>(null);
 
   const iniciar = useCallback(
     async (ip?: string) => {
       setOcupado(true);
-      setError(null);
-      setRecienVinculado(false);
       try {
         if (!sesion) creadoPrevio.current = (await api.vinculo()).creado;
         const nueva = await api.iniciarVinculo(ip);
         if (!nueva.qr_svg) {
           setSesion(null);
-          setError(nueva.mensaje || "No se pudo preparar el código.");
+          void avisar({
+            tipo: "error",
+            titulo: "No se pudo preparar el código",
+            mensaje: nueva.mensaje || "No se pudo preparar el código.",
+          });
           return;
         }
         setSesion(nueva);
         setRestante(Math.ceil(nueva.vence_en));
       } catch (e) {
-        setError(mensajeDe(e));
+        void avisar({ tipo: "error", titulo: "No se pudo preparar el código", mensaje: mensajeDe(e) });
       } finally {
         setOcupado(false);
       }
     },
-    [api, sesion],
+    [api, sesion, avisar],
   );
 
   // Cuenta regresiva del código.
@@ -68,25 +70,32 @@ export function TarjetaCelular({ sondeoMs = 2000 }: { sondeoMs?: number }) {
         .then((v) => {
           if (v.vinculado && v.creado !== creadoPrevio.current) {
             setSesion(null);
-            setRecienVinculado(true);
             vinculo.recargar();
+            void avisar({
+              tipo: "ok",
+              titulo: "Celular vinculado",
+              mensaje: "¡Listo! El celular quedó vinculado.",
+            });
           }
         })
         .catch(() => undefined); // un fallo del sondeo no molesta: el siguiente lo reintenta
     }, sondeoMs);
     return () => clearInterval(t);
-  }, [hayCodigo, api, sondeoMs, vinculo]);
+  }, [hayCodigo, api, sondeoMs, vinculo, avisar]);
 
   async function desvincular() {
-    if (!window.confirm("¿Desvincular el celular? Para enviar fotos tendrás que vincularlo de nuevo.")) {
-      return;
-    }
+    const acepto = await confirmar({
+      titulo: "Desvincular el celular",
+      mensaje: "Para enviar fotos tendrás que vincularlo de nuevo.",
+      confirmar: "Sí, desvincular",
+      peligro: true,
+    });
+    if (!acepto) return;
     try {
       await api.desvincular();
-      setRecienVinculado(false);
       vinculo.recargar();
     } catch (e) {
-      setError(mensajeDe(e));
+      void avisar({ tipo: "error", titulo: "No se pudo desvincular", mensaje: mensajeDe(e) });
     }
   }
 
@@ -94,9 +103,6 @@ export function TarjetaCelular({ sondeoMs = 2000 }: { sondeoMs?: number }) {
   return (
     <Tarjeta titulo="Celular">
       <div className="space-y-4">
-        {error && <Aviso>{error}</Aviso>}
-        {recienVinculado && <Aviso tipo="ok">¡Listo! El celular quedó vinculado.</Aviso>}
-
         {sesion?.qr_svg && (
           <div className="flex flex-wrap items-start gap-6">
             {restante > 0 ? (
