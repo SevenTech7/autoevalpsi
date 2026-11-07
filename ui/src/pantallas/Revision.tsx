@@ -183,11 +183,13 @@ function Cabecera({ api, evaluacion, campos, guardando, alConfirmar, alCambiarEs
   const [valores, setValores] = useState<Record<string, string>>(evaluacion.cabecera);
   const cambiada =
     paciente !== evaluacion.paciente || campos.some((c) => (valores[c] ?? "") !== (evaluacion.cabecera[c] ?? ""));
-  useEffect(() => {
-    alCambiarEstado(cambiada);
-    return () => alCambiarEstado(false);
-  }, [cambiada, alCambiarEstado]);
+  useEffect(() => alCambiarEstado(cambiada), [cambiada, alCambiarEstado]);
+  useEffect(() => () => alCambiarEstado(false), [alCambiarEstado]); // al desmontarse
   const confirmada = evaluacion.cabecera_revisada && !cambiada;
+  // Abierta al entrar si falta confirmarla. Después solo la abre o la cierra la usuaria: lo que
+  // escriba no debe plegarla ni desplegarla (antes `open` seguía a «confirmada» y se cerraba sola
+  // en mitad de la edición cuando lo escrito volvía a ser igual a lo leído).
+  const [abierta, setAbierta] = useState(!evaluacion.cabecera_revisada);
 
   const campo = (clave: string, etiqueta: string, valor: string, poner: (v: string) => void) => (
     <div key={clave} className="min-w-0">
@@ -211,7 +213,11 @@ function Cabecera({ api, evaluacion, campos, guardando, alConfirmar, alCambiarEs
   );
 
   return (
-    <details open={!confirmada} className="rounded-lg border border-slate-200 bg-white shadow-sm">
+    <details
+      open={abierta}
+      onToggle={(e) => setAbierta(e.currentTarget.open)}
+      className="rounded-lg border border-slate-200 bg-white shadow-sm"
+    >
       <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-3 py-2 text-base font-semibold">
         Datos de la hoja
         {confirmada ? (
@@ -615,7 +621,7 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
       </div>
 
       <Cabecera
-        key={`${evaluacion.id}-${evaluacion.paciente}-${JSON.stringify(evaluacion.cabecera)}`}
+        key={`${evaluacion.id}-${evaluacion.cabecera_revisada}-${evaluacion.paciente}-${JSON.stringify(evaluacion.cabecera)}`}
         api={api}
         evaluacion={evaluacion}
         campos={campos}
@@ -652,8 +658,8 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
           {tramos.length === 0 ? (
             <p className="px-3 pb-3 text-slate-600">No queda nada por revisar en esta hoja.</p>
           ) : (
-            tramos.map((tramo, n) => (
-              <table key={n} className="w-full border-collapse text-[0.95rem]">
+            tramos.map((tramo) => (
+              <table key={tramo.filas[0]!.item} className="w-full border-collapse text-[0.95rem]">
                 <thead>
                   <tr>
                     <th scope="col" className={`${ENCABEZADO} pl-2 text-left`}>
