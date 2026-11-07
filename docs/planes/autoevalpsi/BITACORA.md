@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5 y OC-R0 hechas. OC-D1 lista para decidir (propuesta a). CO-R6 sigue bloqueada (CO-D1, CO-D2: decisión humana). Siguiente: DI-R0 (no depende del núcleo), o PL-R1 si llegan insumos/PL-D2. Pendiente humano: P-5 (repo GitHub). |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5 y OC-R0 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). OC-D1 lista para decidir (propuesta a). CO-R6 bloqueada (CO-D1, CO-D2). Sin fase ejecutable sin decisión o insumo: se necesita CO-D1/CO-D2, OC-D1, PL-D2 + fotos (PL-R0/R1) o B-2 (BS-R2). Pendiente humano: P-5. |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 8 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0) |
+| Fases hechas | 8 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0); DI-R0 parcial |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -80,7 +80,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | 2 | [CO-R0](PLAN-CORE.md#co-r0--esquema-y-cargador-de-plantillas) | CO-04, CO-05 | `fase-co-0` | BS-R0, CO-D3 | S | hecha |
 | 3 | [BS-R1](PLAN-BASE.md#bs-r1--formulario-sintético-y-generador-de-fotos-de-prueba) | BS-02 | `fase-bs-1` | CO-R0 | M | hecha |
 | 4 | [OC-R0](PLAN-OCR.md#oc-r0--prueba-de-viabilidad-de-pp-ocrv6-en-onnx) | OC-01, OC-03, OC-05 (medición) | `fase-oc-0` | BS-R0 | M | hecha |
-| 5 | [DI-R0](PLAN-DIST.md#di-r0--prueba-temprana-de-empaquetado-spike) | DI-01 | `fase-di-0` | BS-R0 | M | pendiente |
+| 5 | [DI-R0](PLAN-DIST.md#di-r0--prueba-temprana-de-empaquetado-spike) | DI-01 | `fase-di-0` | BS-R0 | M | parcial (falta Windows) |
 | 6 | [BS-R2](PLAN-BASE.md#bs-r2--ci-de-tests-en-github-actions) | — | `fase-bs-2` | BS-R0, P-5 | S | pendiente |
 | 7 | [PL-R0](PLAN-PLANTILLAS.md#pl-r0--recepción-de-muestras-y-lista-priorizada-fase-0) | PL-01, PL-05 | `fase-pl-0` | insumos de la usuaria | S | pendiente |
 
@@ -222,3 +222,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | CO-R3 | `fase-co-3` → `main` | `core/registro.py`: `registrar` (hoja enderezada → giro 0°/180° → ORB con coincidencias locales + RANSAC → ajuste afín ECC con líneas de la tabla → una sola deformación) y métricas de calidad CO-09 con bandera `registro_dudoso`; `cargar_referencia`. Error medio de esquinas de celdas 0,3–1,6 px (a 300 dpi) en las 6 fotos; formulario ajeno y hoja en blanco quedan marcados. | 87 → 102 passed (15 nuevos); ruff check limpio | Sin contrato público afectado (API interna nueva). Hallazgo: ratio test global + cobertura por cuadrantes dejaban 2 fotos a 16–26 px sin bandera → coincidencias locales y cobertura por área de casco. Umbrales a recalibrar con fotos reales en CO-R8. Siguiente: CO-R5. |
 | 2026-11-06 | CO-R5 | `fase-co-5` → `main` | `core/casillas.py`: `leer_casillas` (tinta por celda completa menos lo impreso de la referencia, fondo adaptativo, decisión CO-02) con banderas `sin_marca`, `doble_marca`, `contraste_bajo`, `registro_dudoso`; `ResultadoFila`/`ResultadoPagina`. Lote base y lote de otra semilla (12 fotos): 0 errores silenciosos; tachón siempre amarillo. | 102 → 126 passed (24 nuevos); ruff limpio | **Contrato menor:** `omr.tinta_minima` por defecto 0,15 → 0,03 (esquema igual). Desviación: sin margen interior (un círculo grande sobre el borde se leía en la vecina sin bandera). Hallazgo CO-R3: 1 de 18 fotos sintéticas (semilla 777, foto_09) registra con ~62 px de error, bien marcada `registro_dudoso`; revisar en CO-R8. CO-R6 sigue bloqueada por CO-D1/CO-D2. Siguiente: OC-R0, DI-R0 o PL-R1. |
 | 2026-11-06 | OC-R0 | `fase-oc-0` → `main` | Spike `tools/spike_ocr/`: PP-OCRv6 medium det+rec en ONNX (Apache-2.0, 62+77 MB, SHA-256 verificados) corre con onnxruntime CPU. Diccionario con todo el español salvo `¡`. Impreso 4/4 líneas, cursiva de fuente 12/12 detectadas, 1 error. Carga ≈ 2 s; detección 0,2–0,3 s por franja; reconocimiento 0,13–0,23 s/línea. | 126 → 126 passed (spike sin tests; ruff limpio) | Sin contrato público afectado. **No hay manuscrito real aún:** el acierto con su letra lo mide OC-R3. OC-D1: propuesta a). Siguiente: DI-R0. |
+| 2026-11-06 | DI-R0 (parcial) | `fase-di-0` → `main` | Spike `tools/spike_empaquetado/` (cv2 + onnxruntime con ONNX mínimo + uvicorn en hilo + pywebview) empaquetado con PyInstaller `onedir` **en Linux/Docker**: 261 MB, arranque en frío ≈ 1,05 s, 0 `hiddenimports`, 0 avisos. | 126 → 126 passed (spike sin tests; ruff limpio) | Sin contrato público afectado. DI-08: Docker no puede producir el .exe; falta correrlo en Windows (CI tras B-2, o a mano) y pasar Defender/SmartScreen: **no verificado**. Siguiente: ninguna fase libre; ver §1. |
