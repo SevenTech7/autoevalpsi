@@ -2,16 +2,7 @@ import { useState } from "react";
 
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
 import { mensajeDe, useApi, useCarga } from "../hooks";
-
-/** Lo que el escritorio (pywebview) expone en `window.pywebview.api` (app/escritorio.py: Puente). */
-interface PuenteEscritorio {
-  elegir_carpeta_exportacion: () => Promise<string | null>;
-}
-
-function puente(): PuenteEscritorio | null {
-  const api = (window as unknown as { pywebview?: { api?: Partial<PuenteEscritorio> } }).pywebview?.api;
-  return api?.elegir_carpeta_exportacion ? (api as PuenteEscritorio) : null;
-}
+import { elegirCarpetaNativa } from "../puente";
 
 function TarjetaCarpeta() {
   const api = useApi();
@@ -19,7 +10,7 @@ function TarjetaCarpeta() {
   const [escrita, setEscrita] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [guardada, setGuardada] = useState(false);
-  const nativo = puente();
+  const nativo = elegirCarpetaNativa();
 
   async function accion(hacer: () => Promise<unknown>) {
     setError(null);
@@ -34,11 +25,11 @@ function TarjetaCarpeta() {
   }
 
   /** El diálogo nativo guarda la carpeta por su cuenta (Puente); cancelar no cambia nada. */
-  async function elegirConElDialogo(escritorio: PuenteEscritorio) {
+  async function elegirConElDialogo(elegir: () => Promise<string | null>) {
     setError(null);
     setGuardada(false);
     try {
-      if (await escritorio.elegir_carpeta_exportacion()) {
+      if (await elegir()) {
         setGuardada(true);
         config.recargar();
       }

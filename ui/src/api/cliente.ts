@@ -5,6 +5,7 @@ import type {
   Evaluacion,
   InicioVinculo,
   Plantilla,
+  ResultadoExportacion,
   ResumenEvaluacion,
   ResumenPlantilla,
   Salud,
@@ -91,6 +92,8 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
       `${base}/api/evaluaciones/${id(evaluacion)}/recortes/${item}?token=${id(token)}`,
     urlRecorteCabecera: (evaluacion: string, campo: string) =>
       `${base}/api/evaluaciones/${id(evaluacion)}/cabecera/${id(campo)}?token=${id(token)}`,
+    exportar: (evaluacion: string, iniciales = false) =>
+      pedir<ResultadoExportacion>("POST", `/api/evaluaciones/${id(evaluacion)}/exportar`, { iniciales }),
     borrarFotos: (evaluacion: string, incluirRecortes = false) =>
       pedir<{ borrados: number }>("POST", `/api/evaluaciones/${id(evaluacion)}/borrar_fotos`, {
         incluir_recortes: incluirRecortes,

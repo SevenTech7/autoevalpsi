@@ -12,7 +12,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 | AP-R3b | Vínculo del celular (AP-D2) | hecha (A32 real sin verificar) |
 | AP-R4 | Interfaz React base | hecha (ventana real sin verificar) |
 | AP-R5 | Pantalla de revisión | hecha (uso real sin verificar) |
-| AP-R6 | Exportación desde la interfaz | pendiente |
+| AP-R6 | Exportación desde la interfaz | hecha (ventana real sin verificar) |
 | AP-R7 | Prueba de aceptación con la usuaria (gate de Fase 3) | pendiente (humano) |
 
 ---
@@ -175,6 +175,20 @@ pipeline desde la interfaz). Prefijo `AP`.
 ## AP-R6 — Exportación desde la interfaz
 
 - **Requiere:** AP-R5, CO-R6.
+- **Estado:** hecha (2026-11-07). `ui/src/componentes/Exportar.tsx` (tarjeta «Exportar a Excel» al
+  pie de la revisión; 14 tests vitest en `ui/src/pruebas/exportar.test.tsx`), `ui/src/puente.ts`
+  (acceso compartido a `window.pywebview.api`) y `Puente.abrir_carpeta` en `app/escritorio.py`.
+  El botón se habilita solo con filas y cabecera revisadas **y** sin cambios por confirmar (borradores
+  de fila o cabecera editada); si no, dice qué falta. La primera vez (sin carpeta guardada) abre el
+  diálogo nativo y, si cancela, no exporta; fuera de la ventana usa la carpeta por defecto. Errores
+  del servidor (409 `archivo_bloqueado` de CO-08, `revision_pendiente`) se muestran tal cual y se
+  puede reintentar. Al terminar dice dónde quedó y ofrece «Abrir la carpeta». Casillas: iniciales
+  en el nombre (CO-D2) y «borrar las fotos de esta evaluación después de exportar» (AP-D1: apagada
+  por defecto, con confirmación). **Contrato ampliado (aditivo):** la respuesta de `POST
+  /api/evaluaciones/{id}/exportar` incluye `carpeta`. `abrir_carpeta` solo abre carpetas que
+  existen (nunca ejecuta un archivo). **Desviación:** los recortes dentro del Excel (opción del
+  servidor) no se ofrecen en la interfaz. **No verificado:** Excel abierto en Windows de verdad,
+  el diálogo y el Explorador reales (WebView2).
 - **Esfuerzo:** S.
 - **Pasos:** botón exportar (habilitado solo con todo revisado), primera vez pide carpeta,
   mensaje claro si el consolidado está abierto (CO-08), abrir la carpeta al terminar, borrado de

@@ -86,6 +86,12 @@ export interface Configuracion {
   carpeta_exportacion_efectiva: string;
 }
 
+export interface ResultadoExportacion {
+  carpeta: string;
+  evaluacion: string;
+  consolidado: string;
+}
+
 export interface ResumenPlantilla {
   id: string;
   nombre: string;
