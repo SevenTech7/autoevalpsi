@@ -1,0 +1,10 @@
+.git
+.venv
+muestras
+plantillas
+modelos
+*.onnx
+.datos
+__pycache__
+.pytest_cache
+.ruff_cache

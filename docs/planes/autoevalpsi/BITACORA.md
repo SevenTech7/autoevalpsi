@@ -16,7 +16,7 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0 hecha. Siguiente: CO-R0 (esquema y cargador de plantillas) en la rama `fase-co-0`. Pendiente humano: P-5 (repo GitHub). |
+| Siguiente acción | BS-R0 hecha (entorno en Docker). Siguiente: CO-R0 (esquema y cargador de plantillas) en la rama `fase-co-0`. Pendiente humano: P-5 (repo GitHub). |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
 | Fases hechas | 1 de 38 (BS-R0) |
@@ -191,8 +191,10 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 - **Máquina de desarrollo ≠ máquina objetivo.** Las latencias medidas aquí son aproximadas; las que
   cuentan son las del Vivobook Flip (Ryzen 7) de la usuaria (OC-07).
 - **Herramientas (verificado 2026-11-06):** Python 3.12.0, git 2.42, gh 2.32 disponibles; **uv y
-  Node no instalados** (uv 0.13.7 instalado el mismo día con `pip install --user uv`; no está en el
-  PATH: usar `python -m uv`. Node sigue sin instalar).
+  Node no instalados, y no se instalan**: todo el entorno va en Docker Desktop (regla del
+  responsable, 2026-11-06). AP-R4 (React) compilará con una imagen `node` en compose. Ojo con
+  `pywebview` (AP-R3): la ventana de escritorio no se puede ver desde un contenedor; se prueba la
+  lógica en Docker y la ventana real queda como verificación humana.
 - **Shell:** Windows con PowerShell 5.1 y Git Bash; en PowerShell no hay `&&`.
 - **Datos que nunca van a git:** `muestras/`, `plantillas/` reales, `modelos/`, `*.onnx`, BD y fotos
   de `%LOCALAPPDATA%\AutoEvalPsi`. Revisar `git status` antes de cada commit.
@@ -212,3 +214,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | — (creación) | sin repo · sin commit | Bitácora y 7 planes creados a partir de `plan.md` | — | No cambia código. Aprobadas B-1 (`main`), BS-D1 (uv), CO-D3 (`tablas[]`); modo silencioso. Siguiente: Ola 0 (P-1, P-4). |
 | 2026-11-06 | Ola 0 (P-1, P-3, P-4) | `main` · commit inicial | Repo creado; `plan.md`, planes, `.gitignore` mínimo y `CLAUDE.md` commiteados. Cierra BS-05. | — (sin suite aún) | No cambia ninguna fase de código. Aviso: la identidad global de git es el marcador «Tu Nombre / tucorreo@example.com»; el commit salió con ella. Corregir con `git config --global user.name/user.email` y, si se quiere, reescribir el commit inicial. Pendiente humano: P-5 (repo GitHub) y uv. |
 | 2026-11-06 | BS-R0 | `fase-bs-0` → `main` | `pyproject.toml` (Py 3.12, layout `src/`, extras `app`/`ocr`, grupo `dev`), paquetes vacíos, `cli --version`, test de frontera de `core` (con test negativo), README con entorno, `uv.lock`. | — → 3 passed; ruff limpio | uv no está en el PATH: se usa `python -m uv`. Siguiente: CO-R0. |
+| 2026-11-06 | BS-R0 (corrección) | `main` | Revertida la instalación de uv en el equipo (`pip uninstall uv`, borradas la caché de uv en `%LOCALAPPDATA%` y `.venv`). Añadidos `Dockerfile`, `docker-compose.yml`, `.dockerignore`; README y CLAUDE.md reescritos. | 3 passed y ruff limpio, dentro de Docker | Regla: todo en Docker Desktop, nada en la máquina ni variables globales. BS-D1 sigue siendo uv, pero dentro de la imagen. |

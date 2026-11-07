@@ -40,3 +40,7 @@ addopts = "-m 'not real and not lento'"
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Los bind-mounts de Docker Desktop marcan todo como ejecutable; EXE* daría falsos positivos.
+extend-ignore = ["EXE001", "EXE002"]

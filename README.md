@@ -6,15 +6,17 @@ Producto y decisiones: [plan.md](plan.md). Estado del trabajo:
 
 ## Entorno (desde cero)
 
-Requiere Python 3.12 y [uv](https://docs.astral.sh/uv/) (`python -m pip install --user uv`;
-si `uv` no queda en el PATH, usar `python -m uv`).
+Todo corre en **Docker Desktop**; no se instala nada en el equipo ni se tocan variables globales.
 
 ```
-uv sync --all-extras      # crea .venv con dependencias núcleo, app, ocr y dev
-uv run pytest             # suite rápida (excluye los marcadores real y lento)
-uv run ruff check .
-uv run autoevalpsi --version
+docker compose build
+docker compose run --rm dev pytest                 # suite rápida (excluye real y lento)
+docker compose run --rm dev ruff check .
+docker compose run --rm dev autoevalpsi --version
+docker compose run --rm dev uv add <paquete>       # cambia dependencias y uv.lock
 ```
+
+El entorno virtual y la caché de uv viven en volúmenes de Docker, no en la carpeta del proyecto.
 
 ## Reglas
 

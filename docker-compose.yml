@@ -1,0 +1,12 @@
+# Uso: docker compose run --rm dev <comando>   (p. ej. pytest, ruff check ., autoevalpsi --version)
+services:
+  dev:
+    build: .
+    working_dir: /app
+    volumes:
+      - .:/app
+      - venv:/opt/venv
+      - uvcache:/opt/uv-cache
+volumes:
+  venv:
+  uvcache:

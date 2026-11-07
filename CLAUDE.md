@@ -13,4 +13,6 @@ Reglas fijas:
 - Nunca decidir en nombre del responsable (ver §4 de la bitácora).
 - Sin tareas automáticas en los equipos (cron, Programador de tareas, autoarranque). Los
   workflows de GitHub Actions están permitidos, sin `schedule:`.
+- Todo en Docker Desktop: no instalar nada en la máquina del usuario (ni `pip --user`, uv, Node,
+  venv locales) ni tocar variables globales. Comandos: `docker compose run --rm dev <cmd>`.
 - Nunca commitear `muestras/`, `plantillas/` reales, `modelos/`, `*.onnx`, BD ni fotos.
