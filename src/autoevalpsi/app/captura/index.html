@@ -25,6 +25,9 @@
   #estado.mal { background: #fee2e2; color: var(--rojo); }
   #estado ul { margin: .5rem 0 0; padding-left: 1.2rem; }
   #paso { font-weight: 700; margin: 1rem 0 0; }
+  .aviso-vinculo { padding: 1rem; border-radius: 12px; background: #fef3c7; color: var(--ambar); }
+  .aviso-vinculo p { margin: .5rem 0 0; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -32,12 +35,18 @@
   <h1>Enviar foto del formulario</h1>
   <p class="guia">Pon la hoja plana, con buena luz y entera en la foto.</p>
 
-  <form id="formulario" method="post" action="/api/fotos?token={{TOKEN_URL}}" enctype="multipart/form-data"
-        data-token="{{TOKEN}}" data-paginas='{{PAGINAS}}'>
-    <input type="hidden" name="token" value="{{TOKEN}}">
+  <div id="sin-vinculo" hidden>
+    <div class="aviso-vinculo" role="alert">
+      <strong>Vincula este celular desde la laptop</strong>
+      <p id="sin-vinculo-detalle">En AutoEvalPsi, en la laptop, pulsa «Vincular celular» y lee el código QR con
+      la cámara de este celular.</p>
+    </div>
+  </div>
+
+  <form id="formulario" hidden>
     <label class="campo" for="plantilla">Formulario</label>
     <select id="plantilla" name="plantilla" required>
-      {{OPCIONES}}
+      <option value="" disabled selected>Cargando formularios…</option>
     </select>
 
     <label class="campo" for="paciente">Nombre de la persona (opcional)</label>
@@ -58,14 +67,28 @@
 <script>
 "use strict";
 const form = document.getElementById("formulario");
-const token = form.dataset.token;
-const paginas = JSON.parse(form.dataset.paginas);
+const sinVinculo = document.getElementById("sin-vinculo");
+const detalleVinculo = document.getElementById("sin-vinculo-detalle");
+const CLAVE = "autoevalpsi.dispositivo";
+let paginas = {};
 const selPlantilla = document.getElementById("plantilla");
 const progreso = document.getElementById("progreso");
 const estado = document.getElementById("estado");
 const paso = document.getElementById("paso");
 const botones = [document.getElementById("b-camara"), document.getElementById("b-galeria")];
 const entradas = [document.getElementById("f-camara"), document.getElementById("f-galeria")];
+
+// La credencial de este celular (AP-D2). El almacenamiento puede fallar (modo privado): sin él
+// el celular no puede quedar vinculado y se avisa.
+function leerCredencial() {
+  try { return localStorage.getItem(CLAVE) || ""; } catch (e) { return ""; }
+}
+function guardarCredencial(valor) {
+  try {
+    if (valor) localStorage.setItem(CLAVE, valor); else localStorage.removeItem(CLAVE);
+    return true;
+  } catch (e) { return false; }
+}
 
 let evaluacion = null;   // solo se fija en formularios de varias hojas
 let pagina = 0;
@@ -113,30 +136,103 @@ function reiniciarFormulario() {
 
 selPlantilla.addEventListener("change", reiniciarFormulario);
 
+function pedir(metodo, url, cuerpo, alTerminar) {
+  const x = new XMLHttpRequest();
+  x.open(metodo, url);
+  const c = leerCredencial();
+  if (c) x.setRequestHeader("X-Dispositivo", c);
+  if (typeof cuerpo === "string") x.setRequestHeader("Content-Type", "application/json");
+  x.onload = () => alTerminar(x);
+  x.onerror = () => alTerminar(x);
+  x.send(cuerpo);
+  return x;
+}
+
+function mostrarSinVinculo(detalle) {
+  form.hidden = true;
+  sinVinculo.hidden = false;
+  if (detalle) detalleVinculo.textContent = detalle;
+}
+
+function mostrarFormulario(plantillas) {
+  sinVinculo.hidden = true;
+  form.hidden = false;
+  paginas = {};
+  selPlantilla.replaceChildren();
+  // `/api/plantillas` lista todas las versiones; se usa la más nueva de cada id
+  const ultimas = new Map();
+  for (const p of plantillas) {
+    const previa = ultimas.get(p.id);
+    if (!previa || p.version > previa.version) ultimas.set(p.id, p);
+  }
+  for (const p of ultimas.values()) {
+    const o = document.createElement("option");
+    o.value = p.id;
+    o.textContent = p.nombre;
+    selPlantilla.append(o);
+    paginas[p.id] = p.paginas;
+  }
+  if (!ultimas.size) {
+    const o = document.createElement("option");
+    o.value = ""; o.disabled = true; o.selected = true;
+    o.textContent = "Sin formularios instalados";
+    selPlantilla.append(o);
+  }
+  pasoActual();
+}
+
+function cargarFormularios() {
+  if (!leerCredencial()) return mostrarSinVinculo();
+  pedir("GET", "/api/plantillas", null, (x) => {
+    if (x.status === 200) return mostrarFormulario(JSON.parse(x.responseText));
+    if (x.status === 401 || x.status === 403) {
+      guardarCredencial("");
+      return mostrarSinVinculo("Este celular ya no está vinculado. Vuelve a vincularlo desde la laptop.");
+    }
+    mostrarSinVinculo("No hay conexión con la laptop. Revisa que el celular esté en el mismo WiFi y recarga la página.");
+  });
+}
+
+// El QR trae un código de un solo uso en la dirección: se canjea por la credencial y se borra de la barra.
+function vincular(codigo) {
+  const x = new XMLHttpRequest();
+  x.open("POST", "/api/vinculo");
+  x.setRequestHeader("Content-Type", "application/json");
+  x.onload = () => {
+    history.replaceState(null, "", location.pathname);
+    if (x.status !== 200) {
+      return mostrarSinVinculo(mensajeDe(x) + " En la laptop pulsa «Vincular celular» para ver un código nuevo.");
+    }
+    if (!guardarCredencial(JSON.parse(x.responseText).dispositivo)) {
+      return mostrarSinVinculo("Este navegador no deja guardar el vínculo. Abre la página fuera del modo privado.");
+    }
+    cargarFormularios();
+  };
+  x.onerror = () => mostrarSinVinculo(mensajeDe(x));
+  x.send(JSON.stringify({ codigo }));
+}
+
 function mensajeDe(xhr) {
   try {
     const d = JSON.parse(xhr.responseText).detail;
     if (d && d.mensaje) return d.mensaje;
   } catch (e) { /* respuesta que no es JSON */ }
   if (xhr.status === 0) return "No hay conexión con la laptop. Revisa que el celular esté en el mismo WiFi.";
-  if (xhr.status === 401) return "Este enlace ya no sirve. Vuelve a leer el código QR de la laptop.";
+  if (xhr.status === 401 || xhr.status === 403) return "Este celular ya no está vinculado. Vuelve a vincularlo desde la laptop.";
   return "No se pudo enviar la foto (error " + xhr.status + ").";
 }
 
 function seguirTrabajo(id, total, ultima) {
   const consulta = () => {
-    const x = new XMLHttpRequest();
-    x.open("GET", "/api/cola/" + encodeURIComponent(id) + "?token=" + encodeURIComponent(token));
-    x.onload = () => {
+    const x = pedir("GET", "/api/cola/" + encodeURIComponent(id), null, (x) => {
+      if (x.status === 0) return setTimeout(consulta, 3000);
       let t = null;
       try { t = JSON.parse(x.responseText); } catch (e) { /* se reintenta */ }
       if (!t || t.estado === "en_cola" || t.estado === "procesando") return setTimeout(consulta, 1500);
       if (t.estado === "error") return mostrar("mal", "No se pudo leer la foto", [t.mensaje || "Intenta tomarla de nuevo."]);
       if (!ultima) return;  // aún faltan hojas: el aviso de «sigue la hoja N» ya está en pantalla
       mostrar("ok", "Lista ✓ Ya puedes revisarla en la laptop.");
-    };
-    x.onerror = () => setTimeout(consulta, 3000);
-    x.send();
+    });
   };
   consulta();
 }
@@ -158,12 +254,17 @@ function enviar(archivo) {
   mostrar("aviso", "Enviando la foto…");
 
   const xhr = new XMLHttpRequest();
-  xhr.open("POST", "/api/fotos?token=" + encodeURIComponent(token));
+  xhr.open("POST", "/api/fotos");
+  xhr.setRequestHeader("X-Dispositivo", leerCredencial());
   xhr.upload.onprogress = (e) => { if (e.lengthComputable) progreso.value = (100 * e.loaded) / e.total; };
   xhr.onerror = () => { progreso.hidden = true; bloquear(false); mostrar("mal", mensajeDe(xhr)); };
   xhr.onload = () => {
     progreso.hidden = true;
     bloquear(false);
+    if (xhr.status === 401 || xhr.status === 403) {
+      guardarCredencial("");
+      return mostrarSinVinculo(mensajeDe(xhr));
+    }
     if (xhr.status !== 202) return mostrar("mal", mensajeDe(xhr));
     const r = JSON.parse(xhr.responseText);
     if (r.repetir) {
@@ -190,7 +291,8 @@ for (const e of entradas) {
     enviar(f);
   });
 }
-pasoActual();
+const codigo = new URLSearchParams(location.search).get("vinculo");
+if (codigo) vincular(codigo); else cargarFormularios();
 </script>
 </body>
 </html>

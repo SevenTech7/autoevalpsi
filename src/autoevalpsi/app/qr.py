@@ -1,7 +1,7 @@
 """AP-R2: URL de la página de captura y su código QR (segno).
 
-La URL lleva IP, puerto y el token del arranque (AP-03): `http://192.168.1.20:8765/captura?token=…`.
-El QR sale como SVG para incrustarlo en la interfaz sin archivos intermedios.
+La URL lleva IP, puerto y un **código de vínculo** de un solo uso (AP-D2):
+`http://192.168.1.20:8765/captura?vinculo=…`. El token de la app nunca sale de la laptop. El QR sale como SVG para incrustarlo en la interfaz sin archivos intermedios.
 """
 
 import io
@@ -12,8 +12,8 @@ import segno
 RUTA_CAPTURA = "/captura"
 
 
-def url_captura(ip: str, puerto: int, token: str) -> str:
-    return f"http://{ip}:{puerto}{RUTA_CAPTURA}?token={quote(token, safe='')}"
+def url_captura(ip: str, puerto: int, codigo: str) -> str:
+    return f"http://{ip}:{puerto}{RUTA_CAPTURA}?vinculo={quote(codigo, safe='')}"
 
 
 def qr_svg(url: str) -> str:

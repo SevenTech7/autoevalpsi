@@ -9,9 +9,10 @@ argumento o con `AUTOEVALPSI_HOME`):
 
 Las rutas guardadas en la base son **relativas a la raíz** (la carpeta se puede mover).
 
-**Contrato (esquema de BD, versión 1).** Se versiona con `PRAGMA user_version`; una base de una
+**Contrato (esquema de BD, versión 2).** Se versiona con `PRAGMA user_version`; una base de una
 versión posterior a `VERSION_ESQUEMA` se rechaza sin tocarla. Tablas: `evaluaciones`, `paginas`,
-`filas`, `correcciones` (AP-05: el piloto la lee), `configuracion`. Para cambiar el esquema se
+`filas`, `correcciones` (AP-05: el piloto la lee), `configuracion` y, desde la v2 (AP-D2),
+`dispositivos` (el único celular vinculado: solo la huella SHA-256 de su credencial). Para cambiar el esquema se
 agrega una migración al final de `_MIGRACIONES` y no se edita ninguna anterior.
 
 Lo **leído** (`opcion_leida`, `texto_ocr`) nunca se pisa; lo que la persona confirma va en
@@ -99,6 +100,15 @@ _MIGRACIONES: tuple[tuple[str, ...], ...] = (
             momento TEXT NOT NULL
         )""",
         "CREATE INDEX correcciones_evaluacion ON correcciones(evaluacion_id)",
+    ),
+    # v2 (AP-D2): un solo celular vinculado, reemplazable; `id = 1` lo impone el esquema
+    (
+        """CREATE TABLE dispositivos (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            huella TEXT NOT NULL,
+            creado TEXT NOT NULL,
+            ultimo_uso TEXT
+        )""",
     ),
 )
 VERSION_ESQUEMA = len(_MIGRACIONES)
@@ -189,6 +199,13 @@ class Correccion:
     antes: str | None
     despues: str | None
     momento: str
+
+
+@dataclass(frozen=True)
+class Dispositivo:
+    huella: str  # SHA-256 (hex) de la credencial; la credencial en sí no se guarda
+    creado: str
+    ultimo_uso: str | None
 
 
 def validar_id(id: str) -> str:
@@ -300,6 +317,36 @@ class BaseDatos:
                 " ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
                 (clave, valor),
             )
+
+    # --- celular vinculado (AP-D2) -------------------------------------------------------
+
+    def guardar_dispositivo(self, huella: str) -> None:
+        """Vincula un celular; si había otro, lo reemplaza (el anterior deja de servir)."""
+        with self._tx() as con:
+            con.execute(
+                "INSERT INTO dispositivos(id, huella, creado, ultimo_uso) VALUES (1, ?, ?, NULL)"
+                " ON CONFLICT(id) DO UPDATE SET huella = excluded.huella,"
+                " creado = excluded.creado, ultimo_uso = NULL",
+                (huella, self._momento()),
+            )
+
+    def leer_dispositivo(self) -> Dispositivo | None:
+        with self._candado:
+            r = self._con.execute(
+                "SELECT huella, creado, ultimo_uso FROM dispositivos WHERE id = 1"
+            ).fetchone()
+        return Dispositivo(r["huella"], r["creado"], r["ultimo_uso"]) if r else None
+
+    def registrar_uso_dispositivo(self, huella: str) -> None:
+        with self._tx() as con:
+            con.execute(
+                "UPDATE dispositivos SET ultimo_uso = ? WHERE id = 1 AND huella = ?",
+                (self._momento(), huella),
+            )
+
+    def borrar_dispositivo(self) -> bool:
+        with self._tx() as con:
+            return con.execute("DELETE FROM dispositivos WHERE id = 1").rowcount > 0
 
     # --- escritura ----------------------------------------------------------------------
 

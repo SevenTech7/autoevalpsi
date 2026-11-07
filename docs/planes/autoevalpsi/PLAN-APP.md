@@ -9,7 +9,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 | AP-R1 | Servidor FastAPI y cola de procesamiento | hecha |
 | AP-R2 | Página de captura en el celular, QR e IP local | hecha |
 | AP-R3 | Ventana de escritorio con pywebview | hecha (ventana real sin verificar) |
-| AP-R3b | Vínculo del celular (AP-D2) | pendiente |
+| AP-R3b | Vínculo del celular (AP-D2) | hecha (A32 real sin verificar) |
 | AP-R4 | Interfaz React base | pendiente (requiere Node, BS-03) |
 | AP-R5 | Pantalla de revisión | pendiente |
 | AP-R6 | Exportación desde la interfaz | pendiente |
@@ -94,6 +94,19 @@ pipeline desde la interfaz). Prefijo `AP`.
 ## AP-R3b — Vínculo del celular (AP-D2)
 
 - **Requiere:** AP-R3. **Esfuerzo:** M. **Toca dos contratos** (API HTTP v1 y esquema de BD → v2).
+- **Estado:** hecha (2026-11-07). `app/vinculo.py` (`Vinculos`), `Guardia` con tres niveles de acceso
+  (docstring de `servidor.py`), BD v2 (`dispositivos`), página `captura/index.html` reescrita;
+  tests en `tests/app/test_vinculo.py` y ajustes en `test_captura.py`, `test_servidor.py`,
+  `test_qr.py`. **Desviaciones:** (1) `GET /captura` es público y estático: el navegador no puede
+  mandar `X-Dispositivo` al abrir una página, y la página no contiene secretos; la lista de
+  formularios la pide con la credencial. (2) Se retiró `GET /api/captura/enlace`; lo reemplaza
+  `POST /api/vinculo/iniciar`. (3) Los códigos viven en memoria (reiniciar la app los anula; 5 min
+  de todos modos). (4) La credencial va solo en cabecera, no en la URL. (5) El «botón en la
+  ventana» que pide el código es de la interfaz: lo construye AP-R4 (pantalla de inicio), usando
+  `POST /api/vinculo/iniciar`, `GET /api/vinculo` y `DELETE /api/vinculo`. **Cierra** el riesgo de
+  `exportar` con `carpeta` libre de AP-R1: solo la laptop (loopback + token) lo alcanza. **Hallazgos:**
+  AP-R4 debe llamar a la API desde `127.0.0.1` (no desde la IP de la LAN, que no es loopback);
+  si el WebView llegara a pedir desde otra dirección, la guardia lo rechazaría con `solo_laptop`.
 - **Decidido (2026-11-07):** un solo celular, reemplazable; si cambia la IP se vuelve a vincular.
   La laptop no puede impedir que el celular hable con otra computadora; garantiza que solo acepta
   el suyo.
