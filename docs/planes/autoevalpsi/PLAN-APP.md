@@ -8,7 +8,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 | AP-R0 | Capa de datos local (SQLite + imágenes) | hecha |
 | AP-R1 | Servidor FastAPI y cola de procesamiento | hecha |
 | AP-R2 | Página de captura en el celular, QR e IP local | hecha |
-| AP-R3 | Ventana de escritorio con pywebview | pendiente |
+| AP-R3 | Ventana de escritorio con pywebview | hecha (ventana real sin verificar) |
 | AP-R4 | Interfaz React base | pendiente (requiere Node, BS-03) |
 | AP-R5 | Pantalla de revisión | pendiente |
 | AP-R6 | Exportación desde la interfaz | pendiente |
@@ -82,6 +82,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 ## AP-R3 — Ventana de escritorio con pywebview
 
 - **Requiere:** AP-R1.
+- **Estado:** hecha (2026-11-07). `app/escritorio.py` (`ServidorLocal`, `Puente`, `ejecutar`, `abrir_ventana`) y comando `autoevalpsi abrir [--puerto] [--ocr]`; 13 tests (`tests/app/test_escritorio.py`, `tests/test_cli.py`). Escucha solo en `127.0.0.1` y en las IP privadas (nunca `0.0.0.0`); `SO_EXCLUSIVEADDRUSE` en Windows. Instancia única por el puerto: `AplicacionYaAbierta` si `/api/salud` responde, `PuertoOcupado` si no. La carpeta de exportación elegida con el diálogo nativo se guarda en `configuracion` (`carpeta_exportacion`) para AP-R6. **No verificado:** la ventana real en Windows (WebView2) y el cuadro de error; la página en `/` no existe hasta AP-R4 (la ventana abre `/?token=…`). Las IP se enlazan al arrancar: si la laptop cambia de red, hay que reabrir la app.
 - **Esfuerzo:** S.
 - **Pasos:** `app/escritorio.py`: arranca uvicorn en un hilo, espera a que responda, abre la ventana
   (WebView2), cierra ordenadamente; instancia única y puerto ocupado (AP-08); diálogo nativo para
