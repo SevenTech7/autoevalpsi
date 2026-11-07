@@ -1,10 +1,11 @@
 import { useState } from "react";
 
 import type { Cliente } from "../api/cliente";
-import type { Evaluacion, ResultadoExportacion } from "../api/tipos";
+import type { Evaluacion } from "../api/tipos";
 import { mensajeDe } from "../hooks";
 import { abrirCarpetaNativa, elegirCarpetaNativa } from "../puente";
 import { Aviso, Boton } from "./base";
+import { useDialogos, type OpcionesAviso } from "./Dialogos";
 
 /** Por qué todavía no se puede exportar, en palabras de la usuaria; null si ya se puede. */
 export function motivoBloqueo(ev: Evaluacion, cambiosSinGuardar: boolean): string | null {
@@ -29,51 +30,60 @@ interface Props {
   alExportar: (ev: Evaluacion) => void;
 }
 
-/** Exportación (AP-R6): habilitada solo con todo revisado; la primera vez pide la carpeta. */
+/** Exportación (AP-R6): habilitada solo con todo revisado; la primera vez pide la carpeta.
+ * El resultado, los errores y las confirmaciones salen en ventanas emergentes. */
 export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Props) {
+  const { avisar, confirmar } = useDialogos();
   const [iniciales, setIniciales] = useState(false);
   const [borrarFotos, setBorrarFotos] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
-  const [hecho, setHecho] = useState<ResultadoExportacion | null>(null);
-  const abrir = abrirCarpetaNativa();
 
   const bloqueo = motivoBloqueo(evaluacion, cambiosSinGuardar);
   const yaExportada = evaluacion.estado === "exportada";
 
   async function exportar() {
-    if (borrarFotos && !window.confirm("Después de exportar se borrarán las fotos de esta evaluación. ¿Seguro?")) {
+    if (
+      borrarFotos &&
+      !(await confirmar({
+        mensaje: "Después de exportar se borrarán las fotos de esta evaluación. ¿Seguro?",
+        confirmar: "Sí, exportar y borrar",
+        peligro: true,
+      }))
+    ) {
       return;
     }
-    setError(null);
-    setAviso(null);
-    setHecho(null);
     setOcupado(true);
+    let resultado: OpcionesAviso;
     try {
       // Primera vez: la usuaria elige dónde guardar (si hay ventana de escritorio para el diálogo).
       const elegir = elegirCarpetaNativa();
-      if (elegir && !(await api.configuracion()).carpeta_exportacion) {
-        if (!(await elegir())) {
-          setAviso("No se exportó: elige la carpeta donde guardar los Excel.");
-          return;
+      if (elegir && !(await api.configuracion()).carpeta_exportacion && !(await elegir())) {
+        resultado = { tipo: "info", mensaje: "No se exportó: elige la carpeta donde guardar los Excel." };
+      } else {
+        const r = await api.exportar(evaluacion.id, iniciales);
+        let extra = "";
+        if (borrarFotos) {
+          try {
+            await api.borrarFotos(evaluacion.id);
+          } catch (e) {
+            extra = `\n\nLas fotos no se pudieron borrar: ${mensajeDe(e)}`;
+          }
         }
+        alExportar(await api.evaluacion(evaluacion.id));
+        const abrir = abrirCarpetaNativa();
+        resultado = {
+          tipo: "ok",
+          titulo: "Excel exportado",
+          mensaje: `Se guardó «${nombreDe(r.evaluacion)}» y se actualizó «${nombreDe(r.consolidado)}» en:\n${r.carpeta}${extra}`,
+          accion: abrir ? { texto: "Abrir la carpeta", alHacer: () => void abrir(r.carpeta) } : undefined,
+        };
       }
-      const resultado = await api.exportar(evaluacion.id, iniciales);
-      setHecho(resultado);
-      if (borrarFotos) {
-        try {
-          await api.borrarFotos(evaluacion.id);
-        } catch (e) {
-          setAviso(`El Excel quedó guardado, pero no se pudieron borrar las fotos: ${mensajeDe(e)}`);
-        }
-      }
-      alExportar(await api.evaluacion(evaluacion.id));
     } catch (e) {
-      setError(mensajeDe(e));
+      resultado = { tipo: "error", titulo: "No se pudo exportar", mensaje: mensajeDe(e) };
     } finally {
       setOcupado(false);
     }
+    await avisar(resultado);
   }
 
   return (
@@ -102,29 +112,15 @@ export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Pro
           {ocupado ? "Exportando…" : yaExportada ? "Exportar de nuevo" : "Exportar a Excel"}
         </Boton>
       </div>
-      <div className="mt-2 space-y-2 empty:hidden">
-        {bloqueo ? (
-          <p className="text-slate-700">{bloqueo} Cuando esté todo revisado podrás exportar.</p>
-        ) : (
-          yaExportada &&
-          !hecho && <Aviso tipo="info">Esta evaluación ya se exportó. Si exportas de nuevo, se reemplaza su Excel.</Aviso>
-        )}
-        {error && <Aviso>{error}</Aviso>}
-        {aviso && <Aviso tipo="info">{aviso}</Aviso>}
-        {hecho && (
-          <div className="flex flex-wrap items-center gap-3">
-            <Aviso tipo="ok">
-              Listo: se guardó «{nombreDe(hecho.evaluacion)}» y se actualizó «{nombreDe(hecho.consolidado)}» en{" "}
-              <strong className="break-all">{hecho.carpeta}</strong>.
-            </Aviso>
-            {abrir && (
-              <Boton variante="suave" onClick={() => void abrir(hecho.carpeta)}>
-                Abrir la carpeta
-              </Boton>
-            )}
+      {bloqueo ? (
+        <p className="mt-2 text-slate-700">{bloqueo} Cuando esté todo revisado podrás exportar.</p>
+      ) : (
+        yaExportada && (
+          <div className="mt-2">
+            <Aviso tipo="info">Esta evaluación ya se exportó. Si exportas de nuevo, se reemplaza su Excel.</Aviso>
           </div>
-        )}
-      </div>
+        )
+      )}
     </section>
   );
 }

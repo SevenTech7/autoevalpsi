@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 
 export function Tarjeta({
   titulo,
@@ -20,7 +20,7 @@ export function Tarjeta({
   );
 }
 
-type PropsBoton = ButtonHTMLAttributes<HTMLButtonElement> & { variante?: "principal" | "suave" };
+type PropsBoton = ComponentPropsWithRef<"button"> & { variante?: "principal" | "suave" };
 
 export function Boton({ variante = "principal", className = "", ...resto }: PropsBoton) {
   const estilo =

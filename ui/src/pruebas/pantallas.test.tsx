@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import { Configuracion } from "../pantallas/Configuracion";
 import { ListaEvaluaciones, filtrar } from "../pantallas/Evaluaciones";
 import { TarjetaCelular, TarjetaPendientes, formatearRestante } from "../pantallas/Inicio";
 import { clienteFalso, inicioVinculo, resumen } from "./datos";
+import { render } from "./render";
 
 function conApi(api: Cliente, hijo: ReactNode) {
   return render(<ContextoApi.Provider value={api}>{hijo}</ContextoApi.Provider>);
@@ -147,7 +148,7 @@ describe("vincular el celular", () => {
     });
     conApi(api, <TarjetaCelular />);
     await userEvent.click(await screen.findByRole("button", { name: "Vincular celular" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Conéctala al WiFi de la casa.");
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Conéctala al WiFi de la casa.");
     expect(screen.queryByAltText("Código QR para vincular el celular")).not.toBeInTheDocument();
   });
 
@@ -173,12 +174,14 @@ describe("vincular el celular", () => {
     conApi(clienteFalso({ vinculo, desvincular }), <TarjetaCelular />);
     const boton = await screen.findByRole("button", { name: "Desvincular" });
 
-    vi.spyOn(window, "confirm").mockReturnValueOnce(false);
     await userEvent.click(boton);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("tendrás que vincularlo de nuevo");
+    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(desvincular).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    vi.spyOn(window, "confirm").mockReturnValueOnce(true);
     await userEvent.click(boton);
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, desvincular" }));
     await waitFor(() => expect(desvincular).toHaveBeenCalledTimes(1));
   });
 });
@@ -200,7 +203,7 @@ describe("configuración", () => {
     await userEvent.type(screen.getByLabelText("Ruta de la carpeta"), "D:\\Excel");
     await userEvent.click(guardarBtn);
     await waitFor(() => expect(guardar).toHaveBeenCalledWith("D:\\Excel"));
-    expect(await screen.findByText(/la carpeta quedó guardada/)).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toHaveTextContent("la carpeta quedó guardada");
   });
 
   it("el error del servidor sobre la carpeta se muestra tal cual", async () => {
@@ -213,7 +216,7 @@ describe("configuración", () => {
     );
     await userEvent.type(await screen.findByLabelText("Ruta de la carpeta"), "x");
     await userEvent.click(screen.getByRole("button", { name: "Guardar" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo usar la carpeta.");
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("No se pudo usar la carpeta.");
   });
 
   it("con el puente del escritorio usa el diálogo nativo y recarga; cancelar no hace nada", async () => {
@@ -229,9 +232,11 @@ describe("configuración", () => {
     expect(screen.queryByLabelText("Ruta de la carpeta")).not.toBeInTheDocument();
     await userEvent.click(boton);
     expect(configuracion).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText(/quedó guardada/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await userEvent.click(boton);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("la carpeta quedó guardada");
+    await userEvent.click(screen.getByRole("button", { name: "Aceptar" }));
     expect(await screen.findByText("E:\\Mis Excel")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Volver a la carpeta por defecto" })).toBeInTheDocument();
   });
@@ -246,13 +251,14 @@ describe("configuración", () => {
     conApi(api, <Configuracion />);
     const boton = await screen.findByRole("button", { name: /Borrar las fotos/ });
 
-    vi.spyOn(window, "confirm").mockReturnValueOnce(false);
     await userEvent.click(boton);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Se borrarán las fotos de 1 evaluación");
+    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(borrarFotos).not.toHaveBeenCalled();
 
-    vi.spyOn(window, "confirm").mockReturnValueOnce(true);
     await userEvent.click(boton);
-    expect(await screen.findByText(/se borraron 2 foto\(s\) de 1 evaluación/)).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, borrar las fotos" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("se borraron 2 foto(s) de 1 evaluación");
     expect(borrarFotos).toHaveBeenCalledTimes(1);
     expect(borrarFotos).toHaveBeenCalledWith("c");
   });
@@ -264,7 +270,7 @@ describe("configuración", () => {
     });
     conApi(api, <Configuracion />);
     await userEvent.click(await screen.findByRole("button", { name: /Borrar las fotos/ }));
-    expect(await screen.findByText("Todavía no hay evaluaciones exportadas.")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Todavía no hay evaluaciones exportadas.");
   });
 });
 

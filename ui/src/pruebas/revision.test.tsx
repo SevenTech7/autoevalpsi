@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,7 @@ import type { Evaluacion } from "../api/tipos";
 import { ContextoApi } from "../hooks";
 import { PantallaRevision, Revision, describirBandera, textoFaltan } from "../pantallas/Revision";
 import { clienteFalso, evaluacion, fila, plantilla } from "./datos";
+import { render } from "./render";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -125,13 +126,24 @@ describe("pantalla de revisión", () => {
     const { alActualizar } = montar(clienteFalso({ corregirEvaluacion: corregir }));
     await userEvent.click(within(filaDe(2)).getByRole("radio", { name: /C/ }));
     await userEvent.click(within(filaDe(2)).getByRole("button", { name: "Confirmar fila 2" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Esa opción no es válida.");
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Esa opción no es válida.");
     expect(alActualizar).not.toHaveBeenCalled();
     expect(within(filaDe(2)).getByRole("radio", { name: /C/ })).toBeChecked();
   });
 });
 
 describe("teclado", () => {
+  it("con una ventana emergente abierta, las teclas de atrás no cambian nada", async () => {
+    montar(clienteFalso());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Confirmar todas las filas" }));
+    await screen.findByRole("dialog");
+    await user.keyboard("{ArrowUp}");
+    expect(filaDe(2)).toHaveAttribute("aria-current", "true"); // seguía en la 2
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("↑/↓ cambian de fila, un número elige la opción y Enter confirma y pasa a la siguiente por revisar", async () => {
     const ev = evaluacion();
     const corregir = vi.fn().mockResolvedValue(confirmada(ev, 2));
@@ -221,11 +233,12 @@ describe("confirmar todas las filas", () => {
   it("pide confirmación diciendo cuántas tienen avisos y manda todas las pendientes de una vez", async () => {
     const ev = evaluacion();
     const corregir = vi.fn().mockResolvedValue(confirmada(ev, 2, 3));
-    const confirmar = vi.spyOn(window, "confirm").mockReturnValue(true);
     const { alActualizar } = montar(clienteFalso({ corregirEvaluacion: corregir }), ev);
     await userEvent.click(boton());
-    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining("2 fila(s)"));
-    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining("2 de ellas tienen avisos"));
+    const popup = await screen.findByRole("dialog");
+    expect(popup).toHaveTextContent("2 fila(s)");
+    expect(popup).toHaveTextContent("2 de ellas tienen avisos");
+    await userEvent.click(screen.getByRole("button", { name: "Sí, confirmar todas" }));
     await waitFor(() => expect(alActualizar).toHaveBeenCalledTimes(1));
     expect(corregir).toHaveBeenCalledTimes(1);
     expect(corregir).toHaveBeenCalledWith("ev1", { filas: [{ item: 2 }, { item: 3 }] });
@@ -234,20 +247,21 @@ describe("confirmar todas las filas", () => {
   it("incluye lo que ya se había cambiado en las filas", async () => {
     const ev = evaluacion();
     const corregir = vi.fn().mockResolvedValue(confirmada(ev, 2, 3));
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     montar(clienteFalso({ corregirEvaluacion: corregir }), ev);
     await userEvent.click(within(filaDe(3)).getByRole("radio", { name: /B/ }));
     await userEvent.click(boton());
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, confirmar todas" }));
     await waitFor(() => expect(corregir).toHaveBeenCalled());
     expect(corregir).toHaveBeenCalledWith("ev1", { filas: [{ item: 2 }, { item: 3, opcion: "B" }] });
   });
 
   it("si no se confirma el cuadro, no se manda nada", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     const corregir = vi.fn();
     montar(clienteFalso({ corregirEvaluacion: corregir }));
     await userEvent.click(boton());
+    await userEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
     expect(corregir).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("sin filas por revisar queda deshabilitado", () => {
@@ -257,12 +271,12 @@ describe("confirmar todas las filas", () => {
   });
 
   it("si el servidor rechaza, se ve el mensaje y se conserva lo escrito", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const corregir = vi.fn().mockRejectedValue(new ErrorApi(422, "opcion_invalida", "Esa opción no es válida."));
     montar(clienteFalso({ corregirEvaluacion: corregir }));
     await userEvent.click(within(filaDe(3)).getByRole("radio", { name: /C/ }));
     await userEvent.click(boton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("Esa opción no es válida.");
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, confirmar todas" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Esa opción no es válida.");
     expect(within(filaDe(3)).getByRole("radio", { name: /C/ })).toBeChecked();
   });
 });
@@ -304,11 +318,12 @@ describe("filtro, cabecera y fotos", () => {
   it("descartar una foto pide confirmación y avisa a quien la descarta", async () => {
     const { alDescartar } = montar(clienteFalso());
     const boton = screen.getByRole("button", { name: "Descartar esta foto" });
-    vi.spyOn(window, "confirm").mockReturnValueOnce(false);
     await userEvent.click(boton);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Se borra la foto y lo leído de ella");
+    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(alDescartar).not.toHaveBeenCalled();
-    vi.spyOn(window, "confirm").mockReturnValueOnce(true);
     await userEvent.click(boton);
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, descartar" }));
     expect(alDescartar).toHaveBeenCalledWith(0);
   });
 
@@ -347,6 +362,18 @@ describe("PantallaRevision", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No existe esa evaluación.");
   });
 
+  it("si no se puede descartar, lo dice una ventana con el mensaje del servidor", async () => {
+    const api = clienteFalso({
+      evaluacion: vi.fn().mockResolvedValue(evaluacion()),
+      plantilla: vi.fn().mockResolvedValue(plantilla()),
+      descartarPagina: vi.fn().mockRejectedValue(new ErrorApi(500, "x", "No se pudo borrar la foto.")),
+    });
+    pantalla(api);
+    await userEvent.click(await screen.findByRole("button", { name: "Descartar esta foto" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, descartar" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("No se pudo borrar la foto.");
+  });
+
   it("descartar una de varias fotos recarga; descartar la única vuelve a la lista", async () => {
     const descartarPagina = vi
       .fn()
@@ -358,13 +385,14 @@ describe("PantallaRevision", () => {
       descartarPagina,
     });
     pantalla(api);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     await userEvent.click(await screen.findByRole("button", { name: "Descartar esta foto" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, descartar" }));
     await waitFor(() => expect(api.evaluacion).toHaveBeenCalledTimes(2)); // recargó
     expect(window.location.hash).toBe("");
 
     await userEvent.click(screen.getByRole("button", { name: "Descartar esta foto" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Sí, descartar" }));
     await waitFor(() => expect(window.location.hash).toBe("#/evaluaciones"));
   });
 });
