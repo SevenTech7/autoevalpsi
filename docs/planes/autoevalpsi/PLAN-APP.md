@@ -10,7 +10,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 | AP-R2 | Página de captura en el celular, QR e IP local | hecha |
 | AP-R3 | Ventana de escritorio con pywebview | hecha (ventana real sin verificar) |
 | AP-R3b | Vínculo del celular (AP-D2) | hecha (A32 real sin verificar) |
-| AP-R4 | Interfaz React base | pendiente (requiere Node, BS-03) |
+| AP-R4 | Interfaz React base | hecha (ventana real sin verificar) |
 | AP-R5 | Pantalla de revisión | pendiente |
 | AP-R6 | Exportación desde la interfaz | pendiente |
 | AP-R7 | Prueba de aceptación con la usuaria (gate de Fase 3) | pendiente (humano) |
@@ -127,7 +127,25 @@ pipeline desde la interfaz). Prefijo `AP`.
 
 ## AP-R4 — Interfaz React base
 
-- **Requiere:** AP-R1, Node instalado (BS-03).
+- **Requiere:** AP-R1, Node (BS-03: va en Docker, servicio `ui` de compose; no se instala en el equipo).
+- **Estado:** hecha (2026-11-07). `ui/` (Vite 8 + React 19 + TS + Tailwind 4, vitest) y, en el
+  servidor, `GET /` + `/assets/*` (carpeta `app/estaticos/`, ignorada por git; sin compilar `/`
+  responde 503 con la orden para compilarla), CSP estricta y `Cache-Control: no-store` en el
+  `index.html`. Pantallas: **inicio** (tarjeta del celular con QR de vinculación, cuenta regresiva de
+  5 min, sondeo del canje, selector de red si hay varias IP, «Desvincular», ayuda para red Pública
+  AP-01; tarjeta de evaluaciones por terminar y fotos en lectura), **evaluaciones** (filtros y
+  estado en palabras; cada fila enlaza a `#/evaluaciones/<id>`, que hoy es un marcador hasta AP-R5),
+  **configuración** (carpeta de exportación con el diálogo nativo si existe `window.pywebview.api`,
+  o ruta escrita; borrar las fotos de lo ya exportado, con confirmación). Cliente tipado
+  (`ui/src/api/`), token tomado de `?token=` y quitado de la barra, navegación por `#/…`. 29 tests
+  vitest + 14 de `tests/app/test_interfaz.py`. **Contrato ampliado (aditivo):** `GET/PUT
+  /api/configuracion` y `POST /api/evaluaciones/{id}/borrar_fotos` (solo laptop). **Desviaciones:**
+  (1) la IP del QR se elige en la tarjeta del celular, no en configuración (es donde se necesita);
+  (2) «borrar fotos» es una acción por lote sobre lo exportado (AP-D1: manual); (3) sin
+  react-router: `#/…` basta para 4 pantallas y el servidor solo sirve `/`. **No verificado:** la
+  ventana real (WebView2), el diálogo nativo de carpeta, el aspecto en pantalla. **Para DI-R1:**
+  `estaticos/` es dato del paquete (PyInstaller `datas`), y hatch excluye lo ignorado por git del
+  wheel; el build de `ui/` debe correr antes de empaquetar.
 - **Esfuerzo:** M.
 - **Pasos:** `ui/` con Vite + React + TS + Tailwind; pantallas: inicio (QR + evaluaciones
   pendientes), lista de evaluaciones, configuración (carpeta de exportación, borrar fotos, IP);

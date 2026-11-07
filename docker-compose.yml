@@ -1,4 +1,6 @@
 # Uso: docker compose run --rm dev <comando>   (p. ej. pytest, ruff check ., autoevalpsi --version)
+#      docker compose run --rm ui <comando>    (p. ej. npm ci, npm run build, npm test)
+# `ui` compila la interfaz React (AP-R4) a src/autoevalpsi/app/estaticos/; Node vive solo aquí.
 services:
   dev:
     build: .
@@ -7,6 +9,20 @@ services:
       - .:/app
       - venv:/opt/venv
       - uvcache:/opt/uv-cache
+  ui:
+    image: node:22-slim
+    working_dir: /app/ui
+    environment:
+      CI: "true"
+      npm_config_update_notifier: "false"
+      npm_config_fund: "false"
+      npm_config_cache: /opt/npm-cache
+    volumes:
+      - .:/app
+      - uinodes:/app/ui/node_modules
+      - npmcache:/opt/npm-cache
 volumes:
   venv:
   uvcache:
+  uinodes:
+  npmcache:

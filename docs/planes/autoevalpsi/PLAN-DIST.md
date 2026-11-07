@@ -34,7 +34,7 @@ Carpeta `packaging/` y `.github/workflows/`. Cubre la Fase 5 de `plan.md`. Prefi
   de Docker solo se puede empaquetar un binario **Linux**. Todo lo propio de Windows (DLLs,
   pywebview/WebView2, Defender, tamaño real) solo se verifica en `windows-latest` de GitHub
   Actions (necesita B-2) o a mano por el responsable en una máquina sin Python.
-- **DI-07** — Sin Node local (BS-03), el build completo solo es posible en CI hasta que se instale.
+- **DI-07** — Sin Node local (BS-03), la interfaz se compila en Docker (`docker compose run --rm ui npm run build`); en CI hará falta un paso `setup-node` o el mismo contenedor, antes de PyInstaller. `app/estaticos/` no está en git.
 
 ---
 

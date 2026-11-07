@@ -19,11 +19,17 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     GET  /api/vinculo                        ¿hay un celular vinculado?
     POST /api/vinculo                        {codigo} -> {dispositivo}: la credencial del celular
     DELETE /api/vinculo                      desvincula el celular
+    GET  /api/configuracion                  carpeta de exportación (la elegida y la efectiva)
+    PUT  /api/configuracion                  {carpeta_exportacion}; "" vuelve a la de por defecto
+    POST /api/evaluaciones/{id}/borrar_fotos [{incluir_recortes}] -> {borrados}; acción manual (AP-D1)
     GET  /captura                            página del celular (HTML estático, sin secretos); AP-07
+    GET  /, /assets/*                        la interfaz React compilada (AP-R4); estática y sin secretos
 
 **Quién puede qué (AP-03, AP-D2).** Tres niveles:
 
-- *Público*: `GET /api/salud`, `POST /api/vinculo` (exige un código válido) y `GET /captura`.
+- *Público*: `GET /api/salud`, `POST /api/vinculo` (exige un código válido), `GET /captura` y la
+  interfaz compilada (`/`, `/assets/*`): son archivos estáticos; el token de la app llega a la
+  ventana en la URL de arranque y la interfaz lo manda en cada llamada a `/api`.
 - *Celular vinculado* (cabecera `X-Dispositivo` con su credencial): `POST /api/fotos`,
   `GET /api/cola*` y `GET /api/plantillas*`. Una credencial que no es la del celular vinculado
   recibe 403 `dispositivo_no_vinculado`.
@@ -58,6 +64,7 @@ from urllib.parse import parse_qs
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
 from autoevalpsi.app.cola import ColaLlena, ColaProcesamiento, FotoEnProceso, Trabajo
@@ -90,6 +97,11 @@ _SOBRECARGA_MULTIPART = 64 * 1024
 _SUBIDAS = {"/api/fotos": MAX_FOTO, "/api/plantillas/importar": MAX_ZIP}
 PUERTO = 8765
 PAGINA_CAPTURA = Path(__file__).parent / "captura" / "index.html"
+ESTATICOS = Path(__file__).parent / "estaticos"  # salida de `ui/` (vite build)
+_CSP_INTERFAZ = (
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+)
 
 
 def _error(status: int, codigo: str, mensaje: str) -> HTTPException:
@@ -213,6 +225,16 @@ class PedidoVinculo(BaseModel):
     codigo: str
 
 
+class PedidoConfiguracion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    carpeta_exportacion: str | None = None  # "" o null: la de por defecto
+
+
+class PedidoBorrarFotos(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    incluir_recortes: bool = False
+
+
 class PedidoExportar(BaseModel):
     model_config = ConfigDict(extra="forbid")
     carpeta: str | None = None  # por defecto: la configurada o `<raíz>/exportaciones`
@@ -242,10 +264,12 @@ def crear_app(
     lector: Lector | None = None,
     puerto: int = PUERTO,
     interfaces: Callable[[], list[Interfaz]] = listar_interfaces,
+    estaticos: Path = ESTATICOS,
 ) -> FastAPI:
     """`lector` (OCR) es opcional: sin él solo se leen las casillas. `app.state.token` es el
     token del arranque y `app.state.cola` la cola, por si quien arranca los necesita. `puerto` e
-    `interfaces` (IP de la red local, AP-02) arman la URL del QR."""
+    `interfaces` (IP de la red local, AP-02) arman la URL del QR. `estaticos` es la carpeta de la
+    interfaz compilada; si no existe, `/` explica que falta compilarla."""
     token = token or secrets.token_urlsafe(16)
 
     def ejecutar(trabajo: Trabajo, subida: object) -> bool:
@@ -293,6 +317,9 @@ def crear_app(
             return bd.leer_evaluacion(id)
         except EvaluacionInexistente as e:
             raise _error(404, "evaluacion_inexistente", str(e)) from e
+
+    def carpeta_exportacion() -> Path:
+        return Path(bd.leer_configuracion("carpeta_exportacion") or bd.raiz / "exportaciones")
 
     def detalle(id: str) -> dict:
         ev = evaluacion(id)
@@ -463,11 +490,7 @@ def crear_app(
                 },
             )
         inst = instalada(ev.plantilla_id, ev.plantilla_version)
-        carpeta = Path(
-            pedido.carpeta
-            or bd.leer_configuracion("carpeta_exportacion")
-            or bd.raiz / "exportaciones"
-        )
+        carpeta = Path(pedido.carpeta) if pedido.carpeta else carpeta_exportacion()
         try:
             carpeta.mkdir(parents=True, exist_ok=True)
         except OSError as e:
@@ -485,6 +508,45 @@ def crear_app(
                 raise _error(409, "archivo_bloqueado", str(e)) from e
             bd.marcar_exportada(id)
         return {"evaluacion": str(archivos.evaluacion), "consolidado": str(archivos.consolidado)}
+
+    @app.post("/api/evaluaciones/{id}/borrar_fotos")
+    def borrar_fotos(id: str, pedido: PedidoBorrarFotos | None = None) -> dict:
+        """AP-D1: el borrado es una acción manual de la usuaria; lo leído y lo corregido se queda."""
+        evaluacion(id)
+        incluir = (pedido or PedidoBorrarFotos()).incluir_recortes
+        return {"borrados": bd.borrar_fotos(id, incluir_recortes=incluir)}
+
+    # --- configuración (AP-R4) ----------------------------------------------------------
+
+    def configuracion() -> dict:
+        elegida = bd.leer_configuracion("carpeta_exportacion") or None
+        return {
+            "carpeta_exportacion": elegida,
+            "carpeta_exportacion_efectiva": str(carpeta_exportacion()),
+        }
+
+    @app.get("/api/configuracion")
+    def leer_configuracion() -> dict:
+        return configuracion()
+
+    @app.put("/api/configuracion")
+    def guardar_configuracion(pedido: PedidoConfiguracion) -> dict:
+        carpeta = (pedido.carpeta_exportacion or "").strip()
+        if carpeta:
+            ruta = Path(carpeta)
+            if not ruta.is_absolute():
+                raise _error(
+                    422,
+                    "carpeta_invalida",
+                    "Escribe la ruta completa de la carpeta, empezando por la unidad (C:).",
+                )
+            try:
+                ruta.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                raise _error(422, "carpeta_invalida", f"No se pudo usar la carpeta: {e}") from e
+            carpeta = str(ruta)
+        bd.guardar_configuracion("carpeta_exportacion", carpeta)
+        return configuracion()
 
     # --- plantillas ---------------------------------------------------------------------
 
@@ -566,6 +628,32 @@ def crear_app(
         return HTMLResponse(
             PAGINA_CAPTURA.read_text(encoding="utf-8"),
             headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
+
+    # --- la interfaz compilada (AP-R4) --------------------------------------------------
+
+    index = estaticos / "index.html"
+    if (estaticos / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=estaticos / "assets"), name="assets")
+
+    @app.get("/", response_class=HTMLResponse)
+    def interfaz() -> HTMLResponse:
+        """La interfaz de la ventana. Estática y sin secretos: el token viaja en la URL de
+        arranque y lo lee la propia página."""
+        if not index.is_file():
+            return HTMLResponse(
+                "<!doctype html><meta charset=utf-8><title>AutoEvalPsi</title>"
+                "<p>Falta compilar la interfaz: <code>docker compose run --rm ui npm run build</code>.",
+                status_code=503,
+                headers={"Cache-Control": "no-store"},
+            )
+        return HTMLResponse(
+            index.read_text(encoding="utf-8"),
+            headers={
+                "Cache-Control": "no-store",
+                "Referrer-Policy": "no-referrer",
+                "Content-Security-Policy": _CSP_INTERFAZ,
+            },
         )
 
     return app

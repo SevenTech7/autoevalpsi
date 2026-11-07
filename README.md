@@ -37,7 +37,19 @@ Foto a Excel, con OCR de observaciones y cabecera (necesita los modelos de arrib
 docker compose run --rm dev autoevalpsi procesar FOTO --plantilla ID --salida DIR --ocr --recortes
 ```
 
-El entorno virtual y la caché de uv viven en volúmenes de Docker, no en la carpeta del proyecto.
+Interfaz de la ventana (React + Vite + Tailwind, en `ui/`; Node vive solo en la imagen `node:22-slim`
+del servicio `ui`). El `build` deja los archivos en `src/autoevalpsi/app/estaticos/` (ignorada por
+git), de donde los sirve FastAPI en `/`:
+
+```
+docker compose run --rm ui npm ci                  # dependencias (según ui/package-lock.json)
+docker compose run --rm ui npm run build           # typecheck + build
+docker compose run --rm ui npm test                # tests de componentes (vitest)
+docker compose run --rm ui npm install <paquete>   # cambia dependencias y package-lock.json
+```
+
+El entorno virtual, la caché de uv, `node_modules` y la caché de npm viven en volúmenes de Docker,
+no en la carpeta del proyecto.
 
 ## Reglas
 
