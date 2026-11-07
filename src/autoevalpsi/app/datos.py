@@ -888,14 +888,14 @@ class BaseDatos:
             )
             for f in ev.filas
         )
-        # Fecha **y hora** de Bolivia: la de la foto, si la evaluación es de ese mismo día; si la
+        # Fecha **y hora** de Bolivia del momento de exportar, si la evaluación es de hoy; si la
         # usuaria puso otra fecha, solo esa fecha.
         dia = date.fromisoformat(ev.fecha)
-        registrada = a_bolivia(datetime.fromisoformat(ev.creada_en))
+        exportada = a_bolivia(self._ahora())
         return Evaluacion(
             id=ev.id,
             plantilla=plantilla,
-            fecha=registrada if registrada.date() == dia else dia,
+            fecha=exportada if exportada.date() == dia else dia,
             paciente=ev.paciente,
             filas=filas,
             cabecera={nombre_campo_cabecera(k): v for k, v in ev.cabecera.items()},
