@@ -6,7 +6,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 | Fase | Título | Estado |
 |---|---|---|
 | CO-R0 | Esquema y cargador de plantillas | hecha |
-| CO-R1 | Carga de imagen y control de calidad | pendiente |
+| CO-R1 | Carga de imagen y control de calidad | hecha |
 | CO-R2 | Detección de hoja y corrección de perspectiva | pendiente |
 | CO-R3 | Registro fino contra la plantilla | pendiente |
 | CO-R4 | Identificación del formulario | pendiente |
@@ -21,7 +21,8 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 
 - **CO-01** — Las fotos del Samsung llegan con orientación EXIF; OpenCV (`imread`) la ignora.
   Sin aplicarla, una foto vertical llega acostada y el registro falla. Aplicar `exif_transpose`
-  de Pillow al cargar.
+  de Pillow al cargar. *(Nota CO-R1: con OpenCV 5.0.0 `imread` sí la aplica por defecto; se
+  mantiene Pillow para no depender de la versión/compilación de OpenCV y poder rechazar formatos.)*
 - **CO-02** — "Gana la celda con más tinta" (paso 5) siempre elige una celda, incluso en una fila
   vacía. Hace falta un **umbral absoluto mínimo** de tinta (fila sin marca) y un **margen
   relativo** entre la primera y la segunda celda (doble marca/tachón). Ambos configurables por
@@ -69,6 +70,14 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
   reducida), brillo medio, recorte de altas luces; umbrales en configuración.
 - **Tests:** foto sintética nítida pasa; desenfocada y oscura fallan; foto con EXIF rotado
   queda vertical.
+- **Hecha (2026-11-06):** `core/imagen.py`: `cargar_imagen(bytes)` → BGR uint8 con
+  `exif_transpose` (Pillow), solo JPEG/PNG por firma de bytes, HEIC/HEIF y basura →
+  `ImagenInvalida` (subclase de `ValueError`, mensaje para mostrar). `evaluar_calidad(img,
+  UmbralesCalidad)` → `InformeCalidad(nitidez, brillo, luces, lado_largo, problemas, ok)`; no
+  lanza. Se mide sobre la imagen reducida a 1000 px de lado largo. Umbrales por defecto
+  (calibrados con el lote sintético, que tiene ruido): nitidez ≥ 150 (nítidas 750–2300; blur σ=2.5
+  a 2400 px → 107; σ=4 → 24), brillo 70–215, luces quemadas ≤ 20 %, lado largo ≥ 1000 px.
+  **Pendiente CO-R8:** recalibrar con fotos reales (el ruido sintético infla la nitidez).
 
 ## CO-R2 — Detección de hoja y corrección de perspectiva
 
