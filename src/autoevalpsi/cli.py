@@ -185,7 +185,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--puerto-laptop", type=int, default=8765, help="Puerto de la interfaz.")
     p.add_argument("--puerto-celular", type=int, default=8766, help="Puerto del celular.")
     p.add_argument("--ocr", action="store_true", help="Activa el OCR (necesita `modelos/`).")
-    p.add_argument("--demo", action="store_true", help="Instala las plantillas de `plantillas_demo/`.")
+    p.add_argument(
+        "--demo", action="store_true", help="Instala las plantillas de `plantillas_demo/`."
+    )
     p.set_defaults(ejecutar=_probar)
 
     args = parser.parse_args(argv)

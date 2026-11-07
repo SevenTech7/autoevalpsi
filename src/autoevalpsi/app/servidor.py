@@ -289,21 +289,30 @@ def crear_app(
     interfaces: Callable[[], list[Interfaz]] = listar_interfaces,
     estaticos: Path = ESTATICOS,
     puertos_laptop: frozenset[int] = frozenset(),
+    guardar_fallidas: Path | None = None,
 ) -> FastAPI:
     """`lector` (OCR) es opcional: sin él solo se leen las casillas. `app.state.token` es el
     token del arranque y `app.state.cola` la cola, por si quien arranca los necesita. `puerto` e
     `interfaces` (IP de la red local, AP-02) arman la URL del QR. `estaticos` es la carpeta de la
-    interfaz compilada; si no existe, `/` explica que falta compilarla. `puertos_laptop` es solo
-    para la prueba en Docker (ver `_es_laptop`); en producción va vacío."""
+    interfaz compilada; si no existe, `/` explica que falta compilarla. `puertos_laptop` y
+    `guardar_fallidas` (carpeta donde dejar las fotos que no se pudieron leer) son solo para la
+    prueba en Docker; en producción van vacíos."""
     token = token or secrets.token_urlsafe(16)
 
     def ejecutar(trabajo: Trabajo, subida: object) -> bool:
         assert isinstance(subida, _Subida)
         inst = plantillas.obtener(subida.plantilla_id, subida.plantilla_version)
         referencia = plantillas.referencia(inst, trabajo.pagina)
-        proc = procesar_foto(
-            subida.foto, inst.plantilla, referencia, pagina=trabajo.pagina, lector=lector
-        )
+        try:
+            proc = procesar_foto(
+                subida.foto, inst.plantilla, referencia, pagina=trabajo.pagina, lector=lector
+            )
+        except Exception:
+            if guardar_fallidas is not None:  # solo prueba manual: para ver por qué falló
+                guardar_fallidas.mkdir(parents=True, exist_ok=True)
+                nombre = f"{trabajo.id}-{subida.plantilla_id}.jpg"
+                (guardar_fallidas / nombre).write_bytes(subida.foto)
+            raise
         bd.guardar_procesamiento(
             proc.resultado,
             foto=subida.foto,
