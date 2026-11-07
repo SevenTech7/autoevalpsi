@@ -15,4 +15,4 @@ Para retomar el trabajo: **«Continúa según `docs/planes/autoevalpsi/BITACORA.
 
 Documento de producto: [`plan.md`](../../../plan.md).
 
-Estado global: **Ola 0 (preparación) pendiente**; ninguna fase iniciada.
+Estado global: **Ola 0 hecha salvo P-5 (humano); BS-R0 hecha**. Siguiente: CO-R0.
