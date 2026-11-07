@@ -8,7 +8,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 | CO-R0 | Esquema y cargador de plantillas | hecha |
 | CO-R1 | Carga de imagen y control de calidad | hecha |
 | CO-R2 | Detección de hoja y corrección de perspectiva | hecha |
-| CO-R3 | Registro fino contra la plantilla | pendiente |
+| CO-R3 | Registro fino contra la plantilla | hecha |
 | CO-R4 | Identificación del formulario | pendiente |
 | CO-R5 | Lectura de casillas y banderas (OMR) | pendiente |
 | CO-R6 | Exportador Excel | bloqueada (CO-D1, CO-D2) |
@@ -112,6 +112,33 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
   calidad (CO-09).
 - **Tests:** error medio en las esquinas de celdas ≤ 3 px a 300 dpi sobre el lote sintético; un
   registro forzado a fallar (imagen de otro formulario) produce la bandera de página.
+- **Hecha (2026-11-06):** `core/registro.py`: `registrar(foto, referencia, umbrales=None)` →
+  `Registro(homografia foto→plantilla, imagen BGR a tamaño de plantilla, metodo_hoja, giro,
+  coincidencias, inliers, proporcion_inliers, error_reproyeccion, cobertura, correlacion_lineas,
+  ajuste_lineas, banderas, ok)`; `cargar_referencia(ruta_json, imagen_referencia)`;
+  `UmbralesRegistro`; `RegistroInvalido`. Flujo: hoja enderezada (CO-R2) → se prueba 0° y, solo si
+  no sale bien, 180° → ORB (CLAHE, 6000 pts, a 1400 px) → **coincidencias locales**: ratio test de
+  Lowe solo entre descriptores a < 6 % del lado largo (la hoja ya llega casi alineada; contra toda
+  la página las filas repetidas hacían fallar la prueba y los puntos quedaban solo en el título) →
+  `findHomography(RANSAC)` → ajuste fino afín con `findTransformECC` entre máscaras de líneas
+  largas (apertura morfológica), aceptado solo si sube la correlación y el movimiento es < 2 % →
+  **una sola deformación** desde la foto original. Calidad (CO-09): inliers ≥ 40, proporción ≥
+  0,30, error de reproyección ≤ 4 px, cobertura (área del casco de inliers / hoja) ≥ 0,35 y
+  correlación de líneas ≥ 0,25; si falla algo, `banderas = ("registro_dudoso",)` (`ok` False).
+  No lanza por mal registro; sí `HojaNoEncontrada` si no se ve la hoja. **Cifras (lote de 6
+  fotos A4):** error medio de esquinas de celdas 0,3–1,6 px a 300 dpi (máx. 3,1 px; criterio ≤ 3
+  de media); inliers 840–970, proporción 0,61–0,69, cobertura 0,54–0,70, correlación de líneas
+  0,86–0,95. Formulario ajeno: 22 inliers, 21 %, cobertura 0,23, correlación −0,04 (falla por
+  todo). Hoja girada 180° y de lado (±90°): se registra y queda derecha.
+  **Hallazgos:** (1) con ratio test global y cuadrantes como cobertura, 2 de 6 fotos salían a
+  16–26 px de error con error de reproyección de ~2 px: el error de reproyección solo no basta,
+  por eso se mide la cobertura. (2) Un formulario real suele tener zonas vacías (aquí, el pie), de
+  ahí «área del casco» y no «cuatro cuadrantes». (3) El ajuste con líneas gana ~0,5–1 px donde
+  engancha; con ORB solo ya cumple el criterio. **Pendiente CO-R8:** recalibrar umbrales con fotos
+  reales (rayados, sombras, hojas arrugadas, tinta que tapa líneas). **Para CO-R4:** `Registro`
+  da inliers/proporción como puntaje de identificación contra cada plantilla. **Para CO-R5:**
+  leer casillas sobre `Registro.imagen` con las coordenadas de la plantilla; si `not ok`, toda
+  la página es revisión obligatoria.
 
 ## CO-R4 — Identificación del formulario
 
