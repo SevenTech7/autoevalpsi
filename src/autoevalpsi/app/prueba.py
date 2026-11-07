@@ -70,6 +70,7 @@ def servir(
         interfaces=lambda: [Interfaz(ip=ip_lan, nombre="WiFi", ruta_por_defecto=True)],
         puertos_laptop=frozenset({puerto_laptop}),
         guardar_fallidas=bd.raiz / "fallidas",
+        carpeta_por_defecto=bd.raiz / "exportaciones",  # compose la une a Descargas de la laptop
     )
     sockets = [_abrir_socket(puerto_laptop), _abrir_socket(puerto_celular)]
     servidor = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))

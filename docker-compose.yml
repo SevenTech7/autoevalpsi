@@ -25,7 +25,8 @@ services:
       - venv:/opt/venv
       - uvcache:/opt/uv-cache
       - datosprueba:/datos
-      - ./.datos/exportaciones:/datos/exportaciones
+      # Los Excel salen directo a la carpeta Descargas de la laptop (en Windows, %USERPROFILE%\Downloads)
+      - ${USERPROFILE:-.}/Downloads:/datos/exportaciones
       - ./.datos/fallidas:/datos/fallidas
   ui:
     image: node:22-slim

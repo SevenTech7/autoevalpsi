@@ -388,6 +388,32 @@ def test_exportar_sin_cuerpo_usa_la_carpeta_de_la_raiz(entorno, lote_sintetico):
     assert (bd.raiz / "exportaciones").is_dir() and any((bd.raiz / "exportaciones").iterdir())
 
 
+def test_sin_carpeta_elegida_se_exporta_a_descargas(entorno, lote_sintetico, tmp_path, monkeypatch):
+    cliente, _, bd, _ = entorno
+    descargas = tmp_path / "Descargas"
+    descargas.mkdir()
+    monkeypatch.setattr("autoevalpsi.app.servidor.carpeta_descargas", lambda: descargas)
+    assert cliente.get("/api/configuracion").json()["carpeta_exportacion_efectiva"] == str(
+        descargas
+    )
+    id = _procesar(entorno, lote_sintetico[0].foto)["trabajo"]["evaluacion_id"]
+    cliente.put(f"/api/evaluaciones/{id}", json={"confirmar_cabecera": True})
+    r = cliente.post(f"/api/evaluaciones/{id}/exportar")
+    assert r.status_code == 200, r.text
+    assert r.json()["carpeta"] == str(descargas)
+    assert any(f.suffix == ".xlsx" for f in descargas.iterdir())
+    assert not (bd.raiz / "exportaciones").exists()
+
+
+def test_la_carpeta_elegida_gana_a_descargas(entorno, tmp_path, monkeypatch):
+    cliente, _, _, _ = entorno
+    descargas, elegida = tmp_path / "Descargas", tmp_path / "Mis Excel"
+    descargas.mkdir()
+    monkeypatch.setattr("autoevalpsi.app.servidor.carpeta_descargas", lambda: descargas)
+    cliente.put("/api/configuracion", json={"carpeta_exportacion": str(elegida)})
+    assert cliente.get("/api/configuracion").json()["carpeta_exportacion_efectiva"] == str(elegida)
+
+
 def test_correcciones_dejan_registro_y_validan_la_opcion(entorno, lote_sintetico):
     cliente, _, bd, _ = entorno
     id = _con_filas_amarillas(entorno, lote_sintetico)
