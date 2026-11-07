@@ -33,7 +33,7 @@ import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Self
 
@@ -43,6 +43,7 @@ import numpy as np
 from autoevalpsi.core.excel import Evaluacion, FilaEvaluacion
 from autoevalpsi.core.pipeline import ResultadoProcesamiento, nombre_campo_cabecera
 from autoevalpsi.core.plantilla import Plantilla
+from autoevalpsi.core.tiempo import a_bolivia, ahora_bolivia
 
 NOMBRE_BD = "autoevalpsi.db"
 
@@ -243,7 +244,7 @@ class BaseDatos:
         ahora: Callable[[], datetime] | None = None,
     ) -> None:
         self.raiz = Path(raiz) if raiz is not None else raiz_por_defecto()
-        self._ahora = ahora or (lambda: datetime.now(UTC))
+        self._ahora = ahora or ahora_bolivia  # hora de Bolivia (UTC−4), no UTC
         self.raiz.mkdir(parents=True, exist_ok=True)
         self._candado = threading.RLock()
         self._con = sqlite3.connect(
@@ -299,7 +300,7 @@ class BaseDatos:
             self._con.execute("COMMIT")
 
     def _momento(self) -> str:
-        return self._ahora().isoformat(timespec="seconds")
+        return a_bolivia(self._ahora()).isoformat(timespec="seconds")
 
     # --- configuración ------------------------------------------------------------------
 
@@ -420,7 +421,7 @@ class BaseDatos:
                             resultado.plantilla_id,
                             resultado.plantilla_version,
                             paciente or paciente_leido,
-                            (fecha or self._ahora().date()).isoformat(),
+                            (fecha or a_bolivia(self._ahora()).date()).isoformat(),
                             json.dumps(cabecera_leida, ensure_ascii=False),
                             json.dumps(rutas_cab),
                             int(cabecera_ok),
@@ -789,7 +790,7 @@ class BaseDatos:
                 " COUNT(f.item) AS n_filas,"
                 " COALESCE(SUM(f.revisada = 0), 0) AS pendientes"
                 " FROM evaluaciones e LEFT JOIN filas f ON f.evaluacion_id = e.id"
-                " GROUP BY e.id ORDER BY e.creada_en DESC, e.rowid DESC"
+                " GROUP BY e.id ORDER BY julianday(e.creada_en) DESC, e.rowid DESC"
             ).fetchall()
         return [
             ResumenEvaluacion(
@@ -887,10 +888,14 @@ class BaseDatos:
             )
             for f in ev.filas
         )
+        # Fecha **y hora** de Bolivia: la de la foto, si la evaluación es de ese mismo día; si la
+        # usuaria puso otra fecha, solo esa fecha.
+        dia = date.fromisoformat(ev.fecha)
+        registrada = a_bolivia(datetime.fromisoformat(ev.creada_en))
         return Evaluacion(
             id=ev.id,
             plantilla=plantilla,
-            fecha=date.fromisoformat(ev.fecha),
+            fecha=registrada if registrada.date() == dia else dia,
             paciente=ev.paciente,
             filas=filas,
             cabecera={nombre_campo_cabecera(k): v for k, v in ev.cabecera.items()},

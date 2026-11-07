@@ -2,7 +2,7 @@
 
 import json
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import cv2
@@ -220,7 +220,7 @@ def test_cambiar_opcion_confirmada_deja_una_correccion(bd):
     assert (f.opcion_leida, f.opcion, f.revisada) == (None, "C", True)
     [c] = bd.listar_correcciones(ev_id)
     assert (c.item, c.campo, c.antes, c.despues) == (2, "opcion", None, "C")
-    assert c.momento.startswith("2026-11-06T12:00:")
+    assert c.momento.startswith("2026-11-06T08:00:")  # 12:00 UTC = 08:00 en Bolivia
 
 
 def test_cambiar_observacion_deja_una_correccion(bd):
@@ -362,6 +362,69 @@ def test_como_evaluacion_usa_lo_confirmado_y_coincide_con_a_evaluacion(bd, lote_
     sin = bd.como_evaluacion(ev_id, plantilla)
     assert next(x for x in sin.filas if x.item == item).recorte is None
     assert a_evaluacion(res, plantilla, id=ev_id).id == ev_id
+
+
+def _evaluacion_guardada(bd, lote_sintetico, **kw):
+    plantilla = cargar_plantilla(lote_sintetico[0].plantilla)
+    item = plantilla.paginas[0].tablas[0].filas[0].item
+    opciones = plantilla.paginas[0].tablas[0].opciones
+    res = ResultadoProcesamiento(
+        plantilla.id,
+        plantilla.version,
+        0,
+        "e" * 64,
+        (),
+        {"ok": True},
+        (ResultadoFila(item, opciones[0], (0.5,), ()),),
+    )
+    return plantilla, bd.guardar_procesamiento(res, foto=JPEG, **kw)
+
+
+def test_los_momentos_se_guardan_en_hora_de_bolivia(tmp_path, lote_sintetico):
+    # 02:35 UTC del día 8 = 22:35 del día 7 en Bolivia
+    reloj = lambda: datetime(2026, 11, 8, 2, 35, tzinfo=UTC)
+    with BaseDatos(tmp_path, ahora=reloj) as bd:
+        _, ev_id = _evaluacion_guardada(bd, lote_sintetico)
+        ev = bd.leer_evaluacion(ev_id)
+    assert ev.creada_en == "2026-11-07T22:35:00-04:00"
+    assert ev.fecha == "2026-11-07"  # el día de Bolivia, no el de UTC
+
+
+def test_sin_reloj_inyectado_se_usa_la_hora_de_bolivia(tmp_path, lote_sintetico):
+    with BaseDatos(tmp_path) as bd:
+        _, ev_id = _evaluacion_guardada(bd, lote_sintetico)
+        assert bd.leer_evaluacion(ev_id).creada_en.endswith("-04:00")
+
+
+def test_como_evaluacion_lleva_fecha_y_hora_de_bolivia(tmp_path, lote_sintetico):
+    reloj = lambda: datetime(2026, 11, 8, 2, 35, tzinfo=UTC)
+    with BaseDatos(tmp_path, ahora=reloj) as bd:
+        plantilla, ev_id = _evaluacion_guardada(bd, lote_sintetico)
+        ev = bd.como_evaluacion(ev_id, plantilla)
+    assert isinstance(ev.fecha, datetime)
+    assert ev.fecha == datetime(2026, 11, 7, 22, 35, tzinfo=timezone(timedelta(hours=-4)))
+
+
+def test_la_lista_ordena_por_instante_aunque_haya_momentos_en_utc_y_en_bolivia(tmp_path):
+    """Filas viejas (UTC) y nuevas (−04:00) conviven: manda el instante, no el texto."""
+    with BaseDatos(tmp_path) as bd:
+        for i, momento in enumerate(("2026-11-07T17:11:26+00:00", "2026-11-07T13:50:40-04:00")):
+            bd._con.execute(
+                "INSERT INTO evaluaciones(id, plantilla_id, plantilla_version, paciente, fecha,"
+                " cabecera, recortes_cabecera, cabecera_revisada, creada_en, actualizada_en)"
+                " VALUES (?, 'p', 1, '', '2026-11-07', '{}', '{}', 0, ?, ?)",
+                (f"ev{i}", momento, momento),
+            )
+        # 13:50−04:00 = 17:50 UTC: es posterior a 17:11 UTC aunque «13:50» < «17:11» como texto
+        assert [e.id for e in bd.listar_evaluaciones()] == ["ev1", "ev0"]
+
+
+def test_si_la_fecha_es_otra_solo_va_esa_fecha(tmp_path, lote_sintetico):
+    reloj = lambda: datetime(2026, 11, 8, 2, 35, tzinfo=UTC)
+    with BaseDatos(tmp_path, ahora=reloj) as bd:
+        plantilla, ev_id = _evaluacion_guardada(bd, lote_sintetico, fecha=date(2025, 7, 24))
+        ev = bd.como_evaluacion(ev_id, plantilla)
+    assert ev.fecha == date(2025, 7, 24) and not isinstance(ev.fecha, datetime)
 
 
 def test_como_evaluacion_rechaza_otra_plantilla(bd, lote_sintetico):

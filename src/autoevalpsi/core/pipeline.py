@@ -14,7 +14,7 @@ a quien llama, con un mensaje apto para la usuaria. Un registro dudoso o una fot
 
 import hashlib
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from math import isfinite
 
 import numpy as np
@@ -26,6 +26,7 @@ from autoevalpsi.core.ocr.lector import Lector
 from autoevalpsi.core.ocr.texto import CampoLeido, ObservacionLeida, ParametrosOCR, leer_texto
 from autoevalpsi.core.plantilla import Plantilla
 from autoevalpsi.core.registro import Registro, UmbralesRegistro, registrar
+from autoevalpsi.core.tiempo import ahora_bolivia
 
 
 def _numero(x: float) -> float | None:
@@ -202,7 +203,7 @@ def a_evaluacion(
     plantilla: Plantilla,
     *,
     paciente: str = "",
-    fecha: date | None = None,
+    fecha: date | datetime | None = None,
     id: str | None = None,
     cabecera: dict[str, str] | None = None,
     recortes: dict[int, np.ndarray] | None = None,
@@ -234,7 +235,7 @@ def a_evaluacion(
     return Evaluacion(
         id=id or resultado.foto_sha256[:12],
         plantilla=plantilla,
-        fecha=fecha or date.today(),
+        fecha=fecha or ahora_bolivia(),
         paciente=paciente or leida.get("paciente", ""),
         filas=filas,
         cabecera={**extra, **(cabecera or {})},
