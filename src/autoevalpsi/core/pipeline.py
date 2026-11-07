@@ -192,6 +192,11 @@ def procesar_foto(
     )
 
 
+def nombre_campo_cabecera(campo: str) -> str:
+    """Nombre con que un campo de cabecera leído figura en `Evaluacion.cabecera` (y en el Excel)."""
+    return "Fecha manuscrita" if campo == "fecha" else campo.capitalize()
+
+
 def a_evaluacion(
     resultado: ResultadoProcesamiento,
     plantilla: Plantilla,
@@ -225,11 +230,7 @@ def a_evaluacion(
         for f in resultado.filas
     )
     leida = {c.campo: c.texto for c in resultado.cabecera if c.texto}
-    extra = {
-        ("Fecha manuscrita" if k == "fecha" else k.capitalize()): v
-        for k, v in leida.items()
-        if k != "paciente"
-    }
+    extra = {nombre_campo_cabecera(k): v for k, v in leida.items() if k != "paciente"}
     return Evaluacion(
         id=id or resultado.foto_sha256[:12],
         plantilla=plantilla,

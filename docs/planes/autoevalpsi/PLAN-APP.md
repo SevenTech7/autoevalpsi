@@ -5,7 +5,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 
 | Fase | Título | Estado |
 |---|---|---|
-| AP-R0 | Capa de datos local (SQLite + imágenes) | pendiente |
+| AP-R0 | Capa de datos local (SQLite + imágenes) | hecha |
 | AP-R1 | Servidor FastAPI y cola de procesamiento | pendiente |
 | AP-R2 | Página de captura en el celular, QR e IP local | pendiente |
 | AP-R3 | Ventana de escritorio con pywebview | pendiente |
@@ -45,6 +45,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 ## AP-R0 — Capa de datos local
 
 - **Requiere:** CO-R7.
+- **Estado:** hecha (2026-11-06). `app/datos.py` (`BaseDatos`), esquema v1; 36 tests en `tests/app/test_datos.py`.
 - **Esfuerzo:** M. **Toca un contrato** (esquema de BD): versionarlo con `PRAGMA user_version`.
 - **Pasos:** raíz `%LOCALAPPDATA%\AutoEvalPsi` (configurable para tests); tablas `evaluaciones`,
   `paginas`, `filas` (valor leído, valor confirmado, banderas, texto OCR, ruta del recorte),

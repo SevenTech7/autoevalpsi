@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1 y OC-R2 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: AP-R0** (CO-R7 la desbloquea; OC-R3 y PL-R0 esperan las fotos de la usuaria). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2 y AP-R0 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: AP-R1** (servidor FastAPI; OC-R3 y PL-R0 esperan las fotos de la usuaria). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 12 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2); DI-R0 parcial |
+| Fases hechas | 13 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0); DI-R0 parcial |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -109,7 +109,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 
 | # | Fase | Qué cierra | Rama | Requiere | Esfuerzo | Estado |
 |---|---|---|---|---|---|---|
-| 19 | [AP-R0](PLAN-APP.md#ap-r0--capa-de-datos-local) | AP-05 | `fase-ap-0` | CO-R7 | M | pendiente |
+| 19 | [AP-R0](PLAN-APP.md#ap-r0--capa-de-datos-local) | AP-05 | `fase-ap-0` | CO-R7 | M | hecha |
 | 20 | [AP-R1](PLAN-APP.md#ap-r1--servidor-fastapi-y-cola-de-procesamiento) | AP-03, AP-04, AP-06 | `fase-ap-1` | AP-R0 | M | pendiente |
 | 21 | [AP-R2](PLAN-APP.md#ap-r2--página-de-captura-en-el-celular-qr-e-ip-local) | AP-01, AP-02, AP-07 | `fase-ap-2` | AP-R1 | M | pendiente |
 | 22 | [AP-R3](PLAN-APP.md#ap-r3--ventana-de-escritorio-con-pywebview) | AP-08 | `fase-ap-3` | AP-R1 | S | pendiente |
@@ -227,3 +227,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | CO-R6 | `fase-co-6` → `main` | `core/excel.py`: archivo por evaluación (hoja «Evaluación», forma del papel, recortes opcionales) y consolidado por formulario sin duplicar por id; nombre saneado con opción de iniciales; `ArchivoBloqueado` con escritura atómica. Cierra CO-06, CO-07, CO-08. | 139 → 164 passed (25 nuevos); ruff limpio | **Contrato nuevo:** forma del Excel. Aprobadas CO-D1 a), CO-D2 a) y PL-D2 (rec.). Bloqueo probado simulando `PermissionError`; con Excel abierto en Windows **no verificado**. Siguiente: CO-R7. |
 | 2026-11-06 | CO-R7 | `fase-co-7` → `main` | `core/pipeline.py` (`procesar_foto`, `ResultadoProcesamiento` serializable, `a_evaluacion`), `core/depuracion.py` (hoja enderezada con cuadrícula y celdas coloreadas) y comando `autoevalpsi procesar FOTO --plantilla --salida [--depuracion]`. | 164 → 180 passed (16 nuevos); ruff limpio | **Contrato nuevo:** CLI `procesar` y forma del resultado JSON (la usará AP-R1). Cabecera (paciente/fecha) por flags, sin OCR hasta OC-R2. Depuración revisada a ojo sobre una foto sintética. Siguiente: OC-R2 o AP-R0. |
 | 2026-11-06 | OC-R2 | `fase-oc-2` → `main` | `core/ocr/texto.py`: `leer_texto` (franja de observaciones limpia y una sola lectura por tabla, líneas asignadas a su fila, filas sin tinta blanqueadas y sin llamada si ninguna tiene tinta; cabecera por campo); `procesar_foto(lector=)`, `a_evaluacion(recortes=)` y `procesar --ocr --recortes`. Banderas `ocr_confianza_baja`, `ocr_sin_texto`, `ocr_error`, `cabecera_vacia`; recorte de cada fila con tinta aunque el lector falle. Cierra OC-05, CO-03. | 180 → 197 passed (17 nuevos) + 1 `lento` nuevo con el modelo real (6/6 observaciones y 2/2 campos de cabecera exactos sobre letra sintética); ruff limpio | **Contrato nuevo:** resultado JSON ampliado (`ocr_activo`, `observaciones[]`, `cabecera[]`) y flags del CLI. Modelos ausentes no se disfrazan de `ocr_error`. Umbrales (tinta 0,004; confianza 0,85) provisionales: los calibra OC-R3 con letra real. La fecha manuscrita va como texto, no se interpreta. Siguiente: AP-R0. |
+| 2026-11-06 | AP-R0 | `fase-ap-0` → `main` | `app/datos.py`: `BaseDatos` sobre SQLite (stdlib) con raíz configurable (`AUTOEVALPSI_HOME`, `%LOCALAPPDATA%\AutoEvalPsi`), migraciones por `PRAGMA user_version` (v1; una BD más nueva se rechaza sin tocarla), tablas `evaluaciones`/`paginas`/`filas`/`correcciones`/`configuracion`; fotos y recortes en disco con rutas relativas; `guardar_procesamiento` (multipágina), `actualizar_fila`/`actualizar_cabecera` (cada cambio deja una corrección), `filas_pendientes`/`cabecera_revisada` para AP-06, `borrar_fotos` (AP-D1), `como_evaluacion` → `core.excel`. | 197 → 233 passed (36 nuevos); ruff limpio | **Contrato nuevo:** esquema de BD v1 y API de `BaseDatos` (la usa AP-R1). `core.pipeline.nombre_campo_cabecera` extraído (sin cambio de conducta). Decisiones de diseño: lo leído no se pisa, lo confirmado va aparte; tocar una fila la confirma; editar tras exportar vuelve el estado a pendiente/revisada. Una conexión con candado (hilo de la cola, AP-04). AP-D1 sigue pendiente: `borrar_fotos` no decide cuándo. Siguiente: AP-R1. |
