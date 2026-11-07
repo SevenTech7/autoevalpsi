@@ -83,7 +83,9 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "La prueba de humo de lo instalado falló" }
           $u = Start-Process "$destino\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait -PassThru
           if ($u.ExitCode -ne 0) { throw "La desinstalación falló" }
-          if ((netsh advfirewall firewall show rule name=AutoEvalPsi) -join "`n" -notmatch 'No rules match') { throw "La regla de firewall no se quitó" }
+          $quedan = (netsh advfirewall firewall show rule name=AutoEvalPsi) -join "`n"
+          if ($quedan -notmatch 'No rules match') { throw "La regla de firewall no se quitó" }
+          exit 0  # netsh devuelve 1 cuando ya no hay regla, que es lo esperado
 
       - name: Zip para entregar
         shell: pwsh
