@@ -396,13 +396,14 @@ def test_sin_reloj_inyectado_se_usa_la_hora_de_bolivia(tmp_path, lote_sintetico)
         assert bd.leer_evaluacion(ev_id).creada_en.endswith("-04:00")
 
 
-def test_como_evaluacion_lleva_fecha_y_hora_de_bolivia(tmp_path, lote_sintetico):
+def test_como_evaluacion_lleva_fecha_y_hora_de_bolivia_de_la_exportacion(tmp_path, lote_sintetico):
     reloj = lambda: datetime(2026, 11, 8, 2, 35, tzinfo=UTC)
     with BaseDatos(tmp_path, ahora=reloj) as bd:
         plantilla, ev_id = _evaluacion_guardada(bd, lote_sintetico)
+        bd._ahora = lambda: datetime(2026, 11, 8, 3, 10, tzinfo=UTC)  # se exporta 35 min después
         ev = bd.como_evaluacion(ev_id, plantilla)
     assert isinstance(ev.fecha, datetime)
-    assert ev.fecha == datetime(2026, 11, 7, 22, 35, tzinfo=timezone(timedelta(hours=-4)))
+    assert ev.fecha == datetime(2026, 11, 7, 23, 10, tzinfo=timezone(timedelta(hours=-4)))
 
 
 def test_la_lista_ordena_por_instante_aunque_haya_momentos_en_utc_y_en_bolivia(tmp_path):
