@@ -6,7 +6,7 @@ Paquete `autoevalpsi.core.ocr`. Cubre la Fase 2 de `plan.md` (paso 7 del pipelin
 |---|---|---|
 | OC-R0 | Prueba de viabilidad de PP-OCRv6 en ONNX | hecha (2026-11-06) |
 | OC-R1 | Lector OCR (detección + reconocimiento + confianza) | hecha (2026-11-06) |
-| OC-R2 | Integración en el pipeline: recortes, observaciones y cabecera | pendiente |
+| OC-R2 | Integración en el pipeline: recortes, observaciones y cabecera | hecha (2026-11-06) |
 | OC-R3 | Medición de error por carácter con su letra (gate de Fase 2) | pendiente |
 
 ---
@@ -133,6 +133,41 @@ OC-R3. La decisión es del responsable.
   del pipeline y en el Excel (columna de observación y recorte opcional).
 - **Tests:** con un `Lector` falso, cada línea cae en su fila; fila sin tinta no llama al lector;
   el recorte existe aunque el lector falle (excepción simulada).
+
+### Informe OC-R2 (2026-11-06)
+
+- **Código:** `core/ocr/texto.py` (`leer_texto`, `ParametrosOCR`, `ObservacionLeida`, `CampoLeido`,
+  `ResultadoTexto`); `procesar_foto(..., lector=)` opcional (sin lector no hay OCR y todo sigue
+  igual); `a_evaluacion` lleva el texto al Excel (`recortes=`); comando `procesar --ocr
+  [--recortes]`; con `--depuracion` guarda también `*.obsNNN.png`.
+- **Método (OC-05):** la franja de observaciones de cada tabla se limpia (lo impreso de la
+  referencia y las filas sin tinta en blanco) y el lector corre **una vez** por tabla; cada línea va
+  a la fila en cuyo tramo cae su centro (si cae en un hueco, a la más cercana a menos de media
+  fila; si no, se descarta). Varias líneas por fila se unen en orden con la confianza de la peor.
+  Sin tinta en ninguna fila no se llama al lector. Cabecera: un campo por llamada, solo si tiene
+  tinta.
+- **Recorte:** original (sin limpiar) de la celda de observación, de **cada fila con tinta**, aunque
+  el lector falle o no lea nada. Las filas sin tinta no llevan recorte (decisión: no hay nada que
+  mirar; el plan decía «siempre»).
+- **Banderas:** `ocr_confianza_baja` (< 0,85), `ocr_sin_texto` (hay tinta, no hay lectura),
+  `ocr_error` (excepción del lector), `cabecera_vacia`. Una observación vacía **no** es bandera; una
+  cabecera vacía sí. Cualquiera de ellas deja la fila sin `revisado` y `requiere_revision` en
+  verdadero; `n_amarillas` cuenta ítems con bandera en casillas **o** en observación.
+- **Excepción deliberada:** `FileNotFoundError`/`ImportError` del lector (modelos ausentes, falta
+  `onnxruntime`) **no** se degradan a `ocr_error`: llegan al comando con su mensaje de remedio.
+- **Cabecera → Excel:** sin `--paciente`, el paciente es el texto leído; los demás campos van a
+  `cabecera` (la fecha manuscrita como texto en «Fecha manuscrita»; la `fecha` de la evaluación
+  sigue siendo el argumento u hoy: no se interpreta la fecha manuscrita). Lo dado a mano manda.
+- **Umbrales provisionales:** `tinta_minima` 0,004 (fracción de la celda), `confianza_minima` 0,85.
+  A calibrar con letra real en OC-R3.
+- **Tests:** 17 rápidos con `LectorFalso` (fila correcta, una sola llamada por tabla, hoja en blanco
+  sin llamadas, filas vacías blanqueadas, línea fantasma descartada, unión de líneas, las 4 banderas,
+  recorte con lector roto, modelos ausentes, integración en pipeline/Excel, comando sin modelos) y 1
+  `lento` con el modelo real sobre la foto sintética limpia: 6/6 observaciones y 2/2 campos de
+  cabecera leídos exactos (letra Hershey, **no** manuscrito real); 5,2 s con carga del modelo en la
+  máquina de desarrollo (OC-07).
+- **Contrato nuevo:** forma del resultado JSON ampliada (`ocr_activo`, `observaciones[]`,
+  `cabecera[]`; AP-R1 la consumirá) y flags `--ocr`/`--recortes` del CLI.
 
 ## OC-R3 — Medición de error por carácter con su letra (gate de Fase 2)
 

@@ -49,8 +49,13 @@ def _procesar(args: argparse.Namespace) -> int:
         plantilla = cargar_plantilla(ruta)
         referencia = cargar_referencia(ruta, plantilla.paginas[0].imagen_referencia)
         datos = Path(args.foto).read_bytes()
-        proc = procesar_foto(datos, plantilla, referencia)
-    except (FileNotFoundError, PlantillaInvalida, ValueError) as e:
+        lector = None
+        if args.ocr:
+            from autoevalpsi.core.ocr.onnx import LectorONNX
+
+            lector = LectorONNX()  # perezoso: los modelos se cargan al leer
+        proc = procesar_foto(datos, plantilla, referencia, lector=lector)
+    except (FileNotFoundError, ImportError, PlantillaInvalida, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
 
@@ -62,10 +67,11 @@ def _procesar(args: argparse.Namespace) -> int:
         plantilla,
         paciente=args.paciente,
         fecha=date.fromisoformat(args.fecha) if args.fecha else None,
+        recortes=proc.recortes,
     )
     modo = NombreArchivo.INICIALES if args.iniciales else NombreArchivo.PACIENTE
     try:
-        archivos = exportar(evaluacion, salida, nombre=modo)
+        archivos = exportar(evaluacion, salida, nombre=modo, incluir_recortes=args.recortes)
     except ArchivoBloqueado as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
@@ -79,6 +85,10 @@ def _procesar(args: argparse.Namespace) -> int:
             print("Error: no se pudo codificar la imagen de depuración.", file=sys.stderr)
             return 2
         (carpeta / f"{Path(args.foto).stem}.hoja.png").write_bytes(buf.tobytes())
+        for item, recorte in proc.recortes.items():  # siempre que haya OCR, aunque falle (OC-02)
+            ok_png, png = cv2.imencode(".png", recorte)
+            if ok_png:
+                (carpeta / f"{Path(args.foto).stem}.obs{item:03d}.png").write_bytes(png.tobytes())
         (carpeta / f"{Path(args.foto).stem}.resultado.json").write_text(
             json.dumps(res.a_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
@@ -86,6 +96,11 @@ def _procesar(args: argparse.Namespace) -> int:
     print(f"Evaluación: {archivos.evaluacion}")
     print(f"Consolidado: {archivos.consolidado}")
     print(f"Filas: {len(res.filas)} · a revisar: {res.n_amarillas}")
+    for c in res.cabecera:
+        if not c.ok:
+            print(
+                f"Aviso: el campo de cabecera «{c.campo}» necesita revisión ({', '.join(c.banderas)})."
+            )
     for problema in res.problemas_calidad:
         print(f"Aviso de calidad: {problema}")
     if not res.registro_ok:
@@ -114,6 +129,16 @@ def main(argv: list[str] | None = None) -> int:
         "--depuracion",
         action="store_true",
         help="Guarda la hoja enderezada con la lectura superpuesta y el resultado en JSON.",
+    )
+    p.add_argument(
+        "--ocr",
+        action="store_true",
+        help="Lee con OCR las observaciones y la cabecera (necesita `modelos/`; ver README).",
+    )
+    p.add_argument(
+        "--recortes",
+        action="store_true",
+        help="Incluye en el Excel la imagen de cada observación manuscrita.",
     )
     p.set_defaults(ejecutar=_procesar)
 
