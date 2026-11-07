@@ -52,6 +52,8 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=
 
 [Code]
 const
+  // ISPP toma como directiva toda línea que empieza con «#»: por eso el salto va en una constante.
+  NL = #13#10;
   GuidWebView2 = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
 
 function WebView2Instalado(): Boolean;
@@ -70,9 +72,9 @@ begin
   Result := True;
   if not WebView2Instalado() and not WizardSilent() then
     if MsgBox('Falta "Microsoft Edge WebView2 Runtime", que AutoEvalPsi usa para mostrar su ventana. ' +
-              'Viene con Windows 11 y con Windows 10 actualizado.' + #13#10#13#10 +
+              'Viene con Windows 11 y con Windows 10 actualizado.' + NL + NL +
               'Puedes seguir con la instalación y, si la ventana no abre, instalarlo desde ' +
-              'https://go.microsoft.com/fwlink/p/?LinkId=2124703' + #13#10#13#10 +
+              'https://go.microsoft.com/fwlink/p/?LinkId=2124703' + NL + NL +
               '¿Continuar con la instalación?', mbConfirmation, MB_YESNO) = IDNO then
       Result := False;
 end;
@@ -86,9 +88,9 @@ begin
     Datos := ExpandConstant('{localappdata}\AutoEvalPsi');
     if DirExists(Datos) and not UninstallSilent() then
       // «No» (conservar) es el botón por defecto (DI-D1).
-      if MsgBox('¿Borrar también las evaluaciones, fotos y plantillas guardadas?' + #13#10#13#10 +
-                'Si eliges "No", se conservan en:' + #13#10 + Datos +
-                #13#10 + 'y una reinstalación las encontrará.',
+      if MsgBox('¿Borrar también las evaluaciones, fotos y plantillas guardadas?' + NL + NL +
+                'Si eliges "No", se conservan en:' + NL + Datos + NL +
+                'y una reinstalación las encontrará.',
                 mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
         DelTree(Datos, True, True, True);
   end;
