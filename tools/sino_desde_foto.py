@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -75,6 +76,8 @@ def _palabras(ln: LineaCar, que: str) -> list[int]:
 def _es_palabra(s: str, m: re.Match[str], que: str) -> bool:
     antes = s[m.start() - 1] if m.start() else " "
     despues = s[m.end()] if m.end() < len(s) else " "
+    if antes.isalpha() and antes in "vVxX" and s[max(m.start() - 2, 0)] in "( ":
+        antes = " "  # una ✓ o ✗ pegada al «No» y leída como letra: «Si(vNo(»
     return not antes.isalpha() and not despues.isalpha()
 
 
@@ -83,12 +86,12 @@ def _caja_opcion(ln: LineaCar, fin_palabra: int, limite_x: int, y: tuple[int, in
     xs = [x for c, x in ln.car[fin_palabra:] if c in "()" and x < limite_x]
     x_palabra = ln.car[fin_palabra - 1][1]
     if len(xs) >= 2:
-        x0, x1 = xs[0] - 4, xs[1] + 4
+        x0, x1 = xs[0] + 4, xs[1] - 4  # el interior: ahí va la marca, no los paréntesis
     elif len(xs) == 1:
-        x0, x1 = xs[0] - 4, xs[0] + ANCHO_PAREN
+        x0, x1 = xs[0] + 4, xs[0] + ANCHO_PAREN - 4
     else:
-        x0, x1 = x_palabra + 8, x_palabra + 8 + ANCHO_PAREN
-    return [int(x0), int(y[0]), int(x1), int(y[1])]
+        x0, x1 = x_palabra + 12, x_palabra + ANCHO_PAREN + 4
+    return [int(x0), int(y[0]) + 3, int(max(x1, x0 + 6)), int(y[1]) - 3]
 
 
 def encontrar_grupos(ln: LineaCar) -> list[dict]:
@@ -168,6 +171,7 @@ def construir(lineas: list[LineaCar]) -> dict:
                     and not encontrar_grupos(o)
                 ]
                 etiqueta = max(izq, key=lambda o: o.x1).texto if izq else ""
+            etiqueta = _limpiar_etiqueta(etiqueta)
             previo_fin = g["x_fin"]
             sec = seccion_de(ln.cy)
             if sec is None:
@@ -185,6 +189,55 @@ def construir(lineas: list[LineaCar]) -> dict:
     for s in secciones:
         s["items"].sort(key=lambda it: (it["y"] // 14, it["opciones"][0]["caja"][0]))
     return {"secciones": secciones}
+
+
+def _limpiar_etiqueta(texto: str) -> str:
+    """Quita lo que el OCR pega al texto del ítem: restos de paréntesis, marcas y otro grupo."""
+    texto = re.split(r"\bSi\b|\(", texto, maxsplit=1)[0]
+    return re.sub(r"^[^\wÁÉÍÓÚáéíóúÑñ¿¡]+", "", texto).strip(" .:;,)")
+
+
+def a_plantilla(
+    borrador: dict, gris: np.ndarray, *, id: str, nombre: str, tinta_minima: float = 0.02
+) -> tuple[dict, np.ndarray]:
+    """Plantilla del esquema v1 (una tabla de una fila por ítem) y su referencia sin marcas.
+
+    La referencia sale de la propia foto: la tinta dentro de cada caja (las marcas de la
+    persona) se borra con inpainting; los paréntesis impresos quedan fuera de las cajas.
+    """
+    alto, ancho = gris.shape[:2]
+    tablas: list[dict] = []
+    zona = np.zeros_like(gris)
+    n = 0
+    for s in borrador["secciones"]:
+        for it in s["items"]:
+            n += 1
+            si, no = (o["caja"] for o in it["opciones"])
+            etiqueta = _limpiar_etiqueta(it["texto"])
+            tablas.append(
+                {
+                    "seccion": f"{s['codigo']} {s['titulo']}",
+                    "opciones": ["Sí", "No"],
+                    "columnas_x": [[si[0], si[2]], [no[0], no[2]]],
+                    "filas": [{"item": n, "texto": etiqueta, "y": [si[1], si[3]]}],
+                }
+            )
+            for x0, y0, x1, y1 in (si, no):
+                zona[y0:y1, x0:x1] = 255
+    tinta = (gris < 150).astype(np.uint8) * 255
+    a_borrar = cv2.dilate(cv2.bitwise_and(tinta, zona), np.ones((3, 3), np.uint8))
+    limpia = cv2.inpaint(gris, a_borrar, 3, cv2.INPAINT_TELEA)
+    plantilla = {
+        "esquema_version": 1,
+        "id": id,
+        "nombre": nombre,
+        "version": 1,
+        "omr": {"tinta_minima": tinta_minima},
+        "paginas": [
+            {"imagen_referencia": f"{id}.png", "tamano_px": [ancho, alto], "tablas": tablas}
+        ],
+    }
+    return plantilla, limpia
 
 
 def dibujar(img: np.ndarray, plantilla: dict) -> np.ndarray:
@@ -213,6 +266,12 @@ def main(argv: list[str]) -> int:
         json.dumps(plantilla, indent=1, ensure_ascii=False), encoding="utf-8"
     )
     cv2.imencode(".png", dibujar(img, plantilla))[1].tofile(str(destino.with_suffix(".png")))
+    ident = re.sub(r"[^a-z0-9]+", "-", destino.stem.lower()).strip("-") or "formulario"
+    gris = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    v1, limpia = a_plantilla(plantilla, gris, id=ident, nombre=destino.stem)
+    with zipfile.ZipFile(destino.with_suffix(".zip"), "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("plantilla.json", json.dumps(v1, indent=1, ensure_ascii=False))
+        z.writestr(f"{ident}.png", cv2.imencode(".png", limpia)[1].tobytes())
     total = 0
     for s in plantilla["secciones"]:
         total += len(s["items"])
