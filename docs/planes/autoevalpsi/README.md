@@ -15,4 +15,4 @@ Para retomar el trabajo: **«Continúa según `docs/planes/autoevalpsi/BITACORA.
 
 Documento de producto: [`plan.md`](../../../plan.md).
 
-Estado global: **Ola 0 hecha salvo P-5 (humano); BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3 y CO-R5 hechas**. Siguiente: CO-R6 (bloqueada por CO-D1/CO-D2), OC-R0 o DI-R0.
+Estado global: **Ola 0 hecha salvo P-5 (humano); BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5 y OC-R0 hechas**. Siguiente: DI-R0 (CO-R6 bloqueada por CO-D1/CO-D2; OC-D1 por decidir).
