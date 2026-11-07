@@ -12,7 +12,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 | CO-R4 | Identificación del formulario | pendiente |
 | CO-R5 | Lectura de casillas y banderas (OMR) | hecha |
 | CO-R6 | Exportador Excel | hecha |
-| CO-R7 | Comando de foto a Excel e imágenes de depuración | pendiente |
+| CO-R7 | Comando de foto a Excel e imágenes de depuración | hecha |
 | CO-R8 | Banco de validación con fotos reales (gate de Fase 1) | pendiente |
 
 ---
@@ -219,6 +219,24 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
   depuración, guarda la hoja enderezada con la cuadrícula superpuesta y cada celda coloreada por
   decisión/bandera. `core/pipeline.py` orquesta los pasos y devuelve un resultado serializable
   (lo usará la app).
+- **Hecha (2026-11-06):** `core/pipeline.py`: `procesar_foto(datos, plantilla, referencia, *, pagina=0,
+  ...)` → `Procesamiento(resultado, registro)`; `ResultadoProcesamiento` es serializable
+  (`a_dict()`, sin `inf`/`nan`; lleva SHA-256 de la foto, problemas de calidad, métricas de registro y
+  las filas) y expone `n_amarillas` y `requiere_revision`; `a_evaluacion(resultado, plantilla, *,
+  paciente, fecha, id, cabecera)` → `Evaluacion` con `revisado = fila sin bandera` y, sin `id`, el
+  SHA-256 de la foto (procesar dos veces la misma foto no duplica el consolidado). Los errores de la
+  foto (`ImagenInvalida`, `HojaNoEncontrada`, `RegistroInvalido`) llegan sin capturar; mala calidad o
+  registro dudoso son avisos, no errores. `core/depuracion.py`: `dibujar_depuracion` (cuadrícula azul;
+  verde = elegida sin banderas, amarillo = elegida con bandera, naranja = tinta no elegida, borde rojo
+  = fila sin marca). CLI: `autoevalpsi procesar FOTO --plantilla ID|RUTA.json --salida DIR
+  [--plantillas DIR] [--paciente] [--fecha] [--iniciales] [--depuracion]`; el id se busca como
+  `<plantillas>/<id>.json` (por defecto `plantillas/` o `AUTOEVALPSI_PLANTILLAS`); con `--depuracion`
+  escribe `DIR/depuracion/<foto>.hoja.png` y `.resultado.json`. Salida 2 con mensaje en stderr si
+  falla la plantilla, la foto o el archivo está bloqueado. **Límites:** una foto = una página
+  (`pagina=0` en la CLI; formularios de varias hojas se exportan página a página en la app, AP-R1);
+  la cabecera (paciente, fecha) viene de los flags, no se lee por OCR (OC-R2); el JSON del lote
+  sintético apunta a `demo-5opciones-a4.png` y no a `blanca.png`, así que los tests copian la imagen
+  con el nombre que pide la plantilla.
 
 ## CO-R8 — Banco de validación con fotos reales (gate de Fase 1)
 

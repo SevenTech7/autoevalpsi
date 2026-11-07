@@ -15,4 +15,4 @@ Para retomar el trabajo: **«Continúa según `docs/planes/autoevalpsi/BITACORA.
 
 Documento de producto: [`plan.md`](../../../plan.md).
 
-Estado global: **Ola 0 hecha salvo P-5 (humano); BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, OC-R0 y OC-R1 hechas; DI-R0 parcial (falta Windows)**. Siguiente: CO-R7. PL-R0/R1 esperan fotos de la usuaria; BS-R2 espera el repo (B-2).
+Estado global: **Ola 0 hecha salvo P-5 (humano); BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0 y OC-R1 hechas; DI-R0 parcial (falta Windows)**. Siguiente: OC-R2 o AP-R0. PL-R0/R1 esperan fotos de la usuaria; BS-R2 espera el repo (B-2).
