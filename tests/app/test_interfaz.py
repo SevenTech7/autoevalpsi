@@ -15,6 +15,7 @@ TOKEN = "token-de-prueba-0123456789"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
 LAPTOP = ("127.0.0.1", 50000)
 CELULAR = ("192.168.1.50", 40000)
+PNG = b"\x89PNG"
 
 
 @pytest.fixture(scope="module")
@@ -209,3 +210,127 @@ def test_borrar_fotos_es_solo_de_la_laptop(entorno, lote_sintetico):
     _, celular, _, _ = entorno
     r = celular.post("/api/evaluaciones/abc/borrar_fotos", json={})
     assert r.status_code == 403
+
+
+# --- revisión (AP-R5): recortes y descartar foto -------------------------------------------------
+
+
+def test_revision_de_punta_a_punta_con_los_recortes_de_una_foto_real(
+    tmp_path, zip_plantilla, estaticos, lote_sintetico
+):
+    """Sube una foto con OCR, mira los recortes, confirma todo y exporta (AP-R5, e2e mínimo)."""
+    from autoevalpsi.core.ocr.lector import Caja, LectorFalso, Linea
+
+    bd = BaseDatos(tmp_path / "ocr")
+    plantillas = RepositorioPlantillas(tmp_path / "ocr" / "plantillas")
+    plantillas.importar_zip(zip_plantilla)
+    lector = LectorFalso([Linea("Maria Lopez", 0.97, Caja(0, 0, 100, 20))])
+    app = crear_app(bd, plantillas, token=TOKEN, estaticos=estaticos, lector=lector)
+    try:
+        with (
+            TestClient(app, headers=AUTH, client=LAPTOP) as laptop,
+            TestClient(app, client=CELULAR) as celular,
+            TestClient(app, client=LAPTOP) as sin_cabecera,
+        ):
+            plantilla = laptop.get("/api/plantillas").json()[0]["id"]
+            foto = lote_sintetico[0].foto
+            r = laptop.post(
+                "/api/fotos",
+                data={"plantilla": plantilla},
+                files={"foto": (foto.name, foto.read_bytes(), "image/jpeg")},
+            )
+            assert r.status_code == 202, r.text
+            assert app.state.cola.esperar(60)
+            id = r.json()["trabajo"]["evaluacion_id"]
+
+            ev = laptop.get(f"/api/evaluaciones/{id}").json()
+            con_recorte = [f for f in ev["filas"] if f["ruta_recorte"]]
+            assert con_recorte and ev["recortes_cabecera"]
+            url = f"/api/evaluaciones/{id}/recortes/{con_recorte[0]['item']}"
+            r = laptop.get(url)
+            assert r.status_code == 200 and r.content.startswith(PNG)
+            assert "no-store" in r.headers["cache-control"]
+            campo = next(iter(ev["recortes_cabecera"]))
+            r = laptop.get(f"/api/evaluaciones/{id}/cabecera/{campo}")
+            assert r.status_code == 200 and r.content.startswith(PNG)
+
+            # un <img> no puede mandar cabeceras: el token va en la URL; sin él, nada
+            assert sin_cabecera.get(url).status_code == 401
+            assert sin_cabecera.get(f"{url}?token={TOKEN}").status_code == 200
+            assert celular.get(url).status_code == 403
+
+            pendientes = [f["item"] for f in ev["filas"] if not f["revisada"]]
+            r = laptop.put(
+                f"/api/evaluaciones/{id}",
+                json={"filas": [{"item": i} for i in pendientes], "confirmar_cabecera": True},
+            )
+            assert r.status_code == 200 and r.json()["filas_pendientes"] == 0
+            r = laptop.post(
+                f"/api/evaluaciones/{id}/exportar", json={"carpeta": str(tmp_path / "excel")}
+            )
+            assert r.status_code == 200, r.text
+    finally:
+        bd.cerrar()
+
+
+def test_un_recorte_que_no_existe_es_404_con_mensaje(entorno, lote_sintetico):
+    laptop = entorno[0]
+    id = _evaluacion(entorno, lote_sintetico)
+    r = laptop.get(f"/api/evaluaciones/{id}/recortes/9999")
+    assert r.status_code == 404 and _cod(r) == "recorte_inexistente"
+    r = laptop.get(f"/api/evaluaciones/{id}/cabecera/nada")
+    assert r.status_code == 404 and _cod(r) == "recorte_inexistente"
+    r = laptop.get("/api/evaluaciones/nada/recortes/1")
+    assert r.status_code == 404 and _cod(r) == "evaluacion_inexistente"
+
+
+def test_descartar_la_unica_foto_elimina_la_evaluacion_y_deja_repetirla(entorno, lote_sintetico):
+    laptop, _, app, bd = entorno
+    id = _evaluacion(entorno, lote_sintetico)
+    plantilla = laptop.get("/api/plantillas").json()[0]["id"]
+    r = laptop.delete(f"/api/evaluaciones/{id}/paginas/0")
+    assert r.status_code == 200 and r.json() == {"evaluacion_eliminada": True}
+    assert laptop.get(f"/api/evaluaciones/{id}").status_code == 404
+    assert not any((bd.raiz / "fotos").glob("**/*.jp*g"))
+    # la misma foto se puede subir de nuevo
+    foto = lote_sintetico[0].foto
+    r = laptop.post(
+        "/api/fotos",
+        data={"plantilla": plantilla},
+        files={"foto": (foto.name, foto.read_bytes(), "image/jpeg")},
+    )
+    assert r.status_code == 202, r.text
+    assert app.state.cola.esperar(60)
+
+
+def test_descartar_una_pagina_inexistente_o_de_una_evaluacion_inexistente_es_404(
+    entorno, lote_sintetico
+):
+    laptop = entorno[0]
+    id = _evaluacion(entorno, lote_sintetico)
+    r = laptop.delete(f"/api/evaluaciones/{id}/paginas/7")
+    assert r.status_code == 404 and _cod(r) == "pagina_inexistente"
+    r = laptop.delete("/api/evaluaciones/nada/paginas/0")
+    assert r.status_code == 404 and _cod(r) == "evaluacion_inexistente"
+    assert laptop.get(f"/api/evaluaciones/{id}").status_code == 200
+
+
+def test_no_se_descarta_una_foto_que_todavia_se_lee(entorno, lote_sintetico):
+    laptop, _, app, _ = entorno
+    id = _evaluacion(entorno, lote_sintetico)
+    trabajo = app.state.cola.estado()["trabajos"][0]
+    # simula un trabajo en vuelo de esa misma página
+    from autoevalpsi.app.cola import Trabajo
+
+    pendiente = Trabajo("t99", "x", id, trabajo["pagina"], "p", (), "ahora", estado="procesando")
+    app.state.cola._trabajos["t99"] = pendiente
+    r = laptop.delete(f"/api/evaluaciones/{id}/paginas/{trabajo['pagina']}")
+    assert r.status_code == 409 and _cod(r) == "foto_en_lectura"
+    pendiente.estado = "lista"
+    assert laptop.delete(f"/api/evaluaciones/{id}/paginas/{trabajo['pagina']}").status_code == 200
+
+
+def test_descartar_es_solo_de_la_laptop(entorno):
+    _, celular, _, _ = entorno
+    r = celular.delete("/api/evaluaciones/abc/paginas/0")
+    assert r.status_code == 403 and _cod(r) == "solo_laptop"

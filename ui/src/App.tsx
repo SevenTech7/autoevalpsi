@@ -4,8 +4,9 @@ import { crearCliente } from "./api/cliente";
 import { Aviso } from "./componentes/base";
 import { ContextoApi } from "./hooks";
 import { Configuracion } from "./pantallas/Configuracion";
-import { PantallaEvaluacion, PantallaEvaluaciones } from "./pantallas/Evaluaciones";
+import { PantallaEvaluaciones } from "./pantallas/Evaluaciones";
 import { Inicio } from "./pantallas/Inicio";
+import { PantallaRevision } from "./pantallas/Revision";
 import { enlace, useRuta, type Ruta } from "./ruta";
 
 const MENU: { texto: string; href: string; pantallas: Ruta["pantalla"][] }[] = [
@@ -21,7 +22,7 @@ function Pantalla({ ruta }: { ruta: Ruta }) {
     case "evaluaciones":
       return <PantallaEvaluaciones />;
     case "evaluacion":
-      return <PantallaEvaluacion id={ruta.id} />;
+      return <PantallaRevision id={ruta.id} />;
     case "configuracion":
       return <Configuracion />;
   }

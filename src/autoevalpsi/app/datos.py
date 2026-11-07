@@ -664,6 +664,69 @@ class BaseDatos:
                 pass
         return borrados
 
+    def descartar_pagina(self, evaluacion_id: str, pagina: int) -> bool:
+        """Descarta una foto (AP-R5): quita la página, sus filas y sus archivos del disco.
+
+        Sirve para repetir una hoja mala: tras descartarla se puede subir de nuevo la misma
+        página (y la misma foto). Si era la última página se elimina la evaluación entera, con
+        sus correcciones y recortes de cabecera. Devuelve si la evaluación desapareció. Los
+        recortes de cabecera de una evaluación que sigue viva se conservan.
+        """
+        with self._tx() as con:
+            self._existe(con, evaluacion_id)
+            p = con.execute(
+                "SELECT foto_ruta FROM paginas WHERE evaluacion_id = ? AND pagina = ?",
+                (evaluacion_id, pagina),
+            ).fetchone()
+            if p is None:
+                raise EvaluacionInexistente(
+                    f"no existe la página {pagina} en la evaluación {evaluacion_id!r}"
+                )
+            rutas = [p["foto_ruta"]] if p["foto_ruta"] else []
+            rutas += [
+                r["ruta_recorte"]
+                for r in con.execute(
+                    "SELECT ruta_recorte FROM filas WHERE evaluacion_id = ? AND pagina = ?"
+                    " AND ruta_recorte IS NOT NULL",
+                    (evaluacion_id, pagina),
+                )
+            ]
+            carpetas = [self.raiz / "fotos" / evaluacion_id]
+            con.execute(
+                "DELETE FROM filas WHERE evaluacion_id = ? AND pagina = ?", (evaluacion_id, pagina)
+            )
+            con.execute(
+                "DELETE FROM paginas WHERE evaluacion_id = ? AND pagina = ?",
+                (evaluacion_id, pagina),
+            )
+            quedan = con.execute(
+                "SELECT COUNT(*) FROM paginas WHERE evaluacion_id = ?", (evaluacion_id,)
+            ).fetchone()[0]
+            if quedan:
+                self._recalcular_estado(con, evaluacion_id, self._momento())
+            else:
+                cab = con.execute(
+                    "SELECT recortes_cabecera FROM evaluaciones WHERE id = ?", (evaluacion_id,)
+                ).fetchone()
+                rutas += list(json.loads(cab["recortes_cabecera"]).values())
+                carpetas.append(self.raiz / "recortes" / evaluacion_id)
+                con.execute("DELETE FROM evaluaciones WHERE id = ?", (evaluacion_id,))
+        for ruta in rutas:
+            (self.raiz / ruta).unlink(missing_ok=True)
+        for carpeta in carpetas:
+            try:
+                carpeta.rmdir()
+            except OSError:
+                pass
+        return not quedan
+
+    def archivo(self, ruta_relativa: str) -> Path | None:
+        """Ruta absoluta de un archivo guardado, o None si no existe o se sale de la raíz."""
+        destino = (self.raiz / ruta_relativa).resolve()
+        if not destino.is_relative_to(self.raiz.resolve()) or not destino.is_file():
+            return None
+        return destino
+
     # --- lectura ------------------------------------------------------------------------
 
     def leer_evaluacion(self, evaluacion_id: str) -> EvaluacionGuardada:

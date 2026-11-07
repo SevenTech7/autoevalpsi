@@ -4,7 +4,6 @@ import type { ResumenEvaluacion } from "../api/tipos";
 import { Aviso, Tarjeta } from "../componentes/base";
 import { TablaEvaluaciones } from "../componentes/TablaEvaluaciones";
 import { useApi, useCarga } from "../hooks";
-import { enlace } from "../ruta";
 
 export type Filtro = "todas" | "por_revisar" | "listas" | "exportadas";
 
@@ -62,20 +61,6 @@ export function PantallaEvaluaciones() {
     <Tarjeta titulo="Evaluaciones">
       {error && <Aviso>{error}</Aviso>}
       {datos && <ListaEvaluaciones evaluaciones={datos} />}
-    </Tarjeta>
-  );
-}
-
-/** Marcador hasta AP-R5 (pantalla de revisión). */
-export function PantallaEvaluacion({ id }: { id: string }) {
-  return (
-    <Tarjeta titulo="Revisión">
-      <p className="mb-4">
-        La pantalla para revisar la evaluación <code>{id}</code> llega en la siguiente etapa.
-      </p>
-      <a className="text-acento underline" href={enlace.evaluaciones}>
-        Volver a la lista
-      </a>
     </Tarjeta>
   );
 }

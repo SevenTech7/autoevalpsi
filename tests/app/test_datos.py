@@ -394,3 +394,70 @@ def test_evaluacion_de_foto_encuentra_el_id_por_sha(bd):
     id = _crear(bd)
     assert bd.evaluacion_de_foto("a" * 64) == id
     assert bd.evaluacion_de_foto("b" * 64) is None
+
+
+# --- descartar una foto (AP-R5) --------------------------------------------------------------
+
+
+def test_descartar_una_pagina_deja_la_otra_y_recalcula_el_estado(bd):
+    ev_id = bd.guardar_procesamiento(
+        _resultado(items=(1, 2)),
+        foto=JPEG,
+        recortes={1: np.full((10, 20), 128, np.uint8)},
+        evaluacion_id="ev",
+    )
+    bd.guardar_procesamiento(
+        _resultado(sha="b" * 64, pagina=1, items=(3,)), foto=PNG, evaluacion_id=ev_id
+    )
+    bd.actualizar_fila(ev_id, 2)  # confirma la amarilla de la página 0
+    bd.confirmar_cabecera(ev_id)
+    assert bd.leer_evaluacion(ev_id).estado == "revisada"
+    ev = bd.leer_evaluacion(ev_id)
+    foto1 = bd.raiz / ev.paginas[1].foto_ruta
+
+    assert bd.descartar_pagina(ev_id, 1) is False
+    ev = bd.leer_evaluacion(ev_id)
+    assert [p.pagina for p in ev.paginas] == [0]
+    assert {f.item for f in ev.filas} == {1, 2}  # el ítem 3 era de la página 1
+    assert not foto1.exists()
+    assert (bd.raiz / ev.paginas[0].foto_ruta).exists()
+    assert (bd.raiz / ev.filas[0].ruta_recorte).exists()
+
+
+def test_descartar_la_unica_pagina_elimina_la_evaluacion_y_sus_archivos(bd):
+    ev_id = _crear(bd)
+    ev = bd.leer_evaluacion(ev_id)
+    archivos = [bd.raiz / ev.paginas[0].foto_ruta, bd.raiz / ev.filas[0].ruta_recorte]
+    archivos += [bd.raiz / r for r in ev.recortes_cabecera.values()]
+    bd.actualizar_fila(ev_id, 2, opcion="A")  # deja una corrección
+    assert bd.descartar_pagina(ev_id, 0) is True
+    with pytest.raises(EvaluacionInexistente):
+        bd.leer_evaluacion(ev_id)
+    assert not any(a.exists() for a in archivos)
+    assert bd.listar_correcciones(ev_id) == []
+    assert not (bd.raiz / "fotos" / ev_id).exists()
+
+
+def test_tras_descartar_se_puede_subir_otra_vez_la_misma_foto(bd):
+    ev_id = _crear(bd)
+    assert bd.evaluacion_de_foto("a" * 64) == ev_id
+    bd.descartar_pagina(ev_id, 0)
+    assert bd.evaluacion_de_foto("a" * 64) is None
+    assert _crear(bd) == ev_id  # mismo id derivado de la foto: ya no choca
+
+
+def test_descartar_una_pagina_inexistente_falla_sin_tocar_nada(bd):
+    ev_id = _crear(bd)
+    with pytest.raises(EvaluacionInexistente):
+        bd.descartar_pagina(ev_id, 5)
+    with pytest.raises(EvaluacionInexistente):
+        bd.descartar_pagina("nada", 0)
+    assert len(bd.leer_evaluacion(ev_id).filas) == 3
+
+
+def test_archivo_no_sale_de_la_raiz(bd):
+    ev_id = _crear(bd)
+    ruta = bd.leer_evaluacion(ev_id).filas[0].ruta_recorte
+    assert bd.archivo(ruta) is not None
+    assert bd.archivo("../fuera.txt") is None
+    assert bd.archivo("recortes/no-existe.png") is None

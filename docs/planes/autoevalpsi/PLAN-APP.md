@@ -11,7 +11,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 | AP-R3 | Ventana de escritorio con pywebview | hecha (ventana real sin verificar) |
 | AP-R3b | Vínculo del celular (AP-D2) | hecha (A32 real sin verificar) |
 | AP-R4 | Interfaz React base | hecha (ventana real sin verificar) |
-| AP-R5 | Pantalla de revisión | pendiente |
+| AP-R5 | Pantalla de revisión | hecha (uso real sin verificar) |
 | AP-R6 | Exportación desde la interfaz | pendiente |
 | AP-R7 | Prueba de aceptación con la usuaria (gate de Fase 3) | pendiente (humano) |
 
@@ -156,6 +156,14 @@ pipeline desde la interfaz). Prefijo `AP`.
 
 - **Requiere:** AP-R4, OC-R2; el modo del texto depende de OC-D2 (si no está decidida, dejar el
   modo configurable y la fase **parcial**).
+- **Estado:** hecha (2026-11-07). `ui/src/pantallas/Revision.tsx` (21 tests vitest en `ui/src/pruebas/revision.test.tsx`);
+  en el servidor `GET /api/evaluaciones/{id}/recortes/{item}`, `GET .../cabecera/{campo}` y
+  `DELETE .../paginas/{n}` (solo laptop; los `<img>` piden con `?token=`), `BaseDatos.descartar_pagina` y
+  `archivo` (ruta segura dentro de la raíz). **Desviaciones:** filas en el orden del papel, resaltadas
+  y con filtro «solo lo que falta» en vez de reordenar; Enter confirma y salta a la siguiente fila
+  por revisar; Ctrl+Enter confirma desde el texto; no se muestra la foto completa, solo los recortes.
+  «Descartar esta foto» cierra el hallazgo de AP-R2. El texto del OCR es siempre sugerencia (OC-D2).
+  **No verificado:** el aspecto y el teclado en la ventana real; OC-R3 ajusta cuándo se resalta el texto.
 - **Esfuerzo:** L.
 - **Pasos:** por fila: recorte de la fila al lado de las casillas leídas, clic para cambiar,
   observación editable en línea con su recorte, filas amarillas primero o resaltadas, navegación

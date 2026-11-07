@@ -22,6 +22,9 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     GET  /api/configuracion                  carpeta de exportación (la elegida y la efectiva)
     PUT  /api/configuracion                  {carpeta_exportacion}; "" vuelve a la de por defecto
     POST /api/evaluaciones/{id}/borrar_fotos [{incluir_recortes}] -> {borrados}; acción manual (AP-D1)
+    GET  /api/evaluaciones/{id}/recortes/{item}   PNG del recorte de la observación de una fila
+    GET  /api/evaluaciones/{id}/cabecera/{campo}  PNG del recorte de un campo de la cabecera
+    DELETE /api/evaluaciones/{id}/paginas/{n}     descarta una foto para repetirla (AP-R5)
     GET  /captura                            página del celular (HTML estático, sin secretos); AP-07
     GET  /, /assets/*                        la interfaz React compilada (AP-R4); estática y sin secretos
 
@@ -63,7 +66,7 @@ from typing import Annotated
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
@@ -515,6 +518,41 @@ def crear_app(
         evaluacion(id)
         incluir = (pedido or PedidoBorrarFotos()).incluir_recortes
         return {"borrados": bd.borrar_fotos(id, incluir_recortes=incluir)}
+
+    # --- revisión (AP-R5) ---------------------------------------------------------------
+
+    def imagen(ruta: str | None) -> FileResponse:
+        archivo = bd.archivo(ruta) if ruta else None
+        if archivo is None:
+            raise _error(404, "recorte_inexistente", "Esa imagen ya no está guardada.")
+        return FileResponse(archivo, headers={"Cache-Control": "private, no-store"})
+
+    @app.get("/api/evaluaciones/{id}/recortes/{item}")
+    def recorte_de_fila(id: str, item: int) -> FileResponse:
+        """El recorte original de la observación de una fila (solo las que tenían tinta)."""
+        fila = next((f for f in evaluacion(id).filas if f.item == item), None)
+        return imagen(fila.ruta_recorte if fila else None)
+
+    @app.get("/api/evaluaciones/{id}/cabecera/{campo}")
+    def recorte_de_cabecera(id: str, campo: str) -> FileResponse:
+        return imagen(evaluacion(id).recortes_cabecera.get(campo))
+
+    @app.delete("/api/evaluaciones/{id}/paginas/{pagina}")
+    def descartar_pagina(id: str, pagina: int) -> dict:
+        """Descarta una foto para repetirla. Si era la única, la evaluación desaparece."""
+        evaluacion(id)
+        leyendo = any(
+            t["evaluacion_id"] == id and t["pagina"] == pagina
+            for t in cola.estado()["trabajos"]
+            if t["estado"] in ("en_cola", "procesando")
+        )
+        if leyendo:
+            raise _error(409, "foto_en_lectura", "Esa foto todavía se está leyendo; espera un momento.")
+        try:
+            eliminada = bd.descartar_pagina(id, pagina)
+        except EvaluacionInexistente as e:
+            raise _error(404, "pagina_inexistente", str(e)) from e
+        return {"evaluacion_eliminada": eliminada}
 
     # --- configuración (AP-R4) ----------------------------------------------------------
 
