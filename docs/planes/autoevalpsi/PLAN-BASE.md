@@ -18,9 +18,9 @@ demás frentes. Prefijo `BS`.
   (instrumentos con posibles derechos de autor) **no pueden entrar a git**, ni siquiera al repo
   privado de código (ver PL-D2). Por eso los tests de CI no pueden depender de ellas: hace falta un
   formulario propio, sin derechos, y un generador de fotos sintéticas.
-- **BS-03** — Node/npm no están instalados en la máquina de desarrollo (verificado 2026-11-06).
-  La interfaz React (AP-R4) no se puede compilar localmente hasta instalarlo; uv tampoco está
-  instalado (ver BS-D1). Python 3.12.0 y git 2.42 sí están.
+- **BS-03** — Node/npm no están instalados en la máquina de desarrollo (verificado 2026-11-06) ni
+  se instalan: la interfaz React (AP-R4) se compila en Docker (servicio `ui` de compose, imagen
+  `node:22-slim`; ver README). Lo mismo vale para uv (BS-D1). Python 3.12.0 y git 2.42 sí están.
 - **BS-04** — `plan.md` habla del paquete `core/` desacoplado de la interfaz. Esa regla debe
   vigilarla un test, no solo la disciplina: si `core` importa `fastapi`, `webview` o `app`, el test
   falla.

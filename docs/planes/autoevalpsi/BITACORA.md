@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-07 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1, AP-R2, AP-R3 y AP-R3b hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: AP-R4** (interfaz React, con imagen `node` en compose; su pantalla de inicio lleva el botón «Vincular celular»; OC-R3 y PL-R0 esperan las fotos en blanco y la verdad de la usuaria). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1, AP-R2, AP-R3, AP-R3b y AP-R4 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: AP-R5** (pantalla de revisión; texto del OCR siempre como sugerencia, OC-D2; necesita «descartar foto», hallazgo de AP-R2; la ruta `#/evaluaciones/<id>` ya existe como marcador). OC-R3 y PL-R0 esperan las fotos en blanco y la verdad de la usuaria. BS-R2 espera B-2. Pendiente humano: P-5. |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 17 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1, AP-R2, AP-R3, AP-R3b); DI-R0 parcial |
+| Fases hechas | 18 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1, AP-R2, AP-R3, AP-R3b, AP-R4); DI-R0 parcial |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -114,7 +114,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | 21 | [AP-R2](PLAN-APP.md#ap-r2--página-de-captura-en-el-celular-qr-e-ip-local) | AP-01, AP-02, AP-07 | `fase-ap-2` | AP-R1 | M | hecha |
 | 22 | [AP-R3](PLAN-APP.md#ap-r3--ventana-de-escritorio-con-pywebview) | AP-08 | `fase-ap-3` | AP-R1 | S | hecha |
 | 22b | [AP-R3b](PLAN-APP.md#ap-r3b--vínculo-del-celular-ap-d2) | AP-D2 | `fase-ap-3b` | AP-R3 | M | hecha |
-| 23 | [AP-R4](PLAN-APP.md#ap-r4--interfaz-react-base) | BS-03 | `fase-ap-4` | AP-R1, Node | M | pendiente |
+| 23 | [AP-R4](PLAN-APP.md#ap-r4--interfaz-react-base) | BS-03 | `fase-ap-4` | AP-R1, Node (Docker) | M | hecha |
 | 24 | [AP-R5](PLAN-APP.md#ap-r5--pantalla-de-revisión) | — | `fase-ap-5` | AP-R4, OC-R2, OC-D2 | L | pendiente |
 | 25 | [AP-R6](PLAN-APP.md#ap-r6--exportación-desde-la-interfaz) | — | `fase-ap-6` | AP-R5, CO-R6, AP-D1 | S | pendiente |
 | 26 | [AP-R7](PLAN-APP.md#ap-r7--prueba-de-aceptación-con-la-usuaria-gate-de-fase-3) | gate Fase 3 | — | AP-R6 | humano | pendiente |
@@ -184,7 +184,7 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 - [ ] ¿Hay formularios de más de una hoja? (PL-03).
 - [ ] Versión de Windows de la laptop (DI-05).
 - [ ] Perfil de red del WiFi de la casa en la laptop: Privada o Pública (AP-01).
-- [ ] Instalar Node LTS en la máquina de desarrollo antes de AP-R4 (BS-03).
+- [x] ~~Instalar Node LTS en la máquina de desarrollo (BS-03)~~: no hace falta; Node corre en Docker (servicio `ui`).
 
 ---
 
@@ -236,3 +236,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-07 | AP-R3 | `fase-ap-3` → `main` | `app/escritorio.py`: `ServidorLocal` (uvicorn en un hilo, sockets propios en `127.0.0.1` y las IP privadas, nunca `0.0.0.0`; espera a `/api/salud`; cierre ordenado), instancia única por puerto (`AplicacionYaAbierta`/`PuertoOcupado`, mensajes para la usuaria; cuadro de Windows por `ctypes`), `Puente` con el diálogo nativo de carpeta (guarda `carpeta_exportacion`), `ejecutar` y comando `autoevalpsi abrir`. Cierra AP-08. | 302 → 315 passed (13 nuevos); ruff check limpio | **Contrato nuevo (aditivo):** comando CLI `abrir`; clave de configuración `carpeta_exportacion`. Sin cambio de API HTTP. **No verificado:** la ventana real y el cuadro de error en Windows. Las IP se enlazan al arrancar. AP-D2 (emparejamiento) sigue abierta: no se tocó. Siguiente: AP-R4 (imagen `node` en compose). |
 | 2026-11-07 | — (decisión AP-D2) | `main` · sin commit | Aprobado el diseño de vínculo del celular: un solo celular reemplazable; volver a vincular si cambia la IP. Fase nueva AP-R3b antes de AP-R4. | — | **Contrato a afectar en AP-R3b:** API HTTP (rutas de vínculo; QR con código de un solo uso en vez del token de sesión) y esquema de BD v2 (`dispositivos`). |
 | 2026-11-07 | AP-R3b | `fase-ap-3b` → `main` | `app/vinculo.py` (`Vinculos`: códigos de 128 bits, un solo uso, 5 min, en memoria; credencial de 256 bits, en la BD solo su SHA-256); `Guardia` con tres niveles: público (`salud`, `POST /api/vinculo`, `/captura`), celular vinculado (`X-Dispositivo`: `POST /api/fotos`, `GET /api/cola*`, `GET /api/plantillas*`) y laptop (loopback + token: todo lo demás); BD v2 con `dispositivos` (un solo registro); `POST /api/vinculo/iniciar`, `GET/POST/DELETE /api/vinculo`; página del celular reescrita (canjea el código del QR, guarda la credencial en `localStorage`, muestra «Vincula este celular desde la laptop»). | 315 → 340 passed (`test_vinculo.py` nuevo; ajustes en `test_captura`, `test_servidor` y `test_qr`); ruff limpio; JS con `node --check` | **Contratos cambiados (anunciados en AP-D2):** API HTTP v1 (el token de la app ya no sale de la laptop; se retira `GET /api/captura/enlace`; `/captura` pública y estática) y esquema de BD v1 → v2 (migración probada con una BD v1 con datos). Cierra el riesgo de `exportar` con `carpeta` libre. **No verificado:** vincular el A32 real, HTTP sin cifrar en el WiFi, comportamiento del JS de la página en un navegador (solo sintaxis). Siguiente: AP-R4 (imagen `node` en compose; pantalla de inicio con el botón de vincular; llamar a la API desde `127.0.0.1`). |
+| 2026-11-07 | AP-R4 | `fase-ap-4` → `main` | `ui/` (Vite + React 19 + TS + Tailwind 4, vitest) compilada en Docker (servicio `ui`, `node:22-slim`) a `app/estaticos/` (fuera de git); FastAPI la sirve en `/` y `/assets` con CSP estricta. Pantallas: inicio (vincular celular con QR, cuenta regresiva, sondeo del canje, selector de red, desvincular; evaluaciones por terminar), lista de evaluaciones con filtros, configuración (carpeta de exportación, borrar fotos de lo exportado). Cliente tipado, token de `?token=` quitado de la barra. Cierra BS-03. | 340 → 354 passed (14 nuevos en `tests/app/test_interfaz.py`); ruff check limpio; vitest 29 passed; `tsc` y `vite build` limpios | **Contrato ampliado (aditivo):** `GET/PUT /api/configuracion`, `POST /api/evaluaciones/{id}/borrar_fotos`, `GET /` y `/assets/*`. Node no se instala en el equipo (regla Docker). **No verificado:** la ventana real (WebView2), el diálogo nativo de carpeta y el aspecto en pantalla. Hallazgo para DI-R1: hatch excluye lo ignorado por git; `estaticos/` va como dato de PyInstaller y el build de `ui/` precede al empaquetado. `ruff format --check` falla en 2 tests previos (`test_frontera_core.py`, `test_cli.py`), preexistente. Siguiente: AP-R5. |

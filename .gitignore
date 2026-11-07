@@ -15,3 +15,7 @@ build/
 dist/
 *.db
 *.sqlite
+
+# Interfaz React (AP-R4): dependencias y salida compilada
+ui/node_modules/
+src/autoevalpsi/app/estaticos/

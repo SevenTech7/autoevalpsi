@@ -8,3 +8,5 @@ modelos
 __pycache__
 .pytest_cache
 .ruff_cache
+ui/node_modules
+src/autoevalpsi/app/estaticos
