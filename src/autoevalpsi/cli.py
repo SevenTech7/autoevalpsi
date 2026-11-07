@@ -108,6 +108,17 @@ def _procesar(args: argparse.Namespace) -> int:
     return 0
 
 
+def _abrir(args: argparse.Namespace) -> int:
+    from autoevalpsi.app.escritorio import ejecutar
+
+    lector = None
+    if args.ocr:
+        from autoevalpsi.core.ocr.onnx import LectorONNX
+
+        lector = LectorONNX()  # perezoso: los modelos se cargan al leer
+    return ejecutar(puerto=args.puerto, lector=lector)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="autoevalpsi")
     parser.add_argument("--version", action="version", version=f"autoevalpsi {_version()}")
@@ -141,6 +152,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Incluye en el Excel la imagen de cada observación manuscrita.",
     )
     p.set_defaults(ejecutar=_procesar)
+
+    p = sub.add_parser("abrir", help="Abre la ventana de la aplicación (servidor local incluido).")
+    p.add_argument("--puerto", type=int, default=8765, help="Puerto local (por defecto 8765).")
+    p.add_argument("--ocr", action="store_true", help="Activa el OCR (necesita `modelos/`).")
+    p.set_defaults(ejecutar=_abrir)
 
     args = parser.parse_args(argv)
     if getattr(args, "ejecutar", None) is None:

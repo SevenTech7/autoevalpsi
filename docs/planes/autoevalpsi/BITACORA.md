@@ -14,12 +14,12 @@
 
 | Campo | Valor |
 |---|---|
-| Última actualización | 2026-11-06 |
+| Última actualización | 2026-11-07 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1 y AP-R2 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: AP-R3** (ventana de escritorio con pywebview; OC-R3 y PL-R0 esperan las fotos de la usuaria). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1, AP-R2 y AP-R3 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). **Siguiente: AP-R4** (interfaz React, con imagen `node` en compose; conviene cerrar antes AP-D2; OC-R3 y PL-R0 esperan las fotos en blanco y la verdad de la usuaria). PL-R0/R1 siguen sin las fotos de la usuaria; BS-R2 espera B-2. Pendiente humano: P-5. |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 15 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1, AP-R2); DI-R0 parcial |
+| Fases hechas | 16 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, CO-R6, CO-R7, OC-R0, OC-R1, OC-R2, AP-R0, AP-R1, AP-R2, AP-R3); DI-R0 parcial |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -112,7 +112,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | 19 | [AP-R0](PLAN-APP.md#ap-r0--capa-de-datos-local) | AP-05 | `fase-ap-0` | CO-R7 | M | hecha |
 | 20 | [AP-R1](PLAN-APP.md#ap-r1--servidor-fastapi-y-cola-de-procesamiento) | AP-03, AP-04, AP-06 | `fase-ap-1` | AP-R0 | M | hecha |
 | 21 | [AP-R2](PLAN-APP.md#ap-r2--página-de-captura-en-el-celular-qr-e-ip-local) | AP-01, AP-02, AP-07 | `fase-ap-2` | AP-R1 | M | hecha |
-| 22 | [AP-R3](PLAN-APP.md#ap-r3--ventana-de-escritorio-con-pywebview) | AP-08 | `fase-ap-3` | AP-R1 | S | pendiente |
+| 22 | [AP-R3](PLAN-APP.md#ap-r3--ventana-de-escritorio-con-pywebview) | AP-08 | `fase-ap-3` | AP-R1 | S | hecha |
 | 23 | [AP-R4](PLAN-APP.md#ap-r4--interfaz-react-base) | BS-03 | `fase-ap-4` | AP-R1, Node | M | pendiente |
 | 24 | [AP-R5](PLAN-APP.md#ap-r5--pantalla-de-revisión) | — | `fase-ap-5` | AP-R4, OC-R2, OC-D2 | L | pendiente |
 | 25 | [AP-R6](PLAN-APP.md#ap-r6--exportación-desde-la-interfaz) | — | `fase-ap-6` | AP-R5, CO-R6, AP-D1 | S | pendiente |
@@ -159,24 +159,25 @@ Detalle, opciones y recomendación en el plan de cada frente.
 | ID | Pregunta (resumen y recomendación) | Bloquea | Estado |
 |---|---|---|---|
 | B-1 | Rama base. **Rec.: `main`**, ramas `fase-*` fusionadas a ella | P-3, todo | aprobada: `main` (2026-11-06) |
-| B-2 | Crear el repo privado en GitHub (lo hace el responsable) | P-5, BS-R2, DI-R3 | pendiente |
+| B-2 | Crear el repo privado en GitHub (lo hace el responsable) | P-5, BS-R2, DI-R3 | aprobada crearlo (2026-11-07); falta que lo cree el responsable |
 | BS-D1 | Gestor de entorno. **Rec.: uv con lockfile** (alternativa: venv + pip) | BS-R0 | aprobada: uv + lockfile (2026-11-06) |
 | CO-D3 | ¿Varias tablas por página en el esquema? **Rec.: sí** (`tablas[]`, formato plano como atajo) | CO-R0 | aprobada: `tablas[]` (2026-11-06) |
 | PL-D2 | ¿Dónde viven las plantillas reales? **Rec.: fuera del repo, importadas desde .zip** | PL-R1, DI-R1 | aprobada: rec. (2026-11-06) |
 | CO-D1 | Estructura del Excel. **Rec.: por evaluación + consolidado por formulario** | CO-R6 | aprobada: a) (2026-11-06) |
 | CO-D2 | ¿Nombre del paciente en el archivo? **Rec.: sí, saneado, con opción de iniciales** | CO-R6 | aprobada: a) (2026-11-06) |
-| PL-D1 | ¿Reimprimir hojas con ArUco y QR? **Rec.: sí para las que ella imprime; v1 funciona sin ellas** | PL-R5 | pendiente |
+| PL-D1 | ¿Reimprimir hojas con ArUco y QR? **Rec.: sí para las que ella imprime; v1 funciona sin ellas** | PL-R5 | aprobada: sí (2026-11-07) |
 | OC-D1 | Modelo OCR definitivo. **a) PP-OCRv6 medium ONNX** (cifras en PLAN-OCR) | OC-R1 | aprobada: a) (2026-11-06) |
-| OC-D2 | Texto como sugerencia, solo imagen o según confianza. **Rec.: según confianza**; se decide con el CER de OC-R3 | AP-R5 (parcial) | pendiente (tras OC-R3) |
-| AP-D1 | ¿Borrar fotos al exportar por defecto? **Rec.: no durante el piloto, sí después** | AP-R6 | pendiente |
-| DI-D1 | Datos al desinstalar. **Rec.: preguntar, "conservar" por defecto** | DI-R2 | pendiente |
-| DI-D2 | Instalación por máquina o por usuario. **Rec.: por máquina** (regla de firewall acotada) | DI-R2 | pendiente |
+| OC-D2 | Texto como sugerencia, solo imagen o según confianza. **Rec.: según confianza**; se decide con el CER de OC-R3 | AP-R5 (parcial) | aprobada: siempre como sugerencia, el OCR puede equivocarse (2026-11-07); el CER de OC-R3 solo ajusta cuándo se resalta como dudoso |
+| AP-D2 | Requisito nuevo (2026-11-07): la app solo funciona con el celular y la laptop de ella; el celular no debe poder conectarse a otra computadora. Diseño de emparejamiento pendiente | AP-R2 (ya hecha), AP-R3/AP-R4 | abierta: contrato de API a revisar |
+| AP-D1 | ¿Borrar fotos al exportar por defecto? **Rec.: no durante el piloto, sí después** | AP-R6 | aprobada (2026-11-07, interpretada): celular y laptop son personales de ella y seguros, no se borra por defecto; el borrado queda como acción manual (`borrar_fotos`). Corregir si se quiso otra cosa |
+| DI-D1 | Datos al desinstalar. **Rec.: preguntar, "conservar" por defecto** | DI-R2 | aprobada: debe poderse conservar (2026-11-07); preguntar, «conservar» por defecto |
+| DI-D2 | Instalación por máquina o por usuario. **Rec.: por máquina** (regla de firewall acotada) | DI-R2 | aprobada: por máquina (2026-11-07) |
 
 ### Insumos pendientes del responsable o de la usuaria
 
 El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 
-- [ ] Fotos en blanco de los 3–5 formularios más usados (bloquea PL-R0, PL-R1, CO-R8).
+- [ ] Fotos en blanco de los 3–5 formularios más usados (bloquea PL-R0, PL-R1, CO-R8). Recibida 2026-11-07 una foto *llena* de «Evaluación Continua al Personal» en `muestras/evaluacion-continua-llena-1.jpeg` (12 ítems, 6 columnas, 5 campos de cabecera); falta en blanco y su verdad.
 - [ ] Una foto de cada uno lleno con datos inventados y su letra real, con la verdad de terreno
       (`verdad.csv`, PL-05) (bloquea CO-R8, OC-R3).
 - [ ] ¿Hay formularios de más de una hoja? (PL-03).
@@ -230,3 +231,5 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | AP-R0 | `fase-ap-0` → `main` | `app/datos.py`: `BaseDatos` sobre SQLite (stdlib) con raíz configurable (`AUTOEVALPSI_HOME`, `%LOCALAPPDATA%\AutoEvalPsi`), migraciones por `PRAGMA user_version` (v1; una BD más nueva se rechaza sin tocarla), tablas `evaluaciones`/`paginas`/`filas`/`correcciones`/`configuracion`; fotos y recortes en disco con rutas relativas; `guardar_procesamiento` (multipágina), `actualizar_fila`/`actualizar_cabecera` (cada cambio deja una corrección), `filas_pendientes`/`cabecera_revisada` para AP-06, `borrar_fotos` (AP-D1), `como_evaluacion` → `core.excel`. | 197 → 233 passed (36 nuevos); ruff limpio | **Contrato nuevo:** esquema de BD v1 y API de `BaseDatos` (la usa AP-R1). `core.pipeline.nombre_campo_cabecera` extraído (sin cambio de conducta). Decisiones de diseño: lo leído no se pisa, lo confirmado va aparte; tocar una fila la confirma; editar tras exportar vuelve el estado a pendiente/revisada. Una conexión con candado (hilo de la cola, AP-04). AP-D1 sigue pendiente: `borrar_fotos` no decide cuándo. Siguiente: AP-R1. |
 | 2026-11-06 | AP-R1 | `fase-ap-1` → `main` | `app/servidor.py` (`crear_app(bd, plantillas, token, lector)`), `app/cola.py` (un trabajador, estados `en_cola/procesando/lista/error`, tope de 50, rechaza la misma foto en vuelo) y `app/plantillas.py` (instalación desde .zip en `<raíz>/plantillas/<id>/v<versión>/`, sin pisar versiones, a prueba de rutas peligrosas). Token de 128 bits revisado antes de leer el cuerpo; topes por `Content-Length` (25 MB fotos, 100 MB .zip, 1 MB JSON); calidad en la misma petición y lectura en la cola; el servidor impone la revisión antes de exportar (409). Cierra AP-03, AP-04, AP-06. | 233 → 279 passed (46 nuevos); ruff limpio | **Contrato nuevo:** API HTTP v1 (docstring de `servidor.py`) y errores `{detail:{codigo,mensaje}}`. `httpx` al grupo `dev` (uv.lock) para `TestClient`; `datos.validar_id` pública y `BaseDatos.evaluacion_de_foto`. Sin OCR la cabecera nace «revisada» (conducta de AP-R0). Pendiente para AP-R2/R3: escuchar solo en la IP privada (AP-03), no es de este módulo. Para AP-R6: `exportar` acepta una `carpeta` en el cuerpo (cualquiera con el token escribe en el disco de la laptop); decidir si se limita a la configurada. Una foto en cola se pierde si la app se cierra antes de leerla. Siguiente: AP-R2. |
 | 2026-11-06 | AP-R2 | `fase-ap-2` → `main` | `app/red.py` (IP del QR: ruta por defecto, solo rangos privados, nombres virtuales al final; solo biblioteca estándar), `app/qr.py` (segno, SVG; test que lo decodifica con OpenCV) y `app/captura/index.html` (cámara trasera y galería, progreso de subida, aviso inmediato de calidad, varias hojas con un mismo id, sigue la cola hasta «Lista»). Servidor: `GET /captura` y `GET /api/captura/enlace[?ip=]`; `crear_app(puerto=, interfaces=)`. | 279 → 302 passed (23 nuevos); ruff limpio; JS revisado con `node --check` en Docker | **Contrato ampliado:** API HTTP v1 con dos rutas nuevas; `/captura` también exige el token (la página lo incrusta escapado). Sin nombres de adaptador (stdlib) la IP se elige por ruta por defecto y rango; si una VPN toma la ruta por defecto el QR llevaría su IP: la usuaria puede elegir otra (`ips`). Hallazgos: una foto con aviso de calidad igual queda en cola y no hay forma de descartarla ni de repetir la misma hoja con el mismo id (409 `pagina_repetida`) → AP-R5 necesita «descartar foto»; para DI-R1 el HTML de `app/captura/` es dato del paquete. AP-01 (red Pública) se explica en AP-R4/guía. **No verificado:** A32 real por WiFi, firewall de Windows. Siguiente: AP-R3. |
+| 2026-11-07 | — (decisiones) | `main` · sin commit | Aprobadas B-2 (crear), PL-D1 sí, AP-D1 no borrar por defecto, DI-D1 conservar, DI-D2 por máquina, OC-D2 sugerencia. Abierta AP-D2 (solo su celular con su laptop). Dos fotos recibidas movidas de `plantillas_demo/` a `muestras/` (ignorada por git); una es un récord académico con datos personales y fuera del alcance v1. | — | Sin código. Siguiente: AP-R3 o plantilla de la foto 1 (a decir por el responsable). |
+| 2026-11-07 | AP-R3 | `fase-ap-3` → `main` | `app/escritorio.py`: `ServidorLocal` (uvicorn en un hilo, sockets propios en `127.0.0.1` y las IP privadas, nunca `0.0.0.0`; espera a `/api/salud`; cierre ordenado), instancia única por puerto (`AplicacionYaAbierta`/`PuertoOcupado`, mensajes para la usuaria; cuadro de Windows por `ctypes`), `Puente` con el diálogo nativo de carpeta (guarda `carpeta_exportacion`), `ejecutar` y comando `autoevalpsi abrir`. Cierra AP-08. | 302 → 315 passed (13 nuevos); ruff check limpio | **Contrato nuevo (aditivo):** comando CLI `abrir`; clave de configuración `carpeta_exportacion`. Sin cambio de API HTTP. **No verificado:** la ventana real y el cuadro de error en Windows. Las IP se enlazan al arrancar. AP-D2 (emparejamiento) sigue abierta: no se tocó. Siguiente: AP-R4 (imagen `node` en compose). |
