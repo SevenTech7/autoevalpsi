@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2 y CO-R3 hechas. Siguiente: CO-R5 (lectura de casillas, M) en `fase-co-5`, u OC-R0 / DI-R0 (no dependen del núcleo). Pendiente humano: P-5 (repo GitHub). |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3 y CO-R5 hechas. CO-R6 sigue bloqueada (CO-D1, CO-D2: decisión humana). Siguiente: OC-R0 o DI-R0 (no dependen del núcleo), o PL-R1 si llegan insumos/PL-D2. Pendiente humano: P-5 (repo GitHub). |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 6 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3) |
+| Fases hechas | 7 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5) |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -91,7 +91,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | 8 | [CO-R1](PLAN-CORE.md#co-r1--carga-de-imagen-y-control-de-calidad) | CO-01 | `fase-co-1` | CO-R0, BS-R1 | S | hecha |
 | 9 | [CO-R2](PLAN-CORE.md#co-r2--detección-de-hoja-y-corrección-de-perspectiva) | — | `fase-co-2` | CO-R1 | M | hecha |
 | 10 | [CO-R3](PLAN-CORE.md#co-r3--registro-fino-contra-la-plantilla) | CO-09 | `fase-co-3` | CO-R2 | L | hecha |
-| 11 | [CO-R5](PLAN-CORE.md#co-r5--lectura-de-casillas-y-banderas-omr) | CO-02 | `fase-co-5` | CO-R3 | M | pendiente |
+| 11 | [CO-R5](PLAN-CORE.md#co-r5--lectura-de-casillas-y-banderas-omr) | CO-02 | `fase-co-5` | CO-R3 | M | hecha |
 | 12 | [CO-R6](PLAN-CORE.md#co-r6--exportador-excel) | CO-06, CO-07, CO-08 | `fase-co-6` | CO-R5, CO-D1, CO-D2 | M | bloqueada (CO-D1, CO-D2) |
 | 13 | [CO-R7](PLAN-CORE.md#co-r7--comando-de-foto-a-excel-e-imágenes-de-depuración) | — | `fase-co-7` | CO-R6 | S | pendiente |
 | 14 | [PL-R1](PLAN-PLANTILLAS.md#pl-r1--plantilla-del-primer-formulario-y-visor-de-plantillas) | — | `fase-pl-1` | PL-R0, CO-R0, PL-D2 | M | pendiente |
@@ -220,3 +220,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | CO-R1 | `fase-co-1` → `main` | `core/imagen.py`: `cargar_imagen` (EXIF vía Pillow, JPEG/PNG, HEIC y basura rechazados con `ImagenInvalida`) y `evaluar_calidad` con `UmbralesCalidad` (nitidez, brillo, luces quemadas, resolución). Umbrales calibrados con el lote sintético. | 53 → 74 passed (21 nuevos); ruff limpio | Sin contrato público afectado (API interna nueva). Hallazgo: OpenCV 5.0.0 `imread` ya aplica EXIF (CO-01 corregido en el plan). Umbrales a recalibrar con fotos reales en CO-R8. Siguiente: CO-R2. |
 | 2026-11-06 | CO-R2 | `fase-co-2` → `main` | `core/hoja.py`: `detectar_hoja` (ArUco ids 0-3 con prioridad; si no, contorno por Canny y Otsu), `rectificar`, `enderezar_hoja`, `HojaNoEncontrada` («no se ve la hoja entera»). Esquinas a ≤ 1 % del lado de la hoja en todo el lote; hoja cortada, diminuta, sin hoja y homografía degenerada se rechazan. | 74 → 87 passed (13 nuevos); ruff limpio | Sin contrato público afectado (API interna nueva). CO-R3 debe probar giros de 180°/90°. Tamaño de marcas ArUco en la plantilla queda para PL-R5. Siguiente: CO-R3. |
 | 2026-11-06 | CO-R3 | `fase-co-3` → `main` | `core/registro.py`: `registrar` (hoja enderezada → giro 0°/180° → ORB con coincidencias locales + RANSAC → ajuste afín ECC con líneas de la tabla → una sola deformación) y métricas de calidad CO-09 con bandera `registro_dudoso`; `cargar_referencia`. Error medio de esquinas de celdas 0,3–1,6 px (a 300 dpi) en las 6 fotos; formulario ajeno y hoja en blanco quedan marcados. | 87 → 102 passed (15 nuevos); ruff check limpio | Sin contrato público afectado (API interna nueva). Hallazgo: ratio test global + cobertura por cuadrantes dejaban 2 fotos a 16–26 px sin bandera → coincidencias locales y cobertura por área de casco. Umbrales a recalibrar con fotos reales en CO-R8. Siguiente: CO-R5. |
+| 2026-11-06 | CO-R5 | `fase-co-5` → `main` | `core/casillas.py`: `leer_casillas` (tinta por celda completa menos lo impreso de la referencia, fondo adaptativo, decisión CO-02) con banderas `sin_marca`, `doble_marca`, `contraste_bajo`, `registro_dudoso`; `ResultadoFila`/`ResultadoPagina`. Lote base y lote de otra semilla (12 fotos): 0 errores silenciosos; tachón siempre amarillo. | 102 → 126 passed (24 nuevos); ruff limpio | **Contrato menor:** `omr.tinta_minima` por defecto 0,15 → 0,03 (esquema igual). Desviación: sin margen interior (un círculo grande sobre el borde se leía en la vecina sin bandera). Hallazgo CO-R3: 1 de 18 fotos sintéticas (semilla 777, foto_09) registra con ~62 px de error, bien marcada `registro_dudoso`; revisar en CO-R8. CO-R6 sigue bloqueada por CO-D1/CO-D2. Siguiente: OC-R0, DI-R0 o PL-R1. |
