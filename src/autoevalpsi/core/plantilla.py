@@ -71,6 +71,9 @@ class Fila(_Modelo):
 
 
 class Tabla(_Modelo):
+    seccion: str | None = (
+        None  # agrupa tablas en secciones («5.2 Lenguaje denominativo»); solo informa
+    )
     opciones: list[str] = Field(min_length=1)
     columnas_x: list[Intervalo] = Field(min_length=1)
     observacion_x: Intervalo | None = None
