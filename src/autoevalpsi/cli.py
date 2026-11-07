@@ -119,6 +119,25 @@ def _abrir(args: argparse.Namespace) -> int:
     return ejecutar(puerto=args.puerto, lector=lector)
 
 
+def _probar(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from autoevalpsi.app.prueba import servir
+
+    lector = None
+    if args.ocr:
+        from autoevalpsi.core.ocr.onnx import LectorONNX
+
+        lector = LectorONNX()
+    return servir(
+        ip_lan=args.ip_lan,
+        puerto_laptop=args.puerto_laptop,
+        puerto_celular=args.puerto_celular,
+        lector=lector,
+        demo=Path("plantillas_demo") if args.demo else None,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="autoevalpsi")
     parser.add_argument("--version", action="version", version=f"autoevalpsi {_version()}")
@@ -157,6 +176,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--puerto", type=int, default=8765, help="Puerto local (por defecto 8765).")
     p.add_argument("--ocr", action="store_true", help="Activa el OCR (necesita `modelos/`).")
     p.set_defaults(ejecutar=_abrir)
+
+    p = sub.add_parser(
+        "probar",
+        help="Solo desarrollo: prueba en Docker con el navegador y el celular real (sin ventana).",
+    )
+    p.add_argument("--ip-lan", required=True, help="IP de la laptop en el WiFi (va en el QR).")
+    p.add_argument("--puerto-laptop", type=int, default=8765, help="Puerto de la interfaz.")
+    p.add_argument("--puerto-celular", type=int, default=8766, help="Puerto del celular.")
+    p.add_argument("--ocr", action="store_true", help="Activa el OCR (necesita `modelos/`).")
+    p.add_argument("--demo", action="store_true", help="Instala las plantillas de `plantillas_demo/`.")
+    p.set_defaults(ejecutar=_probar)
 
     args = parser.parse_args(argv)
     if getattr(args, "ejecutar", None) is None:

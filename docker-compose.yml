@@ -9,6 +9,23 @@ services:
       - .:/app
       - venv:/opt/venv
       - uvcache:/opt/uv-cache
+  # Prueba manual con el celular real (sin ventana): ver README, «Probar con el celular».
+  # La interfaz solo se publica en 127.0.0.1 del anfitrión; el celular entra por el 8766.
+  probar:
+    build: .
+    working_dir: /app
+    environment:
+      AUTOEVALPSI_HOME: /datos
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "127.0.0.1:8765:8765"
+      - "8766:8766"
+    volumes:
+      - .:/app
+      - venv:/opt/venv
+      - uvcache:/opt/uv-cache
+      - datosprueba:/datos
+      - ./.datos/exportaciones:/datos/exportaciones
   ui:
     image: node:22-slim
     working_dir: /app/ui
@@ -22,6 +39,7 @@ services:
       - uinodes:/app/ui/node_modules
       - npmcache:/opt/npm-cache
 volumes:
+  datosprueba:
   venv:
   uvcache:
   uinodes:
