@@ -42,3 +42,23 @@ def test_empaquetado_los_recursos_estan_en_meipass(monkeypatch, tmp_path):
 
 def test_sin_empaquetar_la_raiz_es_la_del_repo():
     assert (lanzador.raiz_recursos() / "pyproject.toml").is_file()
+
+
+def test_el_informe_queda_en_un_archivo(tmp_path):
+    informe = tmp_path / "humo.txt"
+    assert lanzador.prueba_humo(None, puerto=8794, informe=informe) == 0
+    assert "prueba de humo ok" in informe.read_text(encoding="utf-8")
+    assert (
+        lanzador.prueba_humo(LectorFalso(error=ValueError("x")), puerto=8795, informe=informe) == 1
+    )
+    assert "FALLÓ" in informe.read_text(encoding="utf-8")
+
+
+def test_sin_consola_el_programa_arranca_igual(monkeypatch, tmp_path):
+    """El .exe de Windows va sin consola: stdout y stderr valen None."""
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    monkeypatch.setattr(lanzador, "raiz_recursos", lambda: tmp_path)
+    informe = tmp_path / "humo.txt"
+    assert lanzador.main(["--prueba-humo", "--informe", str(informe)]) == 0
+    assert "prueba de humo ok" in informe.read_text(encoding="utf-8")

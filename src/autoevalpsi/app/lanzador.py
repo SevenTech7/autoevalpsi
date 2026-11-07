@@ -7,6 +7,7 @@ aparte y una carpeta temporal, comprueba `/api/salud`, carga los modelos con una
 """
 
 import argparse
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -38,7 +39,18 @@ def lector_por_defecto() -> Lector | None:
     return LectorONNX(carpeta)  # perezoso: carga los modelos en la primera lectura
 
 
-def prueba_humo(lector: Lector | None, *, puerto: int = PUERTO_PRUEBA) -> int:
+def prueba_humo(
+    lector: Lector | None, *, puerto: int = PUERTO_PRUEBA, informe: Path | None = None
+) -> int:
+    """El ejecutable de Windows no tiene consola: el resultado también se deja en `informe`."""
+    mensaje, codigo = _prueba_humo(lector, puerto)
+    print(mensaje, file=sys.stderr if codigo else sys.stdout)
+    if informe is not None:
+        informe.write_text(mensaje + "\n", encoding="utf-8")
+    return codigo
+
+
+def _prueba_humo(lector: Lector | None, puerto: int) -> tuple[str, int]:
     import numpy as np
 
     from autoevalpsi.app.escritorio import _responde_salud, ejecutar
@@ -58,23 +70,31 @@ def prueba_humo(lector: Lector | None, *, puerto: int = PUERTO_PRUEBA) -> int:
     errores: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
         codigo = ejecutar(
-            raiz=Path(tmp), puerto=puerto, lector=lector, ventana=ventana, mostrar_error=errores.append
+            raiz=Path(tmp),
+            puerto=puerto,
+            lector=lector,
+            ventana=ventana,
+            mostrar_error=errores.append,
         )
     resultado += errores
     if codigo != 0 or resultado:
-        print("PRUEBA DE HUMO FALLÓ: " + "; ".join(resultado or [f"código {codigo}"]), file=sys.stderr)
-        return 1
-    print("prueba de humo ok" + (" (con OCR)" if lector else " (sin OCR)"))
-    return 0
+        return "PRUEBA DE HUMO FALLÓ: " + "; ".join(resultado or [f"código {codigo}"]), 1
+    return "prueba de humo ok" + (" (con OCR)" if lector else " (sin OCR)"), 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="AutoEvalPsi")
     parser.add_argument("--prueba-humo", action="store_true", help="Solo para el build.")
+    parser.add_argument(
+        "--informe", type=Path, help="Con --prueba-humo: archivo donde dejar el resultado."
+    )
     args = parser.parse_args(argv)
+    for nombre in ("stdout", "stderr"):  # el .exe sin consola no tiene salidas estándar
+        if getattr(sys, nombre) is None:
+            setattr(sys, nombre, open(os.devnull, "w", encoding="utf-8"))  # noqa: SIM115
     lector = lector_por_defecto()
     if args.prueba_humo:
-        return prueba_humo(lector)
+        return prueba_humo(lector, informe=args.informe)
     from autoevalpsi.app.escritorio import ejecutar
 
     return ejecutar(lector=lector)
