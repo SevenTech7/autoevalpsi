@@ -4,8 +4,8 @@ Paquete `autoevalpsi.core.ocr`. Cubre la Fase 2 de `plan.md` (paso 7 del pipelin
 
 | Fase | Título | Estado |
 |---|---|---|
-| OC-R0 | Prueba de viabilidad de PP-OCRv6 en ONNX | pendiente |
-| OC-R1 | Lector OCR (detección + reconocimiento + confianza) | bloqueada (OC-D1, tras OC-R0) |
+| OC-R0 | Prueba de viabilidad de PP-OCRv6 en ONNX | hecha (2026-11-06) |
+| OC-R1 | Lector OCR (detección + reconocimiento + confianza) | bloqueada (OC-D1) |
 | OC-R2 | Integración en el pipeline: recortes, observaciones y cabecera | pendiente |
 | OC-R3 | Medición de error por carácter con su letra (gate de Fase 2) | pendiente |
 
@@ -47,6 +47,55 @@ Paquete `autoevalpsi.core.ocr`. Cubre la Fase 2 de `plan.md` (paso 7 del pipelin
   4. Medir latencia de carga, de detección por franja y de reconocimiento por línea.
 - **Criterio de salida:** informe en este plan con las cifras y una propuesta para OC-D1.
 
+### Informe OC-R0 (2026-11-06)
+
+**Veredicto: PP-OCRv6 medium en ONNX es viable.** Detección y reconocimiento corren con
+onnxruntime 1.31.1 CPU, sin PaddlePaddle. Código del spike (descartable): `tools/spike_ocr/`
+(`pipeline.py` = preproceso + DB + CTC; `medir.py` = la medición). Modelos en `modelos/pp-ocrv6/`
+(fuera de git).
+
+| Pieza | Repo de Hugging Face (rama `main`, 2026-06-18) | Licencia | Tamaño | SHA-256 |
+|---|---|---|---|---|
+| Detección medium | `PaddlePaddle/PP-OCRv6_medium_det_onnx` · `inference.onnx` | Apache-2.0 | 62 032 837 B | `eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1` |
+| Reconocimiento medium | `PaddlePaddle/PP-OCRv6_medium_rec_onnx` · `inference.onnx` | Apache-2.0 | 76 554 979 B | `9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba` |
+
+URL: `https://huggingface.co/PaddlePaddle/<repo>/resolve/main/inference.onnx` (+ `inference.yml`,
+que trae el diccionario y los parámetros de pre/postproceso). El hash coincide con el que
+publica Hugging Face. Para OC-R1 conviene fijar la revisión (commit `61323801…` det,
+`50c7eaca…` rec) en el script de descarga, no `main`.
+
+- **Diccionario (OC-03):** 18 708 caracteres (+ blank + espacio = 18 710 clases). Tiene
+  `á é í ó ú ü ñ Á É Í Ó Ú Ñ ¿`. **Falta `¡`** (el modelo lo omite al leer; irrelevante para
+  observaciones clínicas, anotado). Entradas dinámicas: det `x[N,3,H,W]`, rec `x[N,3,48,W]`.
+- **Preproceso usado:** det: lado largo ≤ 960 px, múltiplos de 32, RGB, media/desvío ImageNet;
+  umbral 0,2, caja 0,45, unclip 1,4 (del `inference.yml`). Rec: alto 48, ancho proporcional,
+  normalización (x/255 − 0,5)/0,5, CTC con blanco = 0.
+- **Exactitud** (imagen de 1600 px de ancho, 4 líneas en español con tildes, ñ, ¿ ? °):
+  - Impreso (Arial): 4/4 líneas detectadas; texto correcto salvo `¡` (omitido) y `·` leído como
+    `:`. Confianza 0,98–1,00.
+  - Cursiva de fuente (Ink Free, Segoe Print, Segoe Script) 4 líneas cada una: 12/12 líneas
+    detectadas; un solo error (`quiso`→`tranquilo` leído «tranguilo» en Ink Free). Confianza
+    0,96–1,00.
+  - **Límite de la prueba:** no hay `muestras/` aún y la cursiva de fuente **no es manuscrito
+    real**; el acierto con letra de la usuaria sigue sin medirse (OC-02). Lo mide OC-R3.
+    Nota: la fuente por defecto de Pillow no tiene acentos y dibuja cuadrados; no usarla en
+    pruebas sintéticas de OCR.
+- **Latencia** (Docker Desktop, 4 hilos de onnxruntime, mediana de 5 corridas; máquina de
+  desarrollo, no la de ella, OC-07): carga de ambos modelos + diccionario **≈ 2,0 s**;
+  detección sobre una franja de 1600×320–440 px **0,19–0,28 s**; reconocimiento
+  **0,13–0,23 s por línea** (más lento con texto largo). Una hoja con 15–30 líneas: ≈ 0,3 s de
+  detección + 2–7 s de reconocimiento, sin los 15–60 s del reconocimiento por fila (OC-05
+  confirmado: detectar una vez sobre la franja). Tamaño en disco ≈ 139 MB (a considerar en el
+  instalador, DI-R2).
+- **Riesgos para OC-R1:** (1) el reconocimiento por línea costó más de lo supuesto ("barato");
+  si en el Vivobook pasa de ~0,3 s/línea, evaluar `PP-OCRv6_small_rec_onnx`. (2) Los repos
+  small/tiny existen en ONNX y pueden servir de plan B de velocidad. (3) El spike usa PyYAML
+  para leer el diccionario: OC-R1 debería exportarlo a un `.txt` verificado por hash.
+
+**Propuesta para OC-D1: a) PP-OCRv6 medium en ONNX** (ONNX oficial, Apache-2.0, diccionario con
+español completo salvo `¡`, latencia aceptable). Pendiente solo de la medición con letra real en
+OC-R3. La decisión es del responsable.
+
 ## OC-R1 — Lector OCR
 
 - **Requiere:** OC-R0, OC-D1.
@@ -82,7 +131,7 @@ Paquete `autoevalpsi.core.ocr`. Cubre la Fase 2 de `plan.md` (paso 7 del pipelin
 
 ## Decisiones
 
-- **OC-D1 — Modelo OCR a usar** (se decide con las cifras de OC-R0).
+- **OC-D1 — Modelo OCR a usar** (cifras de OC-R0 en su informe arriba; propuesta: a).
   - a) PP-OCRv6 medium en ONNX, como dice `plan.md`.
   - b) La versión anterior disponible de PP-OCR con modelo de reconocimiento latino, si la v6 no
     tiene export ONNX usable o le faltan caracteres españoles.

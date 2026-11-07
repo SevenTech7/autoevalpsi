@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3 y CO-R5 hechas. CO-R6 sigue bloqueada (CO-D1, CO-D2: decisión humana). Siguiente: OC-R0 o DI-R0 (no dependen del núcleo), o PL-R1 si llegan insumos/PL-D2. Pendiente humano: P-5 (repo GitHub). |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5 y OC-R0 hechas. OC-D1 lista para decidir (propuesta a). CO-R6 sigue bloqueada (CO-D1, CO-D2: decisión humana). Siguiente: DI-R0 (no depende del núcleo), o PL-R1 si llegan insumos/PL-D2. Pendiente humano: P-5 (repo GitHub). |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 7 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5) |
+| Fases hechas | 8 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0) |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -79,7 +79,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | 1 | [BS-R0](PLAN-BASE.md#bs-r0--esqueleto-del-repo-y-entorno) | BS-01, BS-04 | `fase-bs-0` | P-1, BS-D1 | S | hecha |
 | 2 | [CO-R0](PLAN-CORE.md#co-r0--esquema-y-cargador-de-plantillas) | CO-04, CO-05 | `fase-co-0` | BS-R0, CO-D3 | S | hecha |
 | 3 | [BS-R1](PLAN-BASE.md#bs-r1--formulario-sintético-y-generador-de-fotos-de-prueba) | BS-02 | `fase-bs-1` | CO-R0 | M | hecha |
-| 4 | [OC-R0](PLAN-OCR.md#oc-r0--prueba-de-viabilidad-de-pp-ocrv6-en-onnx) | OC-01, OC-03, OC-05 (medición) | `fase-oc-0` | BS-R0 | M | pendiente |
+| 4 | [OC-R0](PLAN-OCR.md#oc-r0--prueba-de-viabilidad-de-pp-ocrv6-en-onnx) | OC-01, OC-03, OC-05 (medición) | `fase-oc-0` | BS-R0 | M | hecha |
 | 5 | [DI-R0](PLAN-DIST.md#di-r0--prueba-temprana-de-empaquetado-spike) | DI-01 | `fase-di-0` | BS-R0 | M | pendiente |
 | 6 | [BS-R2](PLAN-BASE.md#bs-r2--ci-de-tests-en-github-actions) | — | `fase-bs-2` | BS-R0, P-5 | S | pendiente |
 | 7 | [PL-R0](PLAN-PLANTILLAS.md#pl-r0--recepción-de-muestras-y-lista-priorizada-fase-0) | PL-01, PL-05 | `fase-pl-0` | insumos de la usuaria | S | pendiente |
@@ -166,7 +166,7 @@ Detalle, opciones y recomendación en el plan de cada frente.
 | CO-D1 | Estructura del Excel. **Rec.: por evaluación + consolidado por formulario** | CO-R6 | pendiente |
 | CO-D2 | ¿Nombre del paciente en el archivo? **Rec.: sí, saneado, con opción de iniciales** | CO-R6 | pendiente |
 | PL-D1 | ¿Reimprimir hojas con ArUco y QR? **Rec.: sí para las que ella imprime; v1 funciona sin ellas** | PL-R5 | pendiente |
-| OC-D1 | Modelo OCR definitivo. Se decide con las cifras de OC-R0 | OC-R1 | pendiente (tras OC-R0) |
+| OC-D1 | Modelo OCR definitivo. **Propuesta: a) PP-OCRv6 medium ONNX** (cifras en PLAN-OCR) | OC-R1 | pendiente (decide el responsable) |
 | OC-D2 | Texto como sugerencia, solo imagen o según confianza. **Rec.: según confianza**; se decide con el CER de OC-R3 | AP-R5 (parcial) | pendiente (tras OC-R3) |
 | AP-D1 | ¿Borrar fotos al exportar por defecto? **Rec.: no durante el piloto, sí después** | AP-R6 | pendiente |
 | DI-D1 | Datos al desinstalar. **Rec.: preguntar, "conservar" por defecto** | DI-R2 | pendiente |
@@ -221,3 +221,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | CO-R2 | `fase-co-2` → `main` | `core/hoja.py`: `detectar_hoja` (ArUco ids 0-3 con prioridad; si no, contorno por Canny y Otsu), `rectificar`, `enderezar_hoja`, `HojaNoEncontrada` («no se ve la hoja entera»). Esquinas a ≤ 1 % del lado de la hoja en todo el lote; hoja cortada, diminuta, sin hoja y homografía degenerada se rechazan. | 74 → 87 passed (13 nuevos); ruff limpio | Sin contrato público afectado (API interna nueva). CO-R3 debe probar giros de 180°/90°. Tamaño de marcas ArUco en la plantilla queda para PL-R5. Siguiente: CO-R3. |
 | 2026-11-06 | CO-R3 | `fase-co-3` → `main` | `core/registro.py`: `registrar` (hoja enderezada → giro 0°/180° → ORB con coincidencias locales + RANSAC → ajuste afín ECC con líneas de la tabla → una sola deformación) y métricas de calidad CO-09 con bandera `registro_dudoso`; `cargar_referencia`. Error medio de esquinas de celdas 0,3–1,6 px (a 300 dpi) en las 6 fotos; formulario ajeno y hoja en blanco quedan marcados. | 87 → 102 passed (15 nuevos); ruff check limpio | Sin contrato público afectado (API interna nueva). Hallazgo: ratio test global + cobertura por cuadrantes dejaban 2 fotos a 16–26 px sin bandera → coincidencias locales y cobertura por área de casco. Umbrales a recalibrar con fotos reales en CO-R8. Siguiente: CO-R5. |
 | 2026-11-06 | CO-R5 | `fase-co-5` → `main` | `core/casillas.py`: `leer_casillas` (tinta por celda completa menos lo impreso de la referencia, fondo adaptativo, decisión CO-02) con banderas `sin_marca`, `doble_marca`, `contraste_bajo`, `registro_dudoso`; `ResultadoFila`/`ResultadoPagina`. Lote base y lote de otra semilla (12 fotos): 0 errores silenciosos; tachón siempre amarillo. | 102 → 126 passed (24 nuevos); ruff limpio | **Contrato menor:** `omr.tinta_minima` por defecto 0,15 → 0,03 (esquema igual). Desviación: sin margen interior (un círculo grande sobre el borde se leía en la vecina sin bandera). Hallazgo CO-R3: 1 de 18 fotos sintéticas (semilla 777, foto_09) registra con ~62 px de error, bien marcada `registro_dudoso`; revisar en CO-R8. CO-R6 sigue bloqueada por CO-D1/CO-D2. Siguiente: OC-R0, DI-R0 o PL-R1. |
+| 2026-11-06 | OC-R0 | `fase-oc-0` → `main` | Spike `tools/spike_ocr/`: PP-OCRv6 medium det+rec en ONNX (Apache-2.0, 62+77 MB, SHA-256 verificados) corre con onnxruntime CPU. Diccionario con todo el español salvo `¡`. Impreso 4/4 líneas, cursiva de fuente 12/12 detectadas, 1 error. Carga ≈ 2 s; detección 0,2–0,3 s por franja; reconocimiento 0,13–0,23 s/línea. | 126 → 126 passed (spike sin tests; ruff limpio) | Sin contrato público afectado. **No hay manuscrito real aún:** el acierto con su letra lo mide OC-R3. OC-D1: propuesta a). Siguiente: DI-R0. |
