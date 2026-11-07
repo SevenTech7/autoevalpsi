@@ -11,12 +11,12 @@ from autoevalpsi.app.qr import qr_svg, url_captura
 URL = url_captura("192.168.1.20", 8765, "aB3-_xyz0123456789AB")
 
 
-def test_la_url_lleva_ip_puerto_y_token():
-    assert URL == "http://192.168.1.20:8765/captura?token=aB3-_xyz0123456789AB"
+def test_la_url_lleva_ip_puerto_y_codigo_de_vinculo():
+    assert URL == "http://192.168.1.20:8765/captura?vinculo=aB3-_xyz0123456789AB"
 
 
-def test_el_token_se_escapa_en_la_url():
-    assert url_captura("10.0.0.2", 80, "a b&c").endswith("?token=a%20b%26c")
+def test_el_codigo_se_escapa_en_la_url():
+    assert url_captura("10.0.0.2", 80, "a b&c").endswith("?vinculo=a%20b%26c")
 
 
 def test_el_svg_es_un_svg_sin_cabecera_xml():

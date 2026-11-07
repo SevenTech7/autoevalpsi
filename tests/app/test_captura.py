@@ -1,8 +1,7 @@
-"""AP-R2: página de captura del celular y enlace del QR."""
+"""AP-R2/AP-D2: página de captura del celular y QR de vínculo."""
 
 import io
 import json
-import re
 import zipfile
 
 import pytest
@@ -15,6 +14,7 @@ from autoevalpsi.app.servidor import crear_app
 
 TOKEN = "token-de-prueba-0123456789"
 
+LAPTOP = ("127.0.0.1", 50000)
 WIFI = Interfaz("192.168.1.20", "Wi-Fi", ruta_por_defecto=True)
 HYPERV = Interfaz("172.28.96.1", "vEthernet (WSL)")
 
@@ -40,90 +40,55 @@ def _montar(tmp_path, zip_plantilla, interfaces, token=TOKEN):
     return bd, app
 
 
-def test_la_pagina_se_sirve_con_el_token_en_el_formulario(tmp_path, zip_plantilla):
+def test_la_pagina_es_estatica_y_no_lleva_ningun_secreto(tmp_path, zip_plantilla):
     bd, app = _montar(tmp_path, zip_plantilla, [WIFI])
-    with TestClient(app) as c:
-        r = c.get(f"/captura?token={TOKEN}")
+    with TestClient(app, client=("192.168.1.50", 40000)) as c:
+        r = c.get("/captura")
+        otra = c.get(f"/captura?token={TOKEN}")
     bd.cerrar()
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     assert r.headers["cache-control"] == "no-store"
-    assert f'action="/api/fotos?token={TOKEN}"' in r.text
-    assert f'data-token="{TOKEN}"' in r.text
+    assert TOKEN not in r.text and TOKEN not in otra.text
     assert "{{" not in r.text  # ningún marcador sin reemplazar
 
 
-def test_la_pagina_ofrece_camara_y_galeria_y_los_formularios_instalados(tmp_path, zip_plantilla):
+def test_la_pagina_ofrece_camara_galeria_y_el_aviso_de_vincular(tmp_path, zip_plantilla):
     bd, app = _montar(tmp_path, zip_plantilla, [WIFI])
-    with TestClient(app) as c:
-        html = c.get(f"/captura?token={TOKEN}").text
-        instalada = c.get("/api/plantillas", headers={"X-Token": TOKEN}).json()[0]
+    with TestClient(app, client=("192.168.1.50", 40000)) as c:
+        html = c.get("/captura").text
     bd.cerrar()
     assert 'capture="environment"' in html  # cámara trasera
-    assert len(re.findall(r'type="file"', html)) == 2  # y otro sin `capture` (galería)
-    assert f'<option value="{instalada["id"]}">' in html
-    assert f"&quot;{instalada['id']}&quot;: {instalada['paginas']}" in html
+    assert html.count('type="file"') == 2  # y otro sin `capture` (galería)
+    assert "Vincula este celular desde la laptop" in html
+    assert "X-Dispositivo" in html and "?token=" not in html
 
 
-def test_sin_token_la_pagina_no_se_sirve_ni_filtra_el_token(tmp_path, zip_plantilla):
-    bd, app = _montar(tmp_path, zip_plantilla, [WIFI])
-    with TestClient(app) as c:
-        for url in ("/captura", "/captura/", "/captura?token=otro"):
-            r = c.get(url)
-            assert r.status_code == 401, url
-            assert TOKEN not in r.text
-    bd.cerrar()
-
-
-def test_un_token_con_caracteres_html_no_rompe_la_pagina(tmp_path, zip_plantilla):
-    raro = 'a"><script>x</script>'
-    bd, app = _montar(tmp_path, zip_plantilla, [WIFI], token=raro)
-    with TestClient(app) as c:
-        r = c.get("/captura", headers={"X-Token": raro})
-    bd.cerrar()
-    assert r.status_code == 200
-    assert "<script>x</script>" not in r.text
-
-
-def test_sin_formularios_instalados_lo_dice(tmp_path):
-    bd, app = _montar(tmp_path, None, [WIFI])
-    with TestClient(app) as c:
-        html = c.get(f"/captura?token={TOKEN}").text
-    bd.cerrar()
-    assert "Sin formularios instalados" in html
-
-
-def test_enlace_elige_la_ip_de_la_ruta_por_defecto(tmp_path, zip_plantilla):
+def test_el_codigo_de_vinculo_entra_en_la_url_del_qr_y_no_el_token(tmp_path, zip_plantilla):
     bd, app = _montar(tmp_path, zip_plantilla, [HYPERV, WIFI])
-    with TestClient(app, headers={"X-Token": TOKEN}) as c:
-        d = c.get("/api/captura/enlace").json()
+    with TestClient(app, headers={"X-Token": TOKEN}, client=LAPTOP) as c:
+        d = c.post("/api/vinculo/iniciar").json()
     bd.cerrar()
     assert d["ip"] == "192.168.1.20" and d["puerto"] == 9000
-    assert d["url"] == f"http://192.168.1.20:9000/captura?token={TOKEN}"
+    assert d["url"].startswith("http://192.168.1.20:9000/captura?vinculo=")
+    assert TOKEN not in d["url"] and TOKEN not in d["qr_svg"]
     assert d["ips"] == ["192.168.1.20", "172.28.96.1"]
-    assert d["qr_svg"].startswith("<svg")
+    assert d["qr_svg"].startswith("<svg") and d["vence_en"] == 300 and d["vinculado"] is False
 
 
-def test_enlace_acepta_otra_ip_de_la_lista_y_rechaza_las_ajenas(tmp_path, zip_plantilla):
+def test_el_enlace_acepta_otra_ip_de_la_lista_y_rechaza_las_ajenas(tmp_path, zip_plantilla):
     bd, app = _montar(tmp_path, zip_plantilla, [HYPERV, WIFI])
-    with TestClient(app, headers={"X-Token": TOKEN}) as c:
-        elegida = c.get("/api/captura/enlace?ip=172.28.96.1").json()
-        ajena = c.get("/api/captura/enlace?ip=10.9.9.9").json()
+    with TestClient(app, headers={"X-Token": TOKEN}, client=LAPTOP) as c:
+        elegida = c.post("/api/vinculo/iniciar?ip=172.28.96.1").json()
+        ajena = c.post("/api/vinculo/iniciar?ip=10.9.9.9").json()
     bd.cerrar()
     assert elegida["ip"] == "172.28.96.1" and "172.28.96.1:9000" in elegida["url"]
     assert ajena["ip"] == "192.168.1.20"
 
 
-def test_enlace_sin_red_explica_que_falta_el_wifi(tmp_path, zip_plantilla):
+def test_sin_red_explica_que_falta_el_wifi_y_no_emite_codigo(tmp_path, zip_plantilla):
     bd, app = _montar(tmp_path, zip_plantilla, [Interfaz("127.0.0.1")])
-    with TestClient(app, headers={"X-Token": TOKEN}) as c:
-        d = c.get("/api/captura/enlace").json()
+    with TestClient(app, headers={"X-Token": TOKEN}, client=LAPTOP) as c:
+        d = c.post("/api/vinculo/iniciar").json()
     bd.cerrar()
     assert d["url"] is None and d["qr_svg"] is None and d["ips"] == []
     assert "WiFi" in d["mensaje"]
-
-
-def test_enlace_pide_token(tmp_path, zip_plantilla):
-    bd, app = _montar(tmp_path, zip_plantilla, [WIFI])
-    with TestClient(app) as c:
-        assert c.get("/api/captura/enlace").status_code == 401
-    bd.cerrar()

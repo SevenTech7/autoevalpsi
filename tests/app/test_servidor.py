@@ -24,6 +24,7 @@ from autoevalpsi.core.ocr.lector import Caja, LectorFalso, Linea
 
 TOKEN = "token-de-prueba-0123456789"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
+LAPTOP = ("127.0.0.1", 50000)  # desde aquí llama la ventana de la laptop (AP-D2)
 
 
 def _zip(archivos: dict[str, bytes]) -> bytes:
@@ -53,7 +54,7 @@ def entorno(tmp_path, zip_plantilla):
     plantillas = RepositorioPlantillas(tmp_path / "datos" / "plantillas")
     plantillas.importar_zip(zip_plantilla)
     app = crear_app(bd, plantillas, token=TOKEN)
-    with TestClient(app, headers=AUTH) as cliente:
+    with TestClient(app, headers=AUTH, client=LAPTOP) as cliente:
         yield cliente, app, bd, plantillas
     bd.cerrar()
 
@@ -91,7 +92,7 @@ def _codigo(r) -> str:
 
 def test_salud_no_pide_token_pero_lo_demas_si(entorno):
     _, app, *_ = entorno
-    with TestClient(app) as anonimo:
+    with TestClient(app, client=LAPTOP) as anonimo:
         assert anonimo.get("/api/salud").json()["ok"] is True
         r = anonimo.get("/api/evaluaciones")
         assert r.status_code == 401 and _codigo(r) == "sin_token"
@@ -100,7 +101,7 @@ def test_salud_no_pide_token_pero_lo_demas_si(entorno):
 def test_subida_sin_token_o_con_token_malo_es_401_y_no_se_lee_el_cuerpo(entorno, lote_sintetico):
     _, app, bd, _ = entorno
     foto = lote_sintetico[0].foto
-    with TestClient(app) as anonimo:
+    with TestClient(app, client=LAPTOP) as anonimo:
         for cabeceras in ({}, {"Authorization": "Bearer otro"}, {"X-Token": TOKEN + "x"}):
             r = anonimo.post(
                 "/api/fotos",
@@ -114,7 +115,7 @@ def test_subida_sin_token_o_con_token_malo_es_401_y_no_se_lee_el_cuerpo(entorno,
 
 def test_el_token_vale_por_cabecera_x_token_o_por_query(entorno):
     _, app, *_ = entorno
-    with TestClient(app) as anonimo:
+    with TestClient(app, client=LAPTOP) as anonimo:
         assert anonimo.get("/api/evaluaciones", headers={"X-Token": TOKEN}).status_code == 200
         assert anonimo.get(f"/api/evaluaciones?token={TOKEN}").status_code == 200
 
@@ -162,8 +163,9 @@ def test_subida_sin_tamano_es_411(entorno):
         "path": "/api/fotos",
         "query_string": b"",
         "headers": [(b"authorization", f"Bearer {TOKEN}".encode())],
+        "client": LAPTOP,
     }
-    asyncio.run(Guardia(interior, TOKEN)(scope, None, enviar))
+    asyncio.run(Guardia(interior, TOKEN, entorno[1].state.vinculos)(scope, None, enviar))
     assert respuestas[0]["status"] == 411
 
 
@@ -285,7 +287,7 @@ def test_ocr_con_lector_falso_llena_la_cabecera_y_observaciones(
     lector = LectorFalso([Linea("Maria Lopez", 0.97, Caja(0, 0, 100, 20))])
     app = crear_app(bd, plantillas, token=TOKEN, lector=lector)
     try:
-        with TestClient(app, headers=AUTH) as c:
+        with TestClient(app, headers=AUTH, client=LAPTOP) as c:
             r = c.post(
                 "/api/fotos",
                 data={"plantilla": plantillas.listar()[0].plantilla.id},
@@ -330,7 +332,7 @@ def test_exportar_con_la_cabecera_sin_confirmar_es_409(tmp_path, zip_plantilla, 
     lector = LectorFalso([Linea("Mria", 0.2, Caja(0, 0, 100, 20))])
     app = crear_app(bd, plantillas, token=TOKEN, lector=lector)
     try:
-        with TestClient(app, headers=AUTH) as c:
+        with TestClient(app, headers=AUTH, client=LAPTOP) as c:
             r = c.post(
                 "/api/fotos",
                 data={"plantilla": plantillas.listar()[0].plantilla.id},
@@ -445,7 +447,7 @@ def test_campos_desconocidos_en_el_put_se_rechazan(entorno, lote_sintetico):
 def test_importar_plantilla_por_http_y_listarla(tmp_path, zip_plantilla):
     with BaseDatos(tmp_path / "d") as bd:
         repo = RepositorioPlantillas(tmp_path / "d" / "plantillas")
-        with TestClient(crear_app(bd, repo, token=TOKEN), headers=AUTH) as c:
+        with TestClient(crear_app(bd, repo, token=TOKEN), headers=AUTH, client=LAPTOP) as c:
             assert c.get("/api/plantillas").json() == []
             r = c.post("/api/plantillas/importar", files={"archivo": ("p.zip", zip_plantilla)})
             assert r.status_code == 201, r.text

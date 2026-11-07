@@ -15,14 +15,26 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     POST /api/evaluaciones/{id}/exportar     a Excel; 409 si hay algo sin revisar (AP-06)
     GET  /api/plantillas[/{id}]              plantillas instaladas
     POST /api/plantillas/importar            .zip con el .json y las imágenes en blanco (PL-D2)
-    GET  /api/captura/enlace[?ip=]           URL de captura, su QR (SVG) y las IP posibles (AP-02)
-    GET  /captura?token=                     página del celular (HTML); AP-R2, AP-07
+    POST /api/vinculo/iniciar[?ip=]          código de vínculo de un solo uso (5 min), su QR y las IP (AP-02)
+    GET  /api/vinculo                        ¿hay un celular vinculado?
+    POST /api/vinculo                        {codigo} -> {dispositivo}: la credencial del celular
+    DELETE /api/vinculo                      desvincula el celular
+    GET  /captura                            página del celular (HTML estático, sin secretos); AP-07
 
-**Token (AP-03).** Cada arranque genera uno de 128 bits; todo `/api` salvo `/api/salud` lo exige,
-en `Authorization: Bearer <token>`, `X-Token` o `?token=` (la URL del QR). Se compara en tiempo
-constante y se revisa **antes** de leer el cuerpo. Las subidas llevan tope de tamaño (25 MB las
-fotos) comprobado sobre `Content-Length`; la foto se reconoce por sus bytes (JPEG/PNG), no por lo
-que declare el celular.
+**Quién puede qué (AP-03, AP-D2).** Tres niveles:
+
+- *Público*: `GET /api/salud`, `POST /api/vinculo` (exige un código válido) y `GET /captura`.
+- *Celular vinculado* (cabecera `X-Dispositivo` con su credencial): `POST /api/fotos`,
+  `GET /api/cola*` y `GET /api/plantillas*`. Una credencial que no es la del celular vinculado
+  recibe 403 `dispositivo_no_vinculado`.
+- *Laptop*: todo lo demás, y también lo del celular. Exige el **token de la app** (cada arranque
+  genera uno de 128 bits, en `Authorization: Bearer`, `X-Token` o `?token=`) **y** que la petición
+  llegue por loopback; el token no sale nunca de la laptop. Desde otra IP: 403 `solo_laptop`.
+
+El token y la credencial se comparan en tiempo constante y se revisan **antes** de leer el cuerpo.
+Las subidas llevan tope de tamaño (25 MB las fotos) comprobado sobre `Content-Length`; la foto se
+reconoce por sus bytes (JPEG/PNG), no por lo que declare el celular. La laptop no puede impedir
+que el celular hable con otra computadora; garantiza que solo acepta el suyo.
 
 Varias fotos de un mismo formulario (PL-03): se sube cada una con la misma `evaluacion` (el id lo
 elige quien sube, p. ej. la página del celular) y su `pagina` (0-based).
@@ -32,8 +44,7 @@ El control de calidad (rápido) se responde en la misma petición; la lectura pe
 """
 
 import hashlib
-import html
-import json
+import ipaddress
 import logging
 import secrets
 import threading
@@ -43,7 +54,7 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import parse_qs, quote
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -64,6 +75,7 @@ from autoevalpsi.app.plantillas import (
 )
 from autoevalpsi.app.qr import RUTA_CAPTURA, qr_svg, url_captura
 from autoevalpsi.app.red import Interfaz, candidatas, elegir_ip, listar_interfaces
+from autoevalpsi.app.vinculo import Vinculos
 from autoevalpsi.core.excel import ArchivoBloqueado, NombreArchivo, exportar
 from autoevalpsi.core.imagen import ImagenInvalida, cargar_imagen, evaluar_calidad
 from autoevalpsi.core.ocr.lector import Lector
@@ -76,7 +88,6 @@ MAX_ZIP = 100 * 1024 * 1024
 MAX_JSON = 1024 * 1024
 _SOBRECARGA_MULTIPART = 64 * 1024
 _SUBIDAS = {"/api/fotos": MAX_FOTO, "/api/plantillas/importar": MAX_ZIP}
-_SIN_TOKEN = {"/api/salud"}
 PUERTO = 8765
 PAGINA_CAPTURA = Path(__file__).parent / "captura" / "index.html"
 
@@ -89,15 +100,37 @@ def _respuesta(status: int, codigo: str, mensaje: str) -> JSONResponse:
     return JSONResponse({"detail": {"codigo": codigo, "mensaje": mensaje}}, status_code=status)
 
 
-class Guardia:
-    """ASGI: token y tope de tamaño antes de que nadie lea el cuerpo de la petición."""
+_PUBLICAS = {("GET", "/api/salud"), ("POST", "/api/vinculo")}
 
-    def __init__(self, app, token: str) -> None:
+
+def _del_celular(metodo: str, ruta: str) -> bool:
+    """Rutas que también puede usar el celular vinculado (el resto es solo de la laptop)."""
+    if metodo == "POST":
+        return ruta == "/api/fotos"
+    if metodo == "GET":
+        return ruta in ("/api/cola", "/api/plantillas") or ruta.startswith(
+            ("/api/cola/", "/api/plantillas/")
+        )
+    return False
+
+
+def _es_loopback(scope) -> bool:
+    cliente = scope.get("client")
+    try:
+        return ipaddress.ip_address(cliente[0]).is_loopback if cliente else False
+    except ValueError:
+        return False
+
+
+class Guardia:
+    """ASGI: quién llama y tope de tamaño antes de que nadie lea el cuerpo de la petición."""
+
+    def __init__(self, app, token: str, vinculos: Vinculos) -> None:
         self.app = app
         self._token = token.encode()
+        self._vinculos = vinculos
 
-    def _token_valido(self, scope) -> bool:
-        cabeceras = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
+    def _token_valido(self, cabeceras: dict[str, str], scope) -> bool:
         candidatos = [cabeceras.get("x-token", "")]
         auth = cabeceras.get("authorization", "")
         if auth.lower().startswith("bearer "):
@@ -105,16 +138,40 @@ class Guardia:
         candidatos += parse_qs(scope.get("query_string", b"").decode("latin-1")).get("token", [])
         return any(secrets.compare_digest(c.encode(), self._token) for c in candidatos if c)
 
+    def _rechazo(self, scope, cabeceras: dict[str, str], ruta: str) -> JSONResponse | None:
+        """None si la petición puede seguir; si no, la respuesta que la corta."""
+        metodo = scope["method"]
+        if (metodo, ruta) in _PUBLICAS:
+            return None
+        local = _es_loopback(scope)
+        if local and self._token_valido(cabeceras, scope):
+            return None
+        if _del_celular(metodo, ruta) and not local:
+            credencial = cabeceras.get("x-dispositivo", "")
+            if not credencial:
+                return _respuesta(
+                    401, "sin_credencial", "Vincula este celular desde la laptop para enviar fotos."
+                )
+            if self._vinculos.credencial_valida(credencial):
+                return None
+            return _respuesta(
+                403,
+                "dispositivo_no_vinculado",
+                "Este celular ya no está vinculado. Vincúlalo de nuevo desde la laptop.",
+            )
+        if not local:
+            return _respuesta(403, "solo_laptop", "Esto solo se puede hacer desde la laptop.")
+        return _respuesta(401, "sin_token", "Falta el token de la aplicación.")
+
     async def __call__(self, scope, receive, send) -> None:
         ruta = scope["path"].rstrip("/") if scope["type"] == "http" else ""
-        if scope["type"] != "http" or not (ruta.startswith("/api") or ruta == RUTA_CAPTURA):
+        if scope["type"] != "http" or not ruta.startswith("/api"):
             return await self.app(scope, receive, send)
-        if ruta not in _SIN_TOKEN and not self._token_valido(scope):
-            r = _respuesta(401, "sin_token", "Esta página necesita el código QR de la aplicación.")
+        cabeceras = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
+        if (r := self._rechazo(scope, cabeceras, ruta)) is not None:
             return await r(scope, receive, send)
         if scope["method"] in ("POST", "PUT", "PATCH"):
-            cabeceras = dict(scope["headers"])
-            largo = cabeceras.get(b"content-length")
+            largo = cabeceras.get("content-length")
             tope = _SUBIDAS.get(ruta)
             if largo is None and tope is not None:
                 r = _respuesta(411, "sin_tamano", "La petición no indica su tamaño.")
@@ -149,6 +206,11 @@ class CambioEvaluacion(BaseModel):
     cabecera: dict[str, str] | None = None
     confirmar_cabecera: bool = False
     filas: list[CambioFila] = []
+
+
+class PedidoVinculo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    codigo: str
 
 
 class PedidoExportar(BaseModel):
@@ -214,9 +276,11 @@ def crear_app(
         cola.detener()
 
     app = FastAPI(title="AutoEvalPsi", lifespan=vida, docs_url=None, redoc_url=None)
-    app.add_middleware(Guardia, token=token)
+    vinculos = Vinculos(bd)
+    app.add_middleware(Guardia, token=token, vinculos=vinculos)
     app.state.token = token
     app.state.cola = cola
+    app.state.vinculos = vinculos
 
     def instalada(id: str, version: int | None = None):
         try:
@@ -454,46 +518,54 @@ def crear_app(
         except ImportacionInvalida as e:
             raise _error(422, "zip_invalido", str(e)) from e
 
-    # --- captura desde el celular (AP-R2) -----------------------------------------------
+    # --- vínculo del celular (AP-D2) y página de captura (AP-R2) ------------------------------
 
-    @app.get("/api/captura/enlace")
-    def enlace_captura(ip: str | None = None) -> dict:
-        """`ip` opcional: la que la usuaria eligió de `ips`; si no sirve se usa la mejor."""
+    @app.post("/api/vinculo/iniciar")
+    def iniciar_vinculo(ip: str | None = None) -> dict:
+        """Código de un solo uso y su QR. `ip` opcional: la que la usuaria eligió de `ips`; si no
+        sirve se usa la mejor. Pedir otro código anula el anterior."""
         lista = candidatas(interfaces())
         elegida = elegir_ip(lista, ip)
         if elegida is None:
             return {"url": None, "qr_svg": None, "ip": None, "puerto": puerto, "ips": [],
+                    "vence_en": 0, "vinculado": vinculos.vinculado,
                     "mensaje": "La laptop no está en una red WiFi o cable con IP privada. "
                                "Conéctala al WiFi de la casa."}  # fmt: skip
-        url = url_captura(elegida, puerto, token)
+        emitido = vinculos.iniciar()
+        url = url_captura(elegida, puerto, emitido.codigo)
         return {"url": url, "qr_svg": qr_svg(url), "ip": elegida, "puerto": puerto,
-                "ips": [i.ip for i in lista], "mensaje": ""}  # fmt: skip
+                "ips": [i.ip for i in lista], "vence_en": int(emitido.vence_en),
+                "vinculado": vinculos.vinculado, "mensaje": ""}  # fmt: skip
+
+    @app.get("/api/vinculo")
+    def estado_vinculo() -> dict:
+        d = bd.leer_dispositivo()
+        return {"vinculado": d is not None, "creado": d.creado if d else None,
+                "ultimo_uso": d.ultimo_uso if d else None}  # fmt: skip
+
+    @app.post("/api/vinculo")
+    def vincular(pedido: PedidoVinculo) -> dict:
+        credencial = vinculos.canjear(pedido.codigo)
+        if credencial is None:
+            raise _error(
+                403,
+                "codigo_invalido",
+                "El código no sirve (ya se usó o venció). Pide uno nuevo en la laptop.",
+            )
+        return {"dispositivo": credencial}
+
+    @app.delete("/api/vinculo")
+    def desvincular() -> dict:
+        return {"desvinculado": vinculos.olvidar()}
 
     @app.get(RUTA_CAPTURA, response_class=HTMLResponse)
     def pagina_captura() -> HTMLResponse:
-        """La página del celular: HTML liviano sin build (AP-07). El token ya lo validó la
-        `Guardia`; se incrusta el mismo para que la página llame a la API."""
-        instaladas = plantillas.listar()
-        ultimas = {}
-        for i in instaladas:  # la versión más nueva de cada id (`listar` ordena por id y versión)
-            ultimas[i.plantilla.id] = i.plantilla
-        opciones = (
-            "\n".join(
-                f'<option value="{html.escape(p.id)}">{html.escape(p.nombre)}</option>'
-                for p in ultimas.values()
-            )
-            or '<option value="" disabled selected>Sin formularios instalados</option>'
-        )
-        paginas = {p.id: len(p.paginas) for p in ultimas.values()}
-        cuerpo = (
-            PAGINA_CAPTURA.read_text(encoding="utf-8")
-            .replace("{{OPCIONES}}", opciones)
-            .replace("{{PAGINAS}}", html.escape(json.dumps(paginas), quote=True))
-            .replace("{{TOKEN_URL}}", html.escape(quote(token, safe=""), quote=True))
-            .replace("{{TOKEN}}", html.escape(token, quote=True))
-        )
+        """La página del celular: HTML liviano sin build (AP-07). Es estática y no lleva ningún
+        secreto (el navegador no puede mandar la credencial al abrir una página); la lista de
+        formularios y las subidas las pide con la credencial del celular."""
         return HTMLResponse(
-            cuerpo, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
+            PAGINA_CAPTURA.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
         )
 
     return app
