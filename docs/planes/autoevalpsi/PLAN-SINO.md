@@ -22,13 +22,13 @@ encuentra cada `Si ( ) No ( )`, le pone su texto y su sección y ubica la caja d
 Sobre las dos fotos de muestra (sin enderezar, tomadas con el celular):
 
 - **Secciones:** 21 de 21 encabezados (tras admitir la letra suelta del margen: «E 5.5 …»).
-- **Ítems Sí/No:** 100 encontrados de ≈ 112 (≈ 90 %). Faltan los que el OCR leyó muy sucios
+- **Ítems Sí/No:** 100 encontrados de ≈ 106 contados a ojo (≈ 94 %, con 1 falso en 6.1). Faltan los que el OCR leyó muy sucios
   (`siNo( )`) y algunos en renglones apretados (5.2, 5.4, 5.8, 5.12, 6.4, 6.7).
 - **Posición:** las cajas caen sobre los paréntesis con unos ±10 px en fotos de 1200 px; sirven
   para medir tinta, no para dibujar bonito.
 - **Puntaje manuscrito:** caja ubicada en las 21 secciones.
 - **No es Sí/No:** 6.1, 6.3 y 6.6 son texto escrito a mano con ✓/✗ al lado (FS-R5).
-- **Conclusión:** la herramienta propone y una persona corrige; arreglar a mano ≈ 10 % de 150
+- **Conclusión:** la herramienta propone y una persona corrige; arreglar a mano ≈ 10 % de ≈ 106
   ítems es razonable **si hay un editor visual** (FS-D2); sin él, no.
 
 ## Decisiones
