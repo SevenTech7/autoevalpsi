@@ -127,3 +127,48 @@ export interface CambioEvaluacion {
   confirmar_cabecera?: boolean;
   filas?: CambioFila[];
 }
+
+// --- plantilla completa (editor, FS-R3): espejo de `core/plantilla.py` --------------------------
+
+export type Intervalo = [number, number];
+export type Caja = [number, number, number, number];
+
+export interface FilaDef {
+  item: number;
+  texto: string;
+  y: Intervalo;
+}
+
+export interface TablaDef {
+  seccion?: string | null;
+  opciones: string[];
+  columnas_x: Intervalo[];
+  observacion_x?: Intervalo | null;
+  filas: FilaDef[];
+}
+
+export interface CampoCabeceraDef {
+  campo: string;
+  caja: Caja;
+  tipo?: "texto";
+}
+
+export interface PaginaDef {
+  imagen_referencia: string;
+  tamano_px: [number, number];
+  cabecera: CampoCabeceraDef[];
+  tablas: TablaDef[];
+}
+
+export interface PlantillaDef {
+  esquema_version: number;
+  id: string;
+  nombre: string;
+  version: number;
+  omr: { tinta_minima: number; margen_relativo: number };
+  paginas: PaginaDef[];
+}
+
+export interface ResultadoDesdeFoto extends ResumenPlantilla {
+  secciones: number;
+}

@@ -5,6 +5,8 @@ import type {
   Evaluacion,
   InicioVinculo,
   Plantilla,
+  PlantillaDef,
+  ResultadoDesdeFoto,
   ResultadoExportacion,
   ResumenEvaluacion,
   ResumenPlantilla,
@@ -53,7 +55,9 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
     const hacer = fetcher ?? fetch;
     const cabeceras: Record<string, string> = { Authorization: `Bearer ${token}` };
     const init: RequestInit = { method: metodo, headers: cabeceras };
-    if (cuerpo !== undefined) {
+    if (cuerpo instanceof FormData) {
+      init.body = cuerpo; // el navegador pone el tipo y el límite del multipart
+    } else if (cuerpo !== undefined) {
       cabeceras["Content-Type"] = "application/json";
       init.body = JSON.stringify(cuerpo);
     }
@@ -99,6 +103,31 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
         incluir_recortes: incluirRecortes,
       }),
     plantillas: () => pedir<ResumenPlantilla[]>("GET", "/api/plantillas"),
+    /** La plantilla completa (cajas incluidas) para el editor; sin `version`, la más nueva. */
+    plantillaDef: (plantilla: string, version?: number) =>
+      pedir<PlantillaDef>(
+        "GET",
+        `/api/plantillas/${id(plantilla)}${version === undefined ? "" : `?version=${version}`}`,
+      ),
+    /** Fondo del editor: la imagen en blanco de una página (el `<img>` pide con el token en la URL). */
+    urlReferencia: (plantilla: string, version: number, pagina: number) =>
+      `${base}/api/plantillas/${id(plantilla)}/referencia/${pagina}?version=${version}&token=${id(token)}`,
+    /** Guarda la plantilla corregida como versión nueva; devuelve el resumen de esa versión. */
+    guardarVersion: (plantilla: string, definicion: PlantillaDef) =>
+      pedir<ResumenPlantilla>("POST", `/api/plantillas/${id(plantilla)}/versiones`, {
+        plantilla: definicion,
+      }),
+    plantillaDesdeFoto: (foto: File, nombre: string) => {
+      const form = new FormData();
+      form.append("foto", foto);
+      form.append("nombre", nombre);
+      return pedir<ResultadoDesdeFoto>("POST", "/api/plantillas/desde-foto", form);
+    },
+    importarPlantilla: (archivo: File) => {
+      const form = new FormData();
+      form.append("archivo", archivo);
+      return pedir<ResumenPlantilla>("POST", "/api/plantillas/importar", form);
+    },
     vinculo: () => pedir<Vinculo>("GET", "/api/vinculo"),
     iniciarVinculo: (ip?: string) =>
       pedir<InicioVinculo>("POST", `/api/vinculo/iniciar${ip ? `?ip=${id(ip)}` : ""}`),

@@ -11,7 +11,7 @@ blanco: la plantilla se arma desde una foto llena.
 | FS-R0 | Spike: ¿el OCR ubica los `( )` de una foto real? | hecha (2026-11-07) |
 | FS-R1 | Plantilla v1 desde la foto: una tabla de una fila por ítem + referencia sin marcas | hecha (2026-11-07) |
 | FS-R2 | Puntaje manuscrito por sección (OCR de vocabulario cerrado); `contraste_min` por plantilla | pendiente |
-| FS-R3 | **Editor de plantilla en la app** (campos, columnas, filas, cajas; sirve para todas las plantillas) | pendiente (FS-D2 aprobada: editor visual) |
+| FS-R3 | **Editor de plantilla en la app** (campos, columnas, filas, cajas; sirve para todas las plantillas) | hecha (2026-11-07; falta verlo en la ventana real y probarlo con la usuaria) |
 | FS-R4 | Revisión por secciones y Excel «Resumen / Detalle / Escrito a mano» | pendiente (faltan los significados de P.E.E./P.E.C./Intrus./Persev.) |
 | FS-R5 | Ítems de texto manuscrito con marca ✓/✗ (6.1, 6.3, 6.6) | pendiente |
 | FS-R6 | Referencia limpia a partir de varias fotos llenas (mediana tras registrar) | pendiente (necesita más fotos) |
@@ -64,3 +64,26 @@ lectura (`casillas`), el registro, la revisión ni el Excel. Único cambio de co
 ## FS-D1 — resuelta por FS-R1
 
 No hace falta esquema v2 (ver arriba).
+
+## FS-R3 — resultado
+
+Pantalla **Plantillas** (`#/plantillas`) y editor (`#/plantillas/<id>`), solo en la laptop.
+
+- **Crear desde una foto** (`POST /api/plantillas/desde-foto`, necesita OCR, ≈ 13 s): arma el
+  borrador (`core/borrador.py`) y lo instala como versión 1; luego se abre en el editor.
+  También se puede **importar un .zip** desde la misma pantalla.
+- **Editor** sobre la imagen en blanco: arrastrar una casilla la mueve (mueve su columna y su
+  fila), las esquinas la redimensionan, las flechas mueven de a 1 px (Mayús: 10), los números de
+  la caja se escriben. Agregar/quitar preguntas Sí/No, filas, opciones (columnas) y campos de la
+  cabecera; renombrar sección, opciones, textos y campos; deshacer/rehacer (Ctrl+Z / Ctrl+Y,
+  escribir en un campo cuenta como un paso). Los límites son los del servidor (columnas y filas
+  ordenadas y sin solaparse, dentro de la hoja), así que no se puede dejar una plantilla inválida
+  arrastrando.
+- **Guardar** crea la **versión siguiente** (`POST /api/plantillas/<id>/versiones`); las
+  versiones viejas y las evaluaciones que las citan no se tocan. El cliente no puede fijar `id`,
+  `version` ni las imágenes. Un borrador sin guardar se conserva en el navegador y se ofrece
+  recuperar al volver a abrir.
+- **Verificado** en Firefox (Playwright, contra el servidor de prueba): arrastrar movió la
+  casilla 38 px, deshacer la devolvió, la esquina ensanchó 11 → 36 px, sin errores de consola.
+- **Pendiente:** mover una tabla entera o un grupo de casillas a la vez, y reordenar preguntas
+  (hoy el orden es el de creación). No se probó en WebView2.
