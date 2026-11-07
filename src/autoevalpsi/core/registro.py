@@ -28,7 +28,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from autoevalpsi.core.hoja import detectar_hoja
+from autoevalpsi.core.hoja import HojaDetectada, HojaNoEncontrada, detectar_hoja
 from autoevalpsi.core.imagen import ImagenInvalida
 
 BANDERA_REGISTRO_DUDOSO = "registro_dudoso"
@@ -62,7 +62,7 @@ class Registro:
     homografia: np.ndarray  # (3, 3) px de la foto original -> px de la plantilla
     imagen: np.ndarray  # BGR a tamaño de la plantilla, casillas donde dice el JSON
     metodo_hoja: str  # "aruco" | "contorno"
-    giro: int  # 0 | 180: grados que se giró la hoja enderezada
+    giro: int  # 0 | 90 | 180 | 270: grados que se giró la hoja enderezada
     coincidencias: int
     inliers: int
     proporcion_inliers: float
@@ -185,6 +185,46 @@ def _homografia_orb(hoja: np.ndarray, referencia: np.ndarray):
     }
 
 
+def _homografia_directa(foto: np.ndarray, referencia: np.ndarray):
+    """H (px de la `foto` completa -> px de `referencia`) sin enderezar antes la hoja.
+
+    Para fotos donde no se ve el contorno del papel (la hoja llena el cuadro, o solo se detecta
+    la tabla). La foto se lleva a la escala de la referencia y se empareja contra *toda* la página
+    (prueba de razón de Lowe global; ORB es invariante a giros). Misma forma de salida que
+    `_homografia_orb`."""
+    h, w = referencia.shape
+    s = max(h, w) / max(foto.shape)
+    escalada = cv2.resize(foto, None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC)
+    k = min(1.0, _LADO_ORB / max(h, w))
+    kp_r, des_r = _orb(referencia, k)
+    kp_f, des_f = _orb(escalada, k)
+    vacio = {"coincidencias": 0, "inliers": 0, "error": np.inf, "cobertura": 0.0}
+    if des_r is None or des_f is None or len(kp_r) < 8 or len(kp_f) < 8:
+        return None, vacio
+    pares = [p for p in cv2.BFMatcher(cv2.NORM_HAMMING).knnMatch(des_f, des_r, k=2) if len(p) == 2]
+    buenos = [a for a, b in pares if a.distance < _RAZON_LOWE * b.distance]
+    vacio["coincidencias"] = len(buenos)
+    if len(buenos) < 8:
+        return None, vacio
+    src = np.float32([kp_f[a.queryIdx].pt for a in buenos])
+    dst = np.float32([kp_r[a.trainIdx].pt for a in buenos])
+    H, mask = cv2.findHomography(src, dst, cv2.RANSAC, _UMBRAL_RANSAC_PX, maxIters=5000)
+    if H is None or mask is None:
+        return None, vacio
+    dentro = mask.ravel().astype(bool)
+    n_in = int(dentro.sum())
+    if n_in < 4:
+        return None, vacio
+    res = np.linalg.norm(_aplicar(H, src[dentro]) - dst[dentro], axis=1) / k
+    H_full = np.linalg.inv(_escala(k)) @ H @ _escala(k) @ _escala(s)  # px de la foto original
+    return H_full, {
+        "coincidencias": len(buenos),
+        "inliers": n_in,
+        "error": float(np.median(res)),
+        "cobertura": _cobertura(dst[dentro] / k, w, h),
+    }
+
+
 # --- ajuste fino con las líneas de la tabla -----------------------------------------------------
 
 
@@ -263,50 +303,50 @@ def _intento(rect_gris, referencia, umbrales):
     return H, m
 
 
-def registrar(
-    foto: np.ndarray,
-    referencia: np.ndarray,
-    *,
-    umbrales: UmbralesRegistro | None = None,
+def _registrar_por_hoja(
+    foto: np.ndarray, referencia: np.ndarray, umbrales: UmbralesRegistro, hoja: HojaDetectada
 ) -> Registro:
-    """Lleva `foto` (BGR) al sistema de coordenadas de `referencia` (gris, tamaño de plantilla).
-
-    No lanza por un mal registro: devuelve `Registro` con la bandera `registro_dudoso`. Lanza
-    `HojaNoEncontrada` si no se ve la hoja y `RegistroInvalido` si la referencia no sirve.
-    """
-    umbrales = umbrales or UmbralesRegistro()
-    referencia = _gris(referencia)
+    """Registro clásico: la hoja detectada se endereza a la plantilla y ORB afina lo que queda."""
     h, w = referencia.shape
-    if h < 200 or w < 200 or referencia.std() < 1:
-        raise RegistroInvalido("La imagen de referencia de la plantilla está vacía o es muy chica.")
-    hoja = detectar_hoja(foto, proporcion=w / h)
     destino = np.array([[0, 0], [w, 0], [w, h], [0, h]], np.float32)
-    Hr = cv2.getPerspectiveTransform(hoja.esquinas.astype(np.float32), destino).astype(np.float64)
-    rect = cv2.warpPerspective(_gris(foto), Hr, (w, h), flags=cv2.INTER_AREA)
+    gris_foto = _gris(foto)
 
-    # Giro: se prueba 0° y, si no sale bien, 180° (el contorno no los distingue).
+    # Giro: se prueba 0° y 180° (el contorno no los distingue) y, si ninguno sale bien, también
+    # 90° y 270°: con una tabla casi cuadrada el orden de las esquinas por proporción es ambiguo.
     giro_180 = np.array([[-1, 0, w], [0, -1, h], [0, 0, 1]], np.float64)
     mejor = None
-    for giro, G in ((0, np.eye(3)), (180, giro_180)):
-        rect_g = rect if giro == 0 else cv2.rotate(rect, cv2.ROTATE_180)
-        H0, m = _intento(rect_g, referencia, umbrales)
-        if H0 is not None:
-            candidato = (m["inliers"], giro, G, H0, m)
-            if mejor is None or candidato[0] > mejor[0]:
-                mejor = candidato
-        if (
-            mejor is not None
-            and mejor[4]["inliers"] >= umbrales.inliers_min
-            and (mejor[4]["proporcion"] >= umbrales.proporcion_inliers_min)
-        ):
-            break
+    for cuarto in (0, 1):
+        esquinas = np.roll(hoja.esquinas, cuarto, axis=0)
+        Hr = cv2.getPerspectiveTransform(esquinas.astype(np.float32), destino).astype(np.float64)
+        rect = cv2.warpPerspective(gris_foto, Hr, (w, h), flags=cv2.INTER_AREA)
+        for media_vuelta in (0, 1):
+            giro = 90 * cuarto + 180 * media_vuelta
+            G = giro_180 if media_vuelta else np.eye(3)
+            rect_g = cv2.rotate(rect, cv2.ROTATE_180) if media_vuelta else rect
+            H0, m = _intento(rect_g, referencia, umbrales)
+            if H0 is not None:
+                candidato = (m["inliers"], giro, G, H0, m, Hr)
+                if mejor is None or candidato[0] > mejor[0]:
+                    mejor = candidato
+            if (
+                mejor is not None
+                and mejor[4]["inliers"] >= umbrales.inliers_min
+                and (mejor[4]["proporcion"] >= umbrales.proporcion_inliers_min)
+            ):
+                break
+        else:
+            continue
+        break
 
     if mejor is None:  # ni una homografía: página no registrable (p. ej. hoja en blanco)
         m = {"coincidencias": 0, "inliers": 0, "error": np.inf, "cobertura": 0.0, "proporcion": 0.0}
-        giro, H_total = 0, Hr
+        giro = 0
+        H_total = cv2.getPerspectiveTransform(hoja.esquinas.astype(np.float32), destino).astype(
+            np.float64
+        )
         correlacion, ajustado = 0.0, False
     else:
-        _, giro, G, H0, m = mejor
+        _, giro, G, H0, m, Hr = mejor
         H_total = H0 @ G @ Hr
         previa = cv2.warpPerspective(_gris(foto), H_total, (w, h), flags=cv2.INTER_LINEAR)
         W, correlacion, ajustado = _ajuste_lineas(previa, referencia)
@@ -335,3 +375,78 @@ def registrar(
         ajuste_lineas=ajustado,
         banderas=() if ok else (BANDERA_REGISTRO_DUDOSO,),
     )
+
+
+def _registrar_directo(
+    foto: np.ndarray, referencia: np.ndarray, umbrales: UmbralesRegistro
+) -> Registro:
+    h, w = referencia.shape
+    H0, m = _homografia_directa(_gris(foto), referencia)
+    if H0 is None:
+        m = {"coincidencias": 0, "inliers": 0, "error": np.inf, "cobertura": 0.0}
+        H_total, correlacion, ajustado = np.eye(3), 0.0, False
+    else:
+        H_total = H0
+        previa = cv2.warpPerspective(_gris(foto), H_total, (w, h), flags=cv2.INTER_LINEAR)
+        W, correlacion, ajustado = _ajuste_lineas(previa, referencia)
+        if ajustado:
+            H_total = np.linalg.inv(W) @ H_total
+    m["proporcion"] = m["inliers"] / max(m["coincidencias"], 1)
+    imagen = cv2.warpPerspective(
+        foto if foto.ndim == 3 else cv2.cvtColor(foto, cv2.COLOR_GRAY2BGR),
+        H_total,
+        (w, h),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_REPLICATE,
+    )
+    ok = H0 is not None and _evaluar(m, correlacion, umbrales)
+    return Registro(
+        homografia=H_total,
+        imagen=imagen,
+        metodo_hoja="directo",
+        giro=0,
+        coincidencias=m["coincidencias"],
+        inliers=m["inliers"],
+        proporcion_inliers=m["proporcion"],
+        error_reproyeccion=m["error"],
+        cobertura=m["cobertura"],
+        correlacion_lineas=correlacion,
+        ajuste_lineas=ajustado,
+        banderas=() if ok else (BANDERA_REGISTRO_DUDOSO,),
+    )
+
+
+def registrar(
+    foto: np.ndarray,
+    referencia: np.ndarray,
+    *,
+    umbrales: UmbralesRegistro | None = None,
+) -> Registro:
+    """Lleva `foto` (BGR) al sistema de coordenadas de `referencia` (gris, tamaño de plantilla).
+
+    Primero por la hoja detectada (ArUco o contorno del papel); si eso no deja un registro bueno
+    (o no se ve la hoja entera), por emparejamiento directo de la foto con la referencia. Solo se
+    da por bueno un registro que pase todas las métricas; si ninguno pasa, devuelve el mejor con
+    la bandera `registro_dudoso`. Lanza `HojaNoEncontrada` si no se ve la hoja y tampoco el
+    emparejamiento directo la reconoce, y `RegistroInvalido` si la referencia no sirve.
+    """
+    umbrales = umbrales or UmbralesRegistro()
+    referencia = _gris(referencia)
+    h, w = referencia.shape
+    if h < 200 or w < 200 or referencia.std() < 1:
+        raise RegistroInvalido("La imagen de referencia de la plantilla está vacía o es muy chica.")
+    try:
+        por_hoja = _registrar_por_hoja(
+            foto, referencia, umbrales, detectar_hoja(foto, proporcion=w / h)
+        )
+        error: HojaNoEncontrada | None = None
+    except HojaNoEncontrada as e:
+        por_hoja, error = None, e
+    if por_hoja is not None and por_hoja.ok:
+        return por_hoja
+    directo = _registrar_directo(foto, referencia, umbrales)
+    if directo.ok:
+        return directo
+    if por_hoja is None:
+        raise error  # type: ignore[misc]
+    return directo if directo.inliers > por_hoja.inliers else por_hoja
