@@ -26,6 +26,7 @@ services:
       - uvcache:/opt/uv-cache
       - datosprueba:/datos
       - ./.datos/exportaciones:/datos/exportaciones
+      - ./.datos/fallidas:/datos/fallidas
   ui:
     image: node:22-slim
     working_dir: /app/ui

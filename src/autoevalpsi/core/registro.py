@@ -42,6 +42,12 @@ _LARGO_LINEA = 0.035  # fracción del ancho: núcleo de la apertura morfológica
 _SHIFT_ECC_MAX = 0.02  # el ajuste fino no mueve más de esta fracción del lado largo
 
 
+MENSAJE_NO_RECONOCIDA = (
+    "No se reconoce el formulario en la foto. Revisa que elegiste el formulario correcto y que se "
+    "vea la hoja entera, sobre un fondo que contraste, con sus cuatro esquinas visibles."
+)
+
+
 class RegistroInvalido(ImagenInvalida):
     """La referencia no sirve (vacía o ilegible); no es un fallo de la foto."""
 
@@ -448,5 +454,5 @@ def registrar(
     if directo.ok:
         return directo
     if por_hoja is None:
-        raise error  # type: ignore[misc]
+        raise HojaNoEncontrada(MENSAJE_NO_RECONOCIDA) from error
     return directo if directo.inliers > por_hoja.inliers else por_hoja

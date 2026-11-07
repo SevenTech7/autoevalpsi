@@ -137,7 +137,7 @@ function reiniciarFormulario() {
   pasoActual();
 }
 
-selPlantilla.addEventListener("change", reiniciarFormulario);
+selPlantilla.addEventListener("change", () => { recordarPlantilla(selPlantilla.value); reiniciarFormulario(); });
 
 function pedir(metodo, url, cuerpo, alTerminar) {
   const x = new XMLHttpRequest();
@@ -158,6 +158,15 @@ function mostrarSinVinculo(detalle) {
   if (detalle) detalleVinculo.textContent = detalle;
 }
 
+const CLAVE_PLANTILLA = "autoevalpsi.plantilla";
+function recordarPlantilla(valor) {
+  try {
+    if (valor === undefined) return localStorage.getItem(CLAVE_PLANTILLA) || "";
+    localStorage.setItem(CLAVE_PLANTILLA, valor);
+  } catch (e) { /* sin almacenamiento: no se recuerda */ }
+  return "";
+}
+
 function mostrarFormulario(plantillas) {
   sinVinculo.hidden = true;
   form.hidden = false;
@@ -170,6 +179,15 @@ function mostrarFormulario(plantillas) {
     const previa = ultimas.get(p.id);
     if (!previa || p.version > previa.version) ultimas.set(p.id, p);
   }
+  // Con varios formularios no se elige uno por ti: se recuerda el último que usaste, y si no hay,
+  // hay que elegir (así una foto no se manda contra el formulario equivocado por descuido).
+  const recordada = recordarPlantilla();
+  if (ultimas.size > 1 && !ultimas.has(recordada)) {
+    const o = document.createElement("option");
+    o.value = ""; o.disabled = true; o.selected = true;
+    o.textContent = "Elige el formulario…";
+    selPlantilla.append(o);
+  }
   for (const p of ultimas.values()) {
     const o = document.createElement("option");
     o.value = p.id;
@@ -177,6 +195,8 @@ function mostrarFormulario(plantillas) {
     selPlantilla.append(o);
     paginas[p.id] = p.paginas;
   }
+  if (ultimas.has(recordada)) selPlantilla.value = recordada;
+  else if (ultimas.size === 1) selPlantilla.value = [...ultimas.keys()][0];
   if (!ultimas.size) {
     const o = document.createElement("option");
     o.value = ""; o.disabled = true; o.selected = true;
