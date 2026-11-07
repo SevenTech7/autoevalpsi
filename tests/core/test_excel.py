@@ -1,7 +1,7 @@
 """CO-R6: exportador Excel."""
 
 import os
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +44,30 @@ def _ev(plantilla, id="ev-1", paciente="Ana María Pérez", fecha=date(2026, 11,
 
 def _hoja(ruta, nombre="Evaluación"):
     return load_workbook(ruta)[nombre]
+
+
+# --- fecha y hora de Bolivia ------------------------------------------------------------------
+
+
+def test_fecha_con_hora_se_escribe_en_hora_de_bolivia(plantilla, tmp_path):
+    momento = datetime(2026, 11, 8, 2, 35, tzinfo=UTC)  # 22:35 del día 7 en Bolivia
+    archivos = exportar(_ev(plantilla, fecha=momento), tmp_path)
+    celda = _hoja(archivos.evaluacion).cell(2, 2)
+    assert celda.value == datetime(2026, 11, 7, 22, 35)
+    assert celda.number_format == "DD/MM/YYYY HH:MM"
+    consolidado = _hoja(archivos.consolidado, "Consolidado")
+    col = [c.value for c in consolidado[1]].index("Fecha") + 1
+    assert consolidado.cell(2, col).value == datetime(2026, 11, 7, 22, 35)
+
+
+def test_el_nombre_del_archivo_lleva_el_dia_de_bolivia(plantilla):
+    momento = datetime(2026, 11, 8, 2, 35, tzinfo=UTC)
+    assert nombre_archivo(_ev(plantilla, fecha=momento)).startswith("2026-11-07_")
+
+
+def test_fecha_sin_hora_sigue_como_texto_aaaa_mm_dd(plantilla, tmp_path):
+    archivos = exportar(_ev(plantilla), tmp_path)
+    assert _hoja(archivos.evaluacion).cell(2, 2).value == "2026-11-06"
 
 
 # --- nombres (CO-07) ------------------------------------------------------------------------

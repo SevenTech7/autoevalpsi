@@ -27,7 +27,7 @@ import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
 from io import BytesIO
 from pathlib import Path
@@ -42,6 +42,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from autoevalpsi.core.plantilla import Plantilla
+from autoevalpsi.core.tiempo import a_bolivia
 
 HOJA_EVALUACION = "Evaluación"
 HOJA_CONSOLIDADO = "Consolidado"
@@ -85,7 +86,7 @@ class FilaEvaluacion:
 class Evaluacion:
     id: str  # clave estable: reexportar con el mismo id no duplica
     plantilla: Plantilla
-    fecha: date
+    fecha: date | datetime  # con hora (de Bolivia) si es datetime
     paciente: str
     filas: tuple[FilaEvaluacion, ...]
     cabecera: dict[str, str] = field(default_factory=dict)  # campos extra de la cabecera
@@ -137,10 +138,31 @@ def iniciales(nombre: str) -> str:
 
 def nombre_archivo(ev: Evaluacion, modo: NombreArchivo = NombreArchivo.PACIENTE) -> str:
     paciente = iniciales(ev.paciente) if modo == NombreArchivo.INICIALES else ev.paciente
-    return f"{ev.fecha.isoformat()}_{sanear_nombre(ev.plantilla.id)}_{sanear_nombre(paciente)}.xlsx"
+    return f"{_dia(ev.fecha).isoformat()}_{sanear_nombre(ev.plantilla.id)}_{sanear_nombre(paciente)}.xlsx"
 
 
 # --- utilidades de escritura ----------------------------------------------------------------
+
+
+FORMATO_FECHA_HORA = "DD/MM/YYYY HH:MM"
+
+
+def _dia(fecha: date | datetime) -> date:
+    """El día (en Bolivia) de una fecha o de una fecha con hora."""
+    return a_bolivia(fecha).date() if isinstance(fecha, datetime) else fecha
+
+
+def _fecha(celda: Cell, fecha: date | datetime) -> None:
+    """Fecha y hora de Bolivia como valor de fecha real de Excel (ordenable); sin hora, el día
+    en texto AAAA-MM-DD como siempre."""
+    if isinstance(fecha, datetime):
+        celda.value = a_bolivia(fecha).replace(
+            tzinfo=None
+        )  # Excel no guarda zona: va la hora local
+        celda.number_format = FORMATO_FECHA_HORA
+        celda.alignment = Alignment(horizontal="left")
+    else:
+        celda.value = fecha.isoformat()
 
 
 def _texto(celda: Cell, valor: str) -> None:
@@ -205,17 +227,20 @@ def _hoja_evaluacion(ev: Evaluacion, incluir_recortes: bool) -> Workbook:
     assert hoja is not None
     hoja.title = HOJA_EVALUACION
     libro.properties.identifier = ev.id
-    libro.properties.title = f"{ev.plantilla.nombre} — {ev.fecha.isoformat()}"
+    libro.properties.title = f"{ev.plantilla.nombre} — {_dia(ev.fecha).isoformat()}"
 
     cabecera = [
         ("Formulario", ev.plantilla.nombre),
-        ("Fecha", ev.fecha.isoformat()),
+        ("Fecha", ev.fecha),
         ("Paciente", ev.paciente),
         *((k, v) for k, v in ev.cabecera.items()),
     ]
     for r, (clave, valor) in enumerate(cabecera, start=1):
         hoja.cell(r, 1, clave).font = _NEGRITA
-        _texto(hoja.cell(r, 2), valor)
+        if isinstance(valor, date):  # la fecha (con hora de Bolivia si la trae)
+            _fecha(hoja.cell(r, 2), valor)
+        else:
+            _texto(hoja.cell(r, 2), valor)
     fila_actual = len(cabecera) + 2
 
     por_item = {f.item: f for f in ev.filas}
@@ -330,7 +355,7 @@ def actualizar_consolidado(ev: Evaluacion, carpeta: str | Path) -> Path:
     ):  # al reemplazar, limpia los ítems de la versión anterior
         hoja.cell(fila, c).value = None
     _texto(hoja.cell(fila, columnas["ID evaluación"]), ev.id)
-    hoja.cell(fila, columnas["Fecha"], ev.fecha.isoformat())
+    _fecha(hoja.cell(fila, columnas["Fecha"]), ev.fecha)
     _texto(hoja.cell(fila, columnas["Paciente"]), ev.paciente)
     hoja.cell(fila, columnas["Versión plantilla"], ev.plantilla.version)
     for f in ev.filas:

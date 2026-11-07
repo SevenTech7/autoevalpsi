@@ -6,7 +6,7 @@ import type { Evaluacion, FilaGuardada, PaginaGuardada, Plantilla } from "../api
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
 import { hayDialogoAbierto, useDialogos } from "../componentes/Dialogos";
 import { Exportar } from "../componentes/Exportar";
-import { fechaLegible } from "../componentes/TablaEvaluaciones";
+import { fechaHoraBolivia } from "../componentes/TablaEvaluaciones";
 import { mensajeDe, useApi, useCarga } from "../hooks";
 import { enlace } from "../ruta";
 
@@ -224,7 +224,7 @@ function Cabecera({ api, evaluacion, campos, guardando, alConfirmar, alCambiarEs
           </span>
         )}
         <span className="text-sm font-normal text-slate-600">
-          {fechaLegible(evaluacion.fecha)} · lo leído de la letra puede tener errores
+          Registrada el {fechaHoraBolivia(evaluacion.creada_en)} (hora de Bolivia) · lo leído de la letra puede tener errores
         </span>
       </summary>
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2 border-t border-slate-100 px-3 py-2">

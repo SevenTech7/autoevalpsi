@@ -7,6 +7,20 @@ export function fechaLegible(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
+const MS_HORA = 3_600_000;
+
+/** Cualquier momento ISO → «07/11/2026 22:35» en hora de Bolivia (UTC−4, sin horario de verano).
+ * Sin zona en el texto se toma como ya dado en Bolivia. Se calcula a mano, sin `Intl`: no depende de
+ * la base de zonas horarias del navegador ni de la zona de la laptop. */
+export function fechaHoraBolivia(iso: string): string {
+  const conZona = /(Z|[+-]\d{2}:?\d{2})$/.test(iso) ? iso : `${iso}-04:00`;
+  const t = new Date(conZona).getTime();
+  if (Number.isNaN(t)) return iso;
+  const d = new Date(t - 4 * MS_HORA);
+  const dos = (n: number) => String(n).padStart(2, "0");
+  return `${dos(d.getUTCDate())}/${dos(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())}`;
+}
+
 export function describirEstado(e: ResumenEvaluacion): string {
   if (e.estado === "exportada") return "Exportada";
   if (e.estado === "revisada") return "Lista para exportar";
@@ -33,7 +47,7 @@ export function TablaEvaluaciones({ evaluaciones }: { evaluaciones: ResumenEvalu
       <thead>
         <tr className="border-b border-slate-200 text-sm text-slate-600">
           <th className="py-2 pr-4 font-medium">Paciente</th>
-          <th className="py-2 pr-4 font-medium">Fecha</th>
+          <th className="py-2 pr-4 font-medium">Fecha y hora (Bolivia)</th>
           <th className="py-2 pr-4 font-medium">Formulario</th>
           <th className="py-2 font-medium">Estado</th>
         </tr>
@@ -46,7 +60,7 @@ export function TablaEvaluaciones({ evaluaciones }: { evaluaciones: ResumenEvalu
                 {e.paciente || "Sin nombre"}
               </a>
             </td>
-            <td className="py-3 pr-4">{fechaLegible(e.fecha || e.creada_en)}</td>
+            <td className="py-3 pr-4">{fechaHoraBolivia(e.creada_en)}</td>
             <td className="py-3 pr-4">{e.plantilla_id}</td>
             <td className="py-3">
               <span className={`rounded-full px-3 py-1 text-sm ${colorEstado[e.estado]}`}>

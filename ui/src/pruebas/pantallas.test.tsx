@@ -38,7 +38,7 @@ describe("lista de evaluaciones", () => {
     expect(screen.getByText("Exportada")).toBeInTheDocument();
     expect(screen.getByText("Falta confirmar la cabecera")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sin nombre" })).toBeInTheDocument();
-    expect(screen.getAllByText("07/11/2026").length).toBe(4);
+    expect(screen.getAllByText("07/11/2026 10:30").length).toBe(4);
   });
 
   it("los filtros dejan solo lo que corresponde y cuentan", async () => {

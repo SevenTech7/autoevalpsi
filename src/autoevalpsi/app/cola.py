@@ -16,7 +16,8 @@ import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+
+from autoevalpsi.core.tiempo import ahora_bolivia
 
 log = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ class ColaProcesamiento:
                 pagina=pagina,
                 plantilla_id=plantilla_id,
                 problemas_calidad=problemas_calidad,
-                creado_en=datetime.now(UTC).isoformat(timespec="seconds"),
+                creado_en=ahora_bolivia().isoformat(timespec="seconds"),
             )
             try:
                 self._cola.put_nowait(_Tarea(trabajo, datos))
