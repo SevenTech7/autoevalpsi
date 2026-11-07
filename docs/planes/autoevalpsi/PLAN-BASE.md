@@ -6,7 +6,7 @@ demás frentes. Prefijo `BS`.
 | Fase | Título | Estado |
 |---|---|---|
 | BS-R0 | Esqueleto del repo y entorno | hecha |
-| BS-R1 | Formulario sintético y generador de fotos de prueba | pendiente |
+| BS-R1 | Formulario sintético y generador de fotos de prueba | hecha |
 | BS-R2 | CI de tests en GitHub Actions | pendiente |
 
 ---
@@ -88,6 +88,13 @@ AUTOEVALPSI/
   4. Fixture de pytest que genera un lote determinista (semilla fija) en `tmp_path`.
 - **Tests:** el propio generador tiene tests (la verdad de terreno coincide con lo dibujado).
 - **Criterio de salida:** los tests de CO-R1…CO-R7 pueden correr sin ninguna foto real.
+- **Hecho (2026-11-06):** `tools/sintetico/{formulario,llenar,fotografiar,lote}.py`; plantillas demo A4 y
+  Carta en `plantillas_demo/` (PNG + JSON, en git); fixture de sesión `lote_sintetico` en
+  `tests/conftest.py` (6 fotos A4, semilla fija); `pythonpath = ["."]` en pytest para importar `tools`.
+  La verdad de cada foto (`foto_NN.verdad.json`) trae `items.<n>.{caso,marcas,tachada?,observacion}`,
+  `cabecera` y `fotografia.homografia` (hoja → foto, antes de aplicar EXIF), para CO-R2/CO-R3/CO-R5.
+  Casos de borde: vacía, doble, tachón, fuera de la celda y tenue. Uso manual:
+  `docker compose run --rm dev python -m tools.sintetico.lote --salida <dir>`.
 
 ## BS-R2 — CI de tests en GitHub Actions
 

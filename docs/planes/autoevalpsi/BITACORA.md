@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0 y CO-R0 hechas. Siguiente: BS-R1 (formulario sintético y generador de fotos) en la rama `fase-bs-1`, o OC-R0 / DI-R0 (no dependen del núcleo). Pendiente humano: P-5 (repo GitHub). |
+| Siguiente acción | BS-R0, CO-R0 y BS-R1 hechas. Siguiente: CO-R1 (carga de imagen y control de calidad) en `fase-co-1`, u OC-R0 / DI-R0 (no dependen del núcleo). Pendiente humano: P-5 (repo GitHub). |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 2 de 38 (BS-R0, CO-R0) |
+| Fases hechas | 3 de 38 (BS-R0, CO-R0, BS-R1) |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -78,7 +78,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 |---|---|---|---|---|---|---|
 | 1 | [BS-R0](PLAN-BASE.md#bs-r0--esqueleto-del-repo-y-entorno) | BS-01, BS-04 | `fase-bs-0` | P-1, BS-D1 | S | hecha |
 | 2 | [CO-R0](PLAN-CORE.md#co-r0--esquema-y-cargador-de-plantillas) | CO-04, CO-05 | `fase-co-0` | BS-R0, CO-D3 | S | hecha |
-| 3 | [BS-R1](PLAN-BASE.md#bs-r1--formulario-sintético-y-generador-de-fotos-de-prueba) | BS-02 | `fase-bs-1` | CO-R0 | M | pendiente |
+| 3 | [BS-R1](PLAN-BASE.md#bs-r1--formulario-sintético-y-generador-de-fotos-de-prueba) | BS-02 | `fase-bs-1` | CO-R0 | M | hecha |
 | 4 | [OC-R0](PLAN-OCR.md#oc-r0--prueba-de-viabilidad-de-pp-ocrv6-en-onnx) | OC-01, OC-03, OC-05 (medición) | `fase-oc-0` | BS-R0 | M | pendiente |
 | 5 | [DI-R0](PLAN-DIST.md#di-r0--prueba-temprana-de-empaquetado-spike) | DI-01 | `fase-di-0` | BS-R0 | M | pendiente |
 | 6 | [BS-R2](PLAN-BASE.md#bs-r2--ci-de-tests-en-github-actions) | — | `fase-bs-2` | BS-R0, P-5 | S | pendiente |
@@ -216,3 +216,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | BS-R0 | `fase-bs-0` → `main` | `pyproject.toml` (Py 3.12, layout `src/`, extras `app`/`ocr`, grupo `dev`), paquetes vacíos, `cli --version`, test de frontera de `core` (con test negativo), README con entorno, `uv.lock`. | — → 3 passed; ruff limpio | uv no está en el PATH: se usa `python -m uv`. Siguiente: CO-R0. |
 | 2026-11-06 | BS-R0 (corrección) | `main` | Revertida la instalación de uv en el equipo (`pip uninstall uv`, borradas la caché de uv en `%LOCALAPPDATA%` y `.venv`). Añadidos `Dockerfile`, `docker-compose.yml`, `.dockerignore`; README y CLAUDE.md reescritos. | 3 passed y ruff limpio, dentro de Docker | Regla: todo en Docker Desktop, nada en la máquina ni variables globales. BS-D1 sigue siendo uv, pero dentro de la imagen. |
 | 2026-11-06 | CO-R0 | `fase-co-0` → `main` | `core/plantilla.py`: modelos pydantic `Plantilla`/`Pagina`/`Tabla`/`Fila`/`CampoCabecera`, `cargar_plantilla()`, `PlantillaInvalida` con el campo en el mensaje, `esquema_version` = 1. `tablas[]` con atajo plano (el ejemplo de `plan.md` carga). `item` único en toda la plantilla; umbrales OMR (`omr`) por plantilla (CO-02). | 3 → 17 passed (14 nuevos); ruff check limpio | **Contrato fijado:** formato de plantilla v1 (documentado en el docstring del módulo). `tests/` previos sin `ruff format` (preexistente). Siguiente: BS-R1. |
+| 2026-11-06 | BS-R1 | `fase-bs-1` → `main` | `tools/sintetico/`: formulario «demo-5opciones» (A4 y Carta, 12 filas × 5 opciones + observación) con su plantilla JSON que carga con el esquema real, en `plantillas_demo/`; `llenar` (X, ✓, círculo, relleno; tinta azul/negra; casos vacía, doble, tachón, fuera, tenue; texto Hershey script; verdad de terreno); `fotografiar` (perspectiva, rotación, fondo, degradé de sombra, desenfoque, ruido, JPEG, EXIF); `lote` y fixture `lote_sintetico`. | 17 → 53 passed (36 nuevos); ruff limpio | Sin contrato público afectado (el formato de verdad `*.verdad.json` es nuevo y solo de pruebas). Suite completa tarda ~26 s. Siguiente: CO-R1. |

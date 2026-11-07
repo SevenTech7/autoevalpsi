@@ -1,0 +1,172 @@
+{
+  "esquema_version": 1,
+  "id": "demo-5opciones-a4",
+  "nombre": "Demo 5 opciones (A4)",
+  "version": 1,
+  "paginas": [
+    {
+      "imagen_referencia": "demo-5opciones-a4.png",
+      "tamano_px": [
+        2480,
+        3508
+      ],
+      "cabecera": [
+        {
+          "campo": "paciente",
+          "caja": [
+            450,
+            300,
+            1500,
+            390
+          ],
+          "tipo": "texto"
+        },
+        {
+          "campo": "fecha",
+          "caja": [
+            1750,
+            300,
+            2330,
+            390
+          ],
+          "tipo": "texto"
+        }
+      ],
+      "tablas": [
+        {
+          "opciones": [
+            "Nunca",
+            "Casi nunca",
+            "A veces",
+            "Casi siempre",
+            "Siempre"
+          ],
+          "columnas_x": [
+            [
+              1000,
+              1130
+            ],
+            [
+              1130,
+              1260
+            ],
+            [
+              1260,
+              1390
+            ],
+            [
+              1390,
+              1520
+            ],
+            [
+              1520,
+              1650
+            ]
+          ],
+          "observacion_x": [
+            1650,
+            2330
+          ],
+          "filas": [
+            {
+              "item": 1,
+              "texto": "Descripcion del item 1",
+              "y": [
+                620,
+                770
+              ]
+            },
+            {
+              "item": 2,
+              "texto": "Descripcion del item 2",
+              "y": [
+                770,
+                920
+              ]
+            },
+            {
+              "item": 3,
+              "texto": "Descripcion del item 3",
+              "y": [
+                920,
+                1070
+              ]
+            },
+            {
+              "item": 4,
+              "texto": "Descripcion del item 4",
+              "y": [
+                1070,
+                1220
+              ]
+            },
+            {
+              "item": 5,
+              "texto": "Descripcion del item 5",
+              "y": [
+                1220,
+                1370
+              ]
+            },
+            {
+              "item": 6,
+              "texto": "Descripcion del item 6",
+              "y": [
+                1370,
+                1520
+              ]
+            },
+            {
+              "item": 7,
+              "texto": "Descripcion del item 7",
+              "y": [
+                1520,
+                1670
+              ]
+            },
+            {
+              "item": 8,
+              "texto": "Descripcion del item 8",
+              "y": [
+                1670,
+                1820
+              ]
+            },
+            {
+              "item": 9,
+              "texto": "Descripcion del item 9",
+              "y": [
+                1820,
+                1970
+              ]
+            },
+            {
+              "item": 10,
+              "texto": "Descripcion del item 10",
+              "y": [
+                1970,
+                2120
+              ]
+            },
+            {
+              "item": 11,
+              "texto": "Descripcion del item 11",
+              "y": [
+                2120,
+                2270
+              ]
+            },
+            {
+              "item": 12,
+              "texto": "Descripcion del item 12",
+              "y": [
+                2270,
+                2420
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
