@@ -7,7 +7,7 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
 |---|---|---|
 | CO-R0 | Esquema y cargador de plantillas | hecha |
 | CO-R1 | Carga de imagen y control de calidad | hecha |
-| CO-R2 | Detección de hoja y corrección de perspectiva | pendiente |
+| CO-R2 | Detección de hoja y corrección de perspectiva | hecha |
 | CO-R3 | Registro fino contra la plantilla | pendiente |
 | CO-R4 | Identificación del formulario | pendiente |
 | CO-R5 | Lectura de casillas y banderas (OMR) | pendiente |
@@ -88,6 +88,20 @@ Paquete `autoevalpsi.core`, sin dependencias de interfaz (BS-04). Cubre la Fase 
   hoja, devolver error explicable ("no se ve la hoja entera").
 - **Tests:** sobre el lote sintético con perspectiva y fondo, las esquinas quedan a ≤ 1 % del
   tamaño de la hoja.
+- **Hecha (2026-11-06):** `core/hoja.py`: `detectar_hoja(img, proporcion=None)` →
+  `HojaDetectada(esquinas (4,2) TL,TR,BR,BL en px de la foto, metodo)`; `rectificar(img,
+  esquinas, (ancho, alto))`; `enderezar_hoja(img, tamano)`. `HojaNoEncontrada` (subclase de
+  `ImagenInvalida`) con «No se ve la hoja entera…». **ArUco** primero: `DICT_4X4_50`, ids 0-3 =
+  TL/TR/BR/BL, esquina *externa* de cada marca; con marcas incompletas o ids ajenos cae al
+  contorno. **Contorno:** Canny + cierre, mayor cuadrilátero convexo del casco (reducido a 1000
+  px); si no, máscara Otsu. Rechaza: hoja < 25 % de la foto, esquina a < 0,4 % del borde (hoja
+  cortada; no prueba otros candidatos para no devolver la tabla interior) y lados opuestos muy
+  distintos. Con `proporcion`, una hoja apaisada se ordena como vertical (giro 90°, un solo
+  sentido). Lote sintético: error de esquinas ≤ 1 % del lado de la hoja en las 6 fotos.
+  **Para CO-R3:** el giro de 180° y el sentido del giro de 90° no se pueden saber aquí; el
+  registro debe probar los giros. **Para PL-R5:** dónde caen las esquinas externas de las marcas
+  en la plantilla (margen) se fija al diseñar las hojas reimprimibles. Sin refinamiento
+  subpíxel de esquinas (no hizo falta con el lote sintético); revisar con fotos reales (CO-R8).
 
 ## CO-R3 — Registro fino contra la plantilla
 
