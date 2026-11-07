@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5 y OC-R0 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). OC-D1 lista para decidir (propuesta a). CO-R6 bloqueada (CO-D1, CO-D2). Sin fase ejecutable sin decisión o insumo: se necesita CO-D1/CO-D2, OC-D1, PL-D2 + fotos (PL-R0/R1) o B-2 (BS-R2). Pendiente humano: P-5. |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0 y OC-R1 hechas; DI-R0 parcial (medida en Linux; el cierre exige Windows: `windows-latest` tras B-2, o a mano). CO-R6 bloqueada (CO-D1, CO-D2). Sin fase ejecutable sin decisión o insumo: se necesita CO-D1/CO-D2, PL-D2 + fotos (PL-R0/R1) o B-2 (BS-R2). OC-R2 espera CO-R7 (que espera CO-R6). Pendiente humano: P-5. |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 8 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0); DI-R0 parcial |
+| Fases hechas | 9 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2, CO-R3, CO-R5, OC-R0, OC-R1); DI-R0 parcial |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -101,7 +101,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 
 | # | Fase | Qué cierra | Rama | Requiere | Esfuerzo | Estado |
 |---|---|---|---|---|---|---|
-| 16 | [OC-R1](PLAN-OCR.md#oc-r1--lector-ocr) | OC-04, OC-06 | `fase-oc-1` | OC-R0, OC-D1 | M | bloqueada (OC-D1) |
+| 16 | [OC-R1](PLAN-OCR.md#oc-r1--lector-ocr) | OC-04, OC-06 | `fase-oc-1` | OC-R0, OC-D1 | M | hecha |
 | 17 | [OC-R2](PLAN-OCR.md#oc-r2--integración-en-el-pipeline) | OC-05, CO-03 | `fase-oc-2` | OC-R1, CO-R7 | M | pendiente |
 | 18 | [OC-R3](PLAN-OCR.md#oc-r3--medición-de-error-por-carácter-con-su-letra-gate-de-fase-2) | gate Fase 2 → OC-D2 | `fase-oc-3` | OC-R2, PL-R0 | M | pendiente |
 
@@ -166,7 +166,7 @@ Detalle, opciones y recomendación en el plan de cada frente.
 | CO-D1 | Estructura del Excel. **Rec.: por evaluación + consolidado por formulario** | CO-R6 | pendiente |
 | CO-D2 | ¿Nombre del paciente en el archivo? **Rec.: sí, saneado, con opción de iniciales** | CO-R6 | pendiente |
 | PL-D1 | ¿Reimprimir hojas con ArUco y QR? **Rec.: sí para las que ella imprime; v1 funciona sin ellas** | PL-R5 | pendiente |
-| OC-D1 | Modelo OCR definitivo. **Propuesta: a) PP-OCRv6 medium ONNX** (cifras en PLAN-OCR) | OC-R1 | pendiente (decide el responsable) |
+| OC-D1 | Modelo OCR definitivo. **a) PP-OCRv6 medium ONNX** (cifras en PLAN-OCR) | OC-R1 | aprobada: a) (2026-11-06) |
 | OC-D2 | Texto como sugerencia, solo imagen o según confianza. **Rec.: según confianza**; se decide con el CER de OC-R3 | AP-R5 (parcial) | pendiente (tras OC-R3) |
 | AP-D1 | ¿Borrar fotos al exportar por defecto? **Rec.: no durante el piloto, sí después** | AP-R6 | pendiente |
 | DI-D1 | Datos al desinstalar. **Rec.: preguntar, "conservar" por defecto** | DI-R2 | pendiente |
@@ -223,3 +223,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | CO-R5 | `fase-co-5` → `main` | `core/casillas.py`: `leer_casillas` (tinta por celda completa menos lo impreso de la referencia, fondo adaptativo, decisión CO-02) con banderas `sin_marca`, `doble_marca`, `contraste_bajo`, `registro_dudoso`; `ResultadoFila`/`ResultadoPagina`. Lote base y lote de otra semilla (12 fotos): 0 errores silenciosos; tachón siempre amarillo. | 102 → 126 passed (24 nuevos); ruff limpio | **Contrato menor:** `omr.tinta_minima` por defecto 0,15 → 0,03 (esquema igual). Desviación: sin margen interior (un círculo grande sobre el borde se leía en la vecina sin bandera). Hallazgo CO-R3: 1 de 18 fotos sintéticas (semilla 777, foto_09) registra con ~62 px de error, bien marcada `registro_dudoso`; revisar en CO-R8. CO-R6 sigue bloqueada por CO-D1/CO-D2. Siguiente: OC-R0, DI-R0 o PL-R1. |
 | 2026-11-06 | OC-R0 | `fase-oc-0` → `main` | Spike `tools/spike_ocr/`: PP-OCRv6 medium det+rec en ONNX (Apache-2.0, 62+77 MB, SHA-256 verificados) corre con onnxruntime CPU. Diccionario con todo el español salvo `¡`. Impreso 4/4 líneas, cursiva de fuente 12/12 detectadas, 1 error. Carga ≈ 2 s; detección 0,2–0,3 s por franja; reconocimiento 0,13–0,23 s/línea. | 126 → 126 passed (spike sin tests; ruff limpio) | Sin contrato público afectado. **No hay manuscrito real aún:** el acierto con su letra lo mide OC-R3. OC-D1: propuesta a). Siguiente: DI-R0. |
 | 2026-11-06 | DI-R0 (parcial) | `fase-di-0` → `main` | Spike `tools/spike_empaquetado/` (cv2 + onnxruntime con ONNX mínimo + uvicorn en hilo + pywebview) empaquetado con PyInstaller `onedir` **en Linux/Docker**: 261 MB, arranque en frío ≈ 1,05 s, 0 `hiddenimports`, 0 avisos. | 126 → 126 passed (spike sin tests; ruff limpio) | Sin contrato público afectado. DI-08: Docker no puede producir el .exe; falta correrlo en Windows (CI tras B-2, o a mano) y pasar Defender/SmartScreen: **no verificado**. Siguiente: ninguna fase libre; ver §1. |
+| 2026-11-06 | OC-R1 | `fase-oc-1` → `main` | `core/ocr`: interfaz `Lector`/`Linea`/`Caja`, `LectorFalso`, `LectorONNX` (PP-OCRv6 medium, sesiones perezosas, 4 hilos, orden de lectura); `tools/descargar_modelos.py` con revisión fijada y SHA-256 (también del diccionario). Cierra OC-04, OC-06. | 126 → 139 passed + 4 `lento` con el modelo real (13 + 4 nuevos); ruff limpio | **Contrato nuevo:** interfaz `Lector` (OC-R2 y el plan B dependen de ella). `pyyaml` al grupo `dev` (uv.lock). Aprobada OC-D1 a). Acierto con letra real sigue sin medirse (OC-R3). Siguiente: ninguna fase libre; ver §1. |
