@@ -67,7 +67,7 @@ Fase 4 = Ola 5 · Fase 5 = Ola 6 · Fase 6 = Ola 7. Esfuerzo: S ≈ ½ día, M �
 | P-2 | Resolver cambios ajenos sin commitear | No aplica: carpeta nueva, solo `plan.md` | no aplica (repo nuevo) |
 | P-3 | Fijar rama base | Decisión B-1: `git init -b main` | hecha |
 | P-4 | `CLAUDE.md` con una línea que apunte a esta bitácora | BS-05 | hecha |
-| P-5 | Repo privado en GitHub y `git remote add` | Lo crea el responsable (B-2) | pendiente (humano) |
+| P-5 | Repo privado en GitHub y `git remote add` | Lo crea el responsable (B-2) | hecha (2026-11-07) |
 
 ### Ola 1 — Cimientos y riesgos que pueden tumbar el plan
 
@@ -81,7 +81,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | 3 | [BS-R1](PLAN-BASE.md#bs-r1--formulario-sintético-y-generador-de-fotos-de-prueba) | BS-02 | `fase-bs-1` | CO-R0 | M | hecha |
 | 4 | [OC-R0](PLAN-OCR.md#oc-r0--prueba-de-viabilidad-de-pp-ocrv6-en-onnx) | OC-01, OC-03, OC-05 (medición) | `fase-oc-0` | BS-R0 | M | hecha |
 | 5 | [DI-R0](PLAN-DIST.md#di-r0--prueba-temprana-de-empaquetado-spike) | DI-01 | `fase-di-0` | BS-R0 | M | parcial (falta Windows) |
-| 6 | [BS-R2](PLAN-BASE.md#bs-r2--ci-de-tests-en-github-actions) | — | `fase-bs-2` | BS-R0, P-5 | S | pendiente |
+| 6 | [BS-R2](PLAN-BASE.md#bs-r2--ci-de-tests-en-github-actions) | — | `fase-bs-2` | BS-R0, P-5 | S | hecha (2026-11-07) |
 | 7 | [PL-R0](PLAN-PLANTILLAS.md#pl-r0--recepción-de-muestras-y-lista-priorizada-fase-0) | PL-01, PL-05 | `fase-pl-0` | insumos de la usuaria | S | pendiente |
 
 ### Ola 2 — Núcleo de casillas (Fase 1)
@@ -133,9 +133,9 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 
 | # | Fase | Qué cierra | Rama | Requiere | Esfuerzo | Estado |
 |---|---|---|---|---|---|---|
-| 32 | [DI-R1](PLAN-DIST.md#di-r1--spec-de-pyinstaller-de-la-app-real) | DI-04 | `fase-di-1` | AP-R6, DI-R0, PL-D2 | M | pendiente |
-| 33 | [DI-R2](PLAN-DIST.md#di-r2--instalador-inno-setup) | DI-02, DI-03, DI-05, DI-06 | `fase-di-2` | DI-R1, DI-D1, DI-D2 | M | bloqueada (DI-D1, DI-D2) |
-| 34 | [DI-R3](PLAN-DIST.md#di-r3--build-y-release-en-github-actions) | DI-07 | `fase-di-3` | DI-R2, BS-R2 | M | pendiente |
+| 32 | [DI-R1](PLAN-DIST.md#di-r1--spec-de-pyinstaller-de-la-app-real) | DI-04 | `fase-di-1` | AP-R6, DI-R0, PL-D2 | M | hecha en Linux; falta verla en Windows |
+| 33 | [DI-R2](PLAN-DIST.md#di-r2--instalador-inno-setup) | DI-02, DI-03, DI-05, DI-06 | `fase-di-2` | DI-R1, DI-D1, DI-D2 | M | escrita; falta compilarla en Windows |
+| 34 | [DI-R3](PLAN-DIST.md#di-r3--build-y-release-en-github-actions) | DI-07 | `fase-di-3` | DI-R2, BS-R2 | M | escrita; falta su primera corrida |
 | 35 | [DI-R4](PLAN-DIST.md#di-r4--instalación-limpia-en-la-laptop-de-la-usuaria-gate-de-fase-5) | gate Fase 5 | — | DI-R3 | humano + S | pendiente |
 
 ### Ola 7 — Piloto (Fase 6)
@@ -160,7 +160,7 @@ Detalle, opciones y recomendación en el plan de cada frente.
 | ID | Pregunta (resumen y recomendación) | Bloquea | Estado |
 |---|---|---|---|
 | B-1 | Rama base. **Rec.: `main`**, ramas `fase-*` fusionadas a ella | P-3, todo | aprobada: `main` (2026-11-06) |
-| B-2 | Crear el repo privado en GitHub (lo hace el responsable) | P-5, BS-R2, DI-R3 | aprobada crearlo (2026-11-07); falta que lo cree el responsable |
+| B-2 | Crear el repo privado en GitHub (lo hace el responsable) | P-5, BS-R2, DI-R3 | hecha (2026-11-07): `SevenTech7/autoevalpsi`, privado |
 | BS-D1 | Gestor de entorno. **Rec.: uv con lockfile** (alternativa: venv + pip) | BS-R0 | aprobada: uv + lockfile (2026-11-06) |
 | CO-D3 | ¿Varias tablas por página en el esquema? **Rec.: sí** (`tablas[]`, formato plano como atajo) | CO-R0 | aprobada: `tablas[]` (2026-11-06) |
 | PL-D2 | ¿Dónde viven las plantillas reales? **Rec.: fuera del repo, importadas desde .zip** | PL-R1, DI-R1 | aprobada: rec. (2026-11-06) |
@@ -249,3 +249,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-07 | Ajuste de fecha y hora (Bolivia) | `fix-hora-bolivia` → `main` | **Hora de Bolivia (UTC−4 fijo, sin horario de verano)** en todo: `core/tiempo.py` (`ahora_bolivia`, `hoy_bolivia`, `a_bolivia`); la BD y la cola guardan los momentos con `-04:00` (antes UTC) y la fecha por defecto es el día de Bolivia (a las 20:00 el día de UTC ya era otro); el Excel lleva en «Fecha» **fecha y hora de Bolivia** como valor de fecha real (`DD/MM/YYYY HH:MM`; evaluación y consolidado) y el nombre del archivo, el día de Bolivia; la interfaz muestra «Fecha y hora (Bolivia)» en la lista y «Registrada el … (hora de Bolivia)» en la revisión, calculado a mano (sin `Intl`). La lista se ordena por instante (`julianday`), no por texto, porque conviven filas viejas en UTC y nuevas en −04:00. | pytest 378 → 392 passed (tiempo, Excel, BD, orden mixto); vitest 83 → 88 passed; ruff, `tsc` y `vite build` limpios; comprobado en el servidor: foto subida 17:50 UTC → `13:50:31-04:00` | **Contrato ampliado:** formato de la celda «Fecha» del Excel (datetime en lugar de texto AAAA-MM-DD cuando hay hora) y `core.excel.Evaluacion.fecha` acepta `datetime`; formato de `creada_en`/`momento` (offset −04:00). Filas anteriores en UTC se muestran bien (la interfaz las convierte). La hora que lleva el Excel es la de **recepción de la foto**; la fecha manuscrita sigue aparte como «Fecha manuscrita»/«fecha» de la cabecera. |
 | 2026-11-07 | Ajuste de estados de la interfaz | `fix-estados-ui` → `main` | Revisión de que nada se cierre, se reinicie o pierda el foco por su cuenta. **Corregido:** (1) «Datos de la hoja» seguía a «confirmada» con `open` y se plegaba sola en mitad de la edición (abrirla a mano, escribir y volver al valor leído); ahora solo la abre o cierra la usuaria, y se pliega al confirmar (la clave de remonte ve también `cabecera_revisada`). (2) En «Celular» el sondeo de «¿ya se vinculó?» se reiniciaba cada segundo porque su efecto dependía de un objeto nuevo en cada render (`useCarga`): nunca se disparaba; ahora depende de `recargar` (estable). (3) La tabla de cada tramo usaba el índice como clave: ahora la primera fila, para no remontar filas al filtrar. Revisados sin hallazgos: ayuda plegable de Inicio, filtro de la lista con sondeo, Configuración, ventanas emergentes, observaciones, exportar. | vitest 88 → 94 passed (6 de `estados.test`; los dos de los defectos fallan con el código anterior); `tsc` y `vite build` limpios; recorrido con Chromium en Docker (escribir/borrar, cambiar de campo, 6–11 s de sondeo) | Sin contrato afectado. **No verificado:** la ventana real (WebView2). |
 | 2026-11-07 | Hora del Excel = hora de exportar | `fix-hora-exportacion` → `main` | Decisión de la usuaria: el Excel lleva la fecha y hora de Bolivia del momento de exportar (si la evaluación es de hoy; si tiene otra fecha, solo esa fecha), no la de recepción de la foto. `BaseDatos.como_evaluacion` usa el reloj de exportación; prueba ajustada. 183 pruebas de `app` y ruff en verde. | — |
+| 2026-11-07 | Repo, CI e instalador | `fase-bs-2` → `main` | Repo privado `SevenTech7/autoevalpsi` creado y `main` subido; autor del historial reescrito a `SevenTech7 <jmalloq@gmail.com>` (a pedido). BS-R2: `tests.yml` (pytest+ruff en `windows-latest`, interfaz en Ubuntu) verde. DI-R1: `app/lanzador.py` (`--prueba-humo`, OCR si hay modelos junto al programa), `packaging/autoevalpsi.spec` (onedir, sin consola, sin UPX, ícono), `tools/crear_icono.py`; probado en Linux (412 MB, OCR carga). DI-R2: `packaging/installer.iss` (por máquina, regla de firewall Privado/TCP 8765, comprobación de WebView2, pregunta de datos al desinstalar con «conservar» por defecto). DI-R3: `release.yml` (build, prueba de humo, instalar/desinstalar en silencio y zip). Servidor: `log_config=None` para que arranque sin consola. | Falta la primera corrida de `release.yml` y DI-R4 (instalación en la laptop de la usuaria). |
