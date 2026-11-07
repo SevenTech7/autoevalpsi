@@ -22,6 +22,7 @@ export function TarjetaCelular({ sondeoMs = 2000 }: { sondeoMs?: number }) {
   const api = useApi();
   const { avisar, confirmar } = useDialogos();
   const vinculo = useCarga(() => api.vinculo());
+  const recargarVinculo = vinculo.recargar; // estable; `vinculo` es un objeto nuevo en cada render
   const [sesion, setSesion] = useState<InicioVinculo | null>(null);
   const [restante, setRestante] = useState(0);
   const [ocupado, setOcupado] = useState(false);
@@ -70,7 +71,7 @@ export function TarjetaCelular({ sondeoMs = 2000 }: { sondeoMs?: number }) {
         .then((v) => {
           if (v.vinculado && v.creado !== creadoPrevio.current) {
             setSesion(null);
-            vinculo.recargar();
+            recargarVinculo();
             void avisar({
               tipo: "ok",
               titulo: "Celular vinculado",
@@ -81,7 +82,7 @@ export function TarjetaCelular({ sondeoMs = 2000 }: { sondeoMs?: number }) {
         .catch(() => undefined); // un fallo del sondeo no molesta: el siguiente lo reintenta
     }, sondeoMs);
     return () => clearInterval(t);
-  }, [hayCodigo, api, sondeoMs, vinculo, avisar]);
+  }, [hayCodigo, api, sondeoMs, recargarVinculo, avisar]);
 
   async function desvincular() {
     const acepto = await confirmar({
@@ -93,7 +94,7 @@ export function TarjetaCelular({ sondeoMs = 2000 }: { sondeoMs?: number }) {
     if (!acepto) return;
     try {
       await api.desvincular();
-      vinculo.recargar();
+      recargarVinculo();
     } catch (e) {
       void avisar({ tipo: "error", titulo: "No se pudo desvincular", mensaje: mensajeDe(e) });
     }
