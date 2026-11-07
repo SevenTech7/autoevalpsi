@@ -1,8 +1,10 @@
 import type {
   Configuracion,
   EstadoCola,
+  CambioEvaluacion,
   Evaluacion,
   InicioVinculo,
+  Plantilla,
   ResumenEvaluacion,
   ResumenPlantilla,
   Salud,
@@ -75,6 +77,20 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
     evaluaciones: () => pedir<ResumenEvaluacion[]>("GET", "/api/evaluaciones"),
     evaluacion: (evaluacion: string) =>
       pedir<Evaluacion>("GET", `/api/evaluaciones/${id(evaluacion)}`),
+    plantilla: (plantilla: string, version: number) =>
+      pedir<Plantilla>("GET", `/api/plantillas/${id(plantilla)}?version=${version}`),
+    corregirEvaluacion: (evaluacion: string, cambio: CambioEvaluacion) =>
+      pedir<Evaluacion>("PUT", `/api/evaluaciones/${id(evaluacion)}`, cambio),
+    descartarPagina: (evaluacion: string, pagina: number) =>
+      pedir<{ evaluacion_eliminada: boolean }>(
+        "DELETE",
+        `/api/evaluaciones/${id(evaluacion)}/paginas/${pagina}`,
+      ),
+    /** URL de un recorte para un `<img>`, que no puede mandar cabeceras: el token va en la URL. */
+    urlRecorteFila: (evaluacion: string, item: number) =>
+      `${base}/api/evaluaciones/${id(evaluacion)}/recortes/${item}?token=${id(token)}`,
+    urlRecorteCabecera: (evaluacion: string, campo: string) =>
+      `${base}/api/evaluaciones/${id(evaluacion)}/cabecera/${id(campo)}?token=${id(token)}`,
     borrarFotos: (evaluacion: string, incluirRecortes = false) =>
       pedir<{ borrados: number }>("POST", `/api/evaluaciones/${id(evaluacion)}/borrar_fotos`, {
         incluir_recortes: incluirRecortes,

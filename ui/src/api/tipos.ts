@@ -93,3 +93,27 @@ export interface ResumenPlantilla {
   paginas: number;
   items: number;
 }
+
+/** Lo que la revisión necesita de la plantilla: textos de los ítems y sus opciones. */
+export interface Plantilla {
+  id: string;
+  nombre: string;
+  version: number;
+  paginas: {
+    cabecera: { campo: string }[];
+    tablas: { opciones: string[]; filas: { item: number; texto: string }[] }[];
+  }[];
+}
+
+export interface CambioFila {
+  item: number;
+  opcion?: string | null; // null = «sin respuesta»; ausente = no tocar
+  observacion?: string;
+}
+
+export interface CambioEvaluacion {
+  paciente?: string;
+  cabecera?: Record<string, string>;
+  confirmar_cabecera?: boolean;
+  filas?: CambioFila[];
+}
