@@ -16,10 +16,10 @@
 |---|---|
 | Última actualización | 2026-11-06 |
 | Fase en curso | — |
-| Siguiente acción | BS-R0, CO-R0, BS-R1 y CO-R1 hechas. Siguiente: CO-R2 (detección de hoja y perspectiva) en `fase-co-2`, u OC-R0 / DI-R0 (no dependen del núcleo). Pendiente humano: P-5 (repo GitHub). |
+| Siguiente acción | BS-R0, CO-R0, BS-R1, CO-R1 y CO-R2 hechas. Siguiente: CO-R3 (registro fino, L) en `fase-co-3`, u OC-R0 / DI-R0 (no dependen del núcleo). Pendiente humano: P-5 (repo GitHub). |
 | Rama base | `main` (decisión B-1, aprobada 2026-11-06) |
 | Bloqueos activos | Insumos de la usuaria (fotos) bloquean PL-R0; B-2 (repo GitHub) bloquea BS-R2 |
-| Fases hechas | 4 de 38 (BS-R0, CO-R0, BS-R1, CO-R1) |
+| Fases hechas | 5 de 38 (BS-R0, CO-R0, BS-R1, CO-R1, CO-R2) |
 
 > Al cerrar o pausar una fase, actualizar esta tabla primero.
 
@@ -89,7 +89,7 @@ el diseño. PL-R0 depende de la usuaria y corre en paralelo.
 | # | Fase | Qué cierra | Rama | Requiere | Esfuerzo | Estado |
 |---|---|---|---|---|---|---|
 | 8 | [CO-R1](PLAN-CORE.md#co-r1--carga-de-imagen-y-control-de-calidad) | CO-01 | `fase-co-1` | CO-R0, BS-R1 | S | hecha |
-| 9 | [CO-R2](PLAN-CORE.md#co-r2--detección-de-hoja-y-corrección-de-perspectiva) | — | `fase-co-2` | CO-R1 | M | pendiente |
+| 9 | [CO-R2](PLAN-CORE.md#co-r2--detección-de-hoja-y-corrección-de-perspectiva) | — | `fase-co-2` | CO-R1 | M | hecha |
 | 10 | [CO-R3](PLAN-CORE.md#co-r3--registro-fino-contra-la-plantilla) | CO-09 | `fase-co-3` | CO-R2 | L | pendiente |
 | 11 | [CO-R5](PLAN-CORE.md#co-r5--lectura-de-casillas-y-banderas-omr) | CO-02 | `fase-co-5` | CO-R3 | M | pendiente |
 | 12 | [CO-R6](PLAN-CORE.md#co-r6--exportador-excel) | CO-06, CO-07, CO-08 | `fase-co-6` | CO-R5, CO-D1, CO-D2 | M | bloqueada (CO-D1, CO-D2) |
@@ -218,3 +218,4 @@ El agente no puede hacerlos; se anotan aquí hasta que lleguen.
 | 2026-11-06 | CO-R0 | `fase-co-0` → `main` | `core/plantilla.py`: modelos pydantic `Plantilla`/`Pagina`/`Tabla`/`Fila`/`CampoCabecera`, `cargar_plantilla()`, `PlantillaInvalida` con el campo en el mensaje, `esquema_version` = 1. `tablas[]` con atajo plano (el ejemplo de `plan.md` carga). `item` único en toda la plantilla; umbrales OMR (`omr`) por plantilla (CO-02). | 3 → 17 passed (14 nuevos); ruff check limpio | **Contrato fijado:** formato de plantilla v1 (documentado en el docstring del módulo). `tests/` previos sin `ruff format` (preexistente). Siguiente: BS-R1. |
 | 2026-11-06 | BS-R1 | `fase-bs-1` → `main` | `tools/sintetico/`: formulario «demo-5opciones» (A4 y Carta, 12 filas × 5 opciones + observación) con su plantilla JSON que carga con el esquema real, en `plantillas_demo/`; `llenar` (X, ✓, círculo, relleno; tinta azul/negra; casos vacía, doble, tachón, fuera, tenue; texto Hershey script; verdad de terreno); `fotografiar` (perspectiva, rotación, fondo, degradé de sombra, desenfoque, ruido, JPEG, EXIF); `lote` y fixture `lote_sintetico`. | 17 → 53 passed (36 nuevos); ruff limpio | Sin contrato público afectado (el formato de verdad `*.verdad.json` es nuevo y solo de pruebas). Suite completa tarda ~26 s. Siguiente: CO-R1. |
 | 2026-11-06 | CO-R1 | `fase-co-1` → `main` | `core/imagen.py`: `cargar_imagen` (EXIF vía Pillow, JPEG/PNG, HEIC y basura rechazados con `ImagenInvalida`) y `evaluar_calidad` con `UmbralesCalidad` (nitidez, brillo, luces quemadas, resolución). Umbrales calibrados con el lote sintético. | 53 → 74 passed (21 nuevos); ruff limpio | Sin contrato público afectado (API interna nueva). Hallazgo: OpenCV 5.0.0 `imread` ya aplica EXIF (CO-01 corregido en el plan). Umbrales a recalibrar con fotos reales en CO-R8. Siguiente: CO-R2. |
+| 2026-11-06 | CO-R2 | `fase-co-2` → `main` | `core/hoja.py`: `detectar_hoja` (ArUco ids 0-3 con prioridad; si no, contorno por Canny y Otsu), `rectificar`, `enderezar_hoja`, `HojaNoEncontrada` («no se ve la hoja entera»). Esquinas a ≤ 1 % del lado de la hoja en todo el lote; hoja cortada, diminuta, sin hoja y homografía degenerada se rechazan. | 74 → 87 passed (13 nuevos); ruff limpio | Sin contrato público afectado (API interna nueva). CO-R3 debe probar giros de 180°/90°. Tamaño de marcas ArUco en la plantilla queda para PL-R5. Siguiente: CO-R3. |
