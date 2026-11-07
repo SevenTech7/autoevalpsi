@@ -5,7 +5,7 @@ Cubre la Fase 0 (muestras) y la Fase 4 (resto de plantillas) de `plan.md`. Prefi
 | Fase | Título | Estado |
 |---|---|---|
 | PL-R0 | Recepción de muestras y lista priorizada (Fase 0) | pendiente (insumos de la usuaria) |
-| PL-R1 | Plantilla del primer formulario y visor de plantillas | pendiente |
+| PL-R1 | Plantilla del primer formulario y visor de plantillas | hecha (referencia derivada de una foto llena) |
 | PL-R2 | Script de detección de cuadrícula | pendiente |
 | PL-R3 | Lectura de los textos impresos de los ítems | pendiente |
 | PL-R4 | Plantillas de los formularios restantes | pendiente |
@@ -51,6 +51,18 @@ Cubre la Fase 0 (muestras) y la Fase 4 (resto de plantillas) de `plan.md`. Prefi
 ## PL-R1 — Plantilla del primer formulario y visor de plantillas
 
 - **Requiere:** PL-R0, CO-R0, PL-D2.
+- **Estado:** hecha (2026-11-07), con una salvedad: no había formulario en blanco, así que la
+  referencia se derivó de `muestras/evaluacion-continua-llena-1.jpeg` (enderezada con el borde de la
+  tabla, ×2; sin las X, los valores de cabecera ni las rayas del margen, por relleno de imagen).
+  Plantilla `evaluacion-continua` v1 (12 ítems en 4 tablas de 3 filas, 6 columnas «1 Nula»…«6
+  Excelente», sin observación, 5 campos: paciente, cargo, oficina, fecha, motivo), en
+  `plantillas/evaluacion-continua/` (fuera de git, PL-D2) y como .zip lista para importar.
+  `tools/visor_plantilla.py` (con test). Medido contra mi lectura de la foto (verdad 5,5,5,5,5,5,4,5,5,6,5,4;
+  **pendiente que la confirme el responsable**): **12/12** casillas, cabecera 4/4 exacta con OCR, también
+  con otra foto del mismo formulario (A07, 4080 px, de lado). `omr.tinta_minima` = 0,003 (las X
+  dan 0,005–0,012 y todo lo demás 0). Todas las filas salen con `contraste_bajo` (trazo claro, umbral
+  global de `ParametrosLectura`): amarillas pero con la opción correcta. Con un formulario en blanco
+  hay que rehacer la referencia (las coordenadas de la plantilla se mantienen si se endereza igual).
 - **Esfuerzo:** M.
 - **Pasos:**
   1. `tools/visor_plantilla.py`: superpone sobre la imagen en blanco las cajas de cabecera,

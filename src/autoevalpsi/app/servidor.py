@@ -138,11 +138,24 @@ def _es_loopback(scope) -> bool:
         return False
 
 
+def _es_laptop(scope, puertos_laptop: frozenset[int]) -> bool:
+    """Loopback; o, solo en la prueba en Docker (`app/prueba.py`), el puerto que el contenedor
+    publica únicamente en `127.0.0.1` del anfitrión. Docker reenvía todo con la IP de su puente,
+    así que la IP de origen ya no distingue la laptop del celular; el puerto sí."""
+    if _es_loopback(scope):
+        return True
+    servidor = scope.get("server")
+    return bool(servidor and servidor[1] in puertos_laptop)
+
+
 class Guardia:
     """ASGI: quién llama y tope de tamaño antes de que nadie lea el cuerpo de la petición."""
 
-    def __init__(self, app, token: str, vinculos: Vinculos) -> None:
+    def __init__(
+        self, app, token: str, vinculos: Vinculos, puertos_laptop: frozenset[int] = frozenset()
+    ) -> None:
         self.app = app
+        self._puertos_laptop = puertos_laptop
         self._token = token.encode()
         self._vinculos = vinculos
 
@@ -159,7 +172,7 @@ class Guardia:
         metodo = scope["method"]
         if (metodo, ruta) in _PUBLICAS:
             return None
-        local = _es_loopback(scope)
+        local = _es_laptop(scope, self._puertos_laptop)
         if local and self._token_valido(cabeceras, scope):
             return None
         if _del_celular(metodo, ruta) and not local:
@@ -269,11 +282,13 @@ def crear_app(
     puerto: int = PUERTO,
     interfaces: Callable[[], list[Interfaz]] = listar_interfaces,
     estaticos: Path = ESTATICOS,
+    puertos_laptop: frozenset[int] = frozenset(),
 ) -> FastAPI:
     """`lector` (OCR) es opcional: sin él solo se leen las casillas. `app.state.token` es el
     token del arranque y `app.state.cola` la cola, por si quien arranca los necesita. `puerto` e
     `interfaces` (IP de la red local, AP-02) arman la URL del QR. `estaticos` es la carpeta de la
-    interfaz compilada; si no existe, `/` explica que falta compilarla."""
+    interfaz compilada; si no existe, `/` explica que falta compilarla. `puertos_laptop` es solo
+    para la prueba en Docker (ver `_es_laptop`); en producción va vacío."""
     token = token or secrets.token_urlsafe(16)
 
     def ejecutar(trabajo: Trabajo, subida: object) -> bool:
@@ -305,7 +320,9 @@ def crear_app(
 
     app = FastAPI(title="AutoEvalPsi", lifespan=vida, docs_url=None, redoc_url=None)
     vinculos = Vinculos(bd)
-    app.add_middleware(Guardia, token=token, vinculos=vinculos)
+    app.add_middleware(
+        Guardia, token=token, vinculos=vinculos, puertos_laptop=puertos_laptop
+    )
     app.state.token = token
     app.state.cola = cola
     app.state.vinculos = vinculos

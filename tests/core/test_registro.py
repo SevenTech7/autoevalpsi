@@ -210,6 +210,46 @@ def test_sin_hoja_en_la_foto_da_error_explicable(contexto):
         registrar(np.full((1200, 900, 3), 120, np.uint8), ref)
 
 
+# --- emparejamiento directo (la hoja llena el cuadro y no se ve su contorno) ----------------------
+
+
+def _hoja_llena_el_cuadro(f, lado_largo=1600, giro_cv=None):
+    """La hoja sin perspectiva (con sus marcas) a un tamaño de foto, sin fondo alrededor."""
+    hoja = cv2.imread(str(f.hoja))
+    k = lado_largo / max(hoja.shape[:2])
+    foto = cv2.resize(hoja, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    return foto if giro_cv is None else cv2.rotate(foto, giro_cv)
+
+
+@pytest.mark.parametrize("giro_cv", [None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180])
+def test_hoja_que_llena_el_cuadro_se_registra_por_emparejamiento_directo(
+    lote_sintetico, contexto, giro_cv
+):
+    """Sin contorno de papel que detectar, la foto se empareja con la referencia completa."""
+    _, ref = contexto
+    f = lote_sintetico[0]
+    reg = registrar(_hoja_llena_el_cuadro(f, giro_cv=giro_cv), ref)
+    assert reg.metodo_hoja == "directo" and reg.ok, reg
+    assert reg.inliers >= 100 and reg.cobertura >= 0.35
+    # la imagen registrada coincide con la hoja original (misma comprobación de parecido)
+    hoja = cv2.imread(str(f.hoja), cv2.IMREAD_GRAYSCALE)
+    reg_g = cv2.cvtColor(reg.imagen, cv2.COLOR_BGR2GRAY)
+    a = cv2.GaussianBlur(reg_g, (0, 0), 6).astype(float)
+    b = cv2.GaussianBlur(hoja, (0, 0), 6).astype(float)
+    a -= cv2.GaussianBlur(a, (0, 0), 30)
+    b -= cv2.GaussianBlur(b, (0, 0), 30)
+    assert float(np.corrcoef(a.ravel(), b.ravel())[0, 1]) > 0.9
+    assert reg.imagen.shape[:2] == ref.shape
+
+
+def test_el_emparejamiento_directo_no_da_por_buena_una_hoja_ajena(contexto):
+    """Ruido a cuadro completo: ni contorno de papel ni coincidencias con la plantilla."""
+    _, ref = contexto
+    ruido = np.random.default_rng(7).integers(0, 255, (1600, 1200, 3), dtype=np.uint8)
+    with pytest.raises(HojaNoEncontrada):
+        registrar(ruido, ref)
+
+
 def test_referencia_vacia_se_rechaza(lote_sintetico):
     foto = cargar_imagen(lote_sintetico[0].foto.read_bytes())
     with pytest.raises(RegistroInvalido):
