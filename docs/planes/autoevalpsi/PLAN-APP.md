@@ -9,6 +9,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 | AP-R1 | Servidor FastAPI y cola de procesamiento | hecha |
 | AP-R2 | Página de captura en el celular, QR e IP local | hecha |
 | AP-R3 | Ventana de escritorio con pywebview | hecha (ventana real sin verificar) |
+| AP-R3b | Vínculo del celular (AP-D2) | pendiente |
 | AP-R4 | Interfaz React base | pendiente (requiere Node, BS-03) |
 | AP-R5 | Pantalla de revisión | pendiente |
 | AP-R6 | Exportación desde la interfaz | pendiente |
@@ -89,6 +90,27 @@ pipeline desde la interfaz). Prefijo `AP`.
   elegir la carpeta de exportación.
 - **Tests:** arranque/parada del servidor en hilo; puerto ocupado → mensaje. La ventana real no
   se prueba en CI.
+
+## AP-R3b — Vínculo del celular (AP-D2)
+
+- **Requiere:** AP-R3. **Esfuerzo:** M. **Toca dos contratos** (API HTTP v1 y esquema de BD → v2).
+- **Decidido (2026-11-07):** un solo celular, reemplazable; si cambia la IP se vuelve a vincular.
+  La laptop no puede impedir que el celular hable con otra computadora; garantiza que solo acepta
+  el suyo.
+- **Pasos:** tabla `dispositivos` (huella SHA-256 de la credencial, creado, último uso) con
+  migración v2 y un solo registro; códigos de vínculo de un solo uso, de 128 bits, con vencimiento
+  de 5 min, que solo se piden desde la propia laptop (loopback + token de la app);
+  `POST /api/vinculo/iniciar` (QR con el código), `POST /api/vinculo` (código → credencial),
+  `DELETE /api/vinculo`; `/captura` y la API se abren con la credencial (`X-Dispositivo`, en
+  `localStorage` del celular). Alcance de la credencial: `GET /captura`, `POST /api/fotos`,
+  `GET /api/cola*`, `GET /api/plantillas*` y `GET /api/captura/enlace` no; el resto exige el token
+  de la app desde loopback (cierra el riesgo de `exportar` con `carpeta` libre de AP-R1). El QR de
+  sesión actual se retira. La página del celular muestra «Vincula este celular desde la laptop»
+  si no tiene credencial.
+- **Tests:** código usado dos veces → rechazado; código vencido; segunda vinculación reemplaza a
+  la primera; credencial ajena → 403; la credencial no abre rutas de administración; desde una IP
+  no loopback no se pueden pedir códigos; BD v1 migra a v2 sin perder datos.
+- **No verificable por el agente:** vincular el A32 real; HTTP sin cifrar en el WiFi de la casa.
 
 ## AP-R4 — Interfaz React base
 
