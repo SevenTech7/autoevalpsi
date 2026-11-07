@@ -215,6 +215,58 @@ describe("tabla compacta", () => {
   });
 });
 
+describe("confirmar todas las filas", () => {
+  const boton = () => screen.getByRole("button", { name: "Confirmar todas las filas" });
+
+  it("pide confirmación diciendo cuántas tienen avisos y manda todas las pendientes de una vez", async () => {
+    const ev = evaluacion();
+    const corregir = vi.fn().mockResolvedValue(confirmada(ev, 2, 3));
+    const confirmar = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { alActualizar } = montar(clienteFalso({ corregirEvaluacion: corregir }), ev);
+    await userEvent.click(boton());
+    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining("2 fila(s)"));
+    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining("2 de ellas tienen avisos"));
+    await waitFor(() => expect(alActualizar).toHaveBeenCalledTimes(1));
+    expect(corregir).toHaveBeenCalledTimes(1);
+    expect(corregir).toHaveBeenCalledWith("ev1", { filas: [{ item: 2 }, { item: 3 }] });
+  });
+
+  it("incluye lo que ya se había cambiado en las filas", async () => {
+    const ev = evaluacion();
+    const corregir = vi.fn().mockResolvedValue(confirmada(ev, 2, 3));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    montar(clienteFalso({ corregirEvaluacion: corregir }), ev);
+    await userEvent.click(within(filaDe(3)).getByRole("radio", { name: /B/ }));
+    await userEvent.click(boton());
+    await waitFor(() => expect(corregir).toHaveBeenCalled());
+    expect(corregir).toHaveBeenCalledWith("ev1", { filas: [{ item: 2 }, { item: 3, opcion: "B" }] });
+  });
+
+  it("si no se confirma el cuadro, no se manda nada", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const corregir = vi.fn();
+    montar(clienteFalso({ corregirEvaluacion: corregir }));
+    await userEvent.click(boton());
+    expect(corregir).not.toHaveBeenCalled();
+  });
+
+  it("sin filas por revisar queda deshabilitado", () => {
+    const ev = evaluacion({ filas: [fila({ item: 1 }), fila({ item: 2 }), fila({ item: 3 })], filas_pendientes: 0 });
+    montar(clienteFalso(), ev);
+    expect(boton()).toBeDisabled();
+  });
+
+  it("si el servidor rechaza, se ve el mensaje y se conserva lo escrito", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const corregir = vi.fn().mockRejectedValue(new ErrorApi(422, "opcion_invalida", "Esa opción no es válida."));
+    montar(clienteFalso({ corregirEvaluacion: corregir }));
+    await userEvent.click(within(filaDe(3)).getByRole("radio", { name: /C/ }));
+    await userEvent.click(boton());
+    expect(await screen.findByRole("alert")).toHaveTextContent("Esa opción no es válida.");
+    expect(within(filaDe(3)).getByRole("radio", { name: /C/ })).toBeChecked();
+  });
+});
+
 describe("filtro, cabecera y fotos", () => {
   it("«Mostrar solo lo que falta» oculta lo ya revisado", async () => {
     montar(clienteFalso());
