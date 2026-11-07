@@ -1,0 +1,10 @@
+# Datos que nunca van a git (BITACORA §5). BS-R0 completa este archivo.
+muestras/*
+!muestras/README.md
+plantillas/
+modelos/
+*.onnx
+.datos/
+.venv/
+__pycache__/
+*.pyc
