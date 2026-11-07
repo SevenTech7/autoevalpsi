@@ -1,0 +1,43 @@
+# BS-R2: tests en la plataforma real (Windows). Solo se dispara con push/PR; sin `schedule:`.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Dependencias (bloqueadas en uv.lock)
+        run: uv sync --frozen --all-extras
+      - name: Ruff
+        run: uv run ruff check
+      - name: Pytest (sin lento ni real)
+        run: uv run pytest -m "not lento and not real"
+
+  interfaz:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

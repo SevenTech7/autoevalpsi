@@ -107,7 +107,12 @@ class ServidorLocal:
             except OSError as e:  # la IP pudo desaparecer; la ventana sigue funcionando
                 log.warning("No se pudo escuchar en %s:%s (%s)", ip, self.puerto, e)
 
-        config = uvicorn.Config(self._app, log_level="warning", lifespan="on")
+        config = uvicorn.Config(
+            self._app,
+            log_level="warning",
+            lifespan="on",
+            log_config=None,  # el formateador de uvicorn llama a sys.stderr.isatty(): sin consola es None
+        )
         self._servidor = uvicorn.Server(config)
         self._hilo = threading.Thread(
             target=self._servidor.run, kwargs={"sockets": self._sockets}, daemon=True

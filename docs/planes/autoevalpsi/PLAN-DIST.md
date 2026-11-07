@@ -5,9 +5,9 @@ Carpeta `packaging/` y `.github/workflows/`. Cubre la Fase 5 de `plan.md`. Prefi
 | Fase | Título | Estado |
 |---|---|---|
 | DI-R0 | Prueba temprana de empaquetado (spike) | parcial (Linux hecho; falta Windows) |
-| DI-R1 | Spec de PyInstaller de la app real | pendiente |
-| DI-R2 | Instalador Inno Setup | bloqueada (DI-D1, DI-D2) |
-| DI-R3 | Build y release en GitHub Actions | pendiente |
+| DI-R1 | Spec de PyInstaller de la app real | hecha en Linux; falta Windows |
+| DI-R2 | Instalador Inno Setup | escrita; falta compilarla en Windows |
+| DI-R3 | Build y release en GitHub Actions | escrita; falta su primera corrida |
 | DI-R4 | Instalación limpia en la laptop de la usuaria (gate de Fase 5) | pendiente (humano) |
 
 ---

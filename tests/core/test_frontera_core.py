@@ -24,9 +24,7 @@ def _cargados() -> list[str]:
 
 def test_core_no_importa_ui_ni_servidor():
     cargados = _cargados()
-    malos = [
-        m for m in cargados if any(m == p or m.startswith(p + ".") for p in PROHIBIDOS)
-    ]
+    malos = [m for m in cargados if any(m == p or m.startswith(p + ".") for p in PROHIBIDOS)]
     assert not malos, f"core cargó módulos prohibidos: {malos}"
 
 

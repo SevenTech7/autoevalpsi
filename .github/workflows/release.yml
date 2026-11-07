@@ -1,0 +1,109 @@
+# DI-R3: compila el instalador de Windows. Se dispara con una etiqueta `v*` (publica un Release en
+# este repo privado) o a mano desde la pestaña Actions (solo deja el .zip como artefacto).
+# Sin `schedule:`. Las plantillas reales no entran: se importan desde un .zip (PL-D2).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  instalador:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versión
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') { $v = $env:GITHUB_REF_NAME.Substring(1) }
+          else { $v = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Interfaz
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Modelos OCR (con hash verificado)
+        run: uv run python -m tools.descargar_modelos
+
+      - name: Pruebas
+        run: uv run pytest
+
+      - name: PyInstaller
+        run: uv run pyinstaller packaging/autoevalpsi.spec --noconfirm
+
+      - name: Prueba de humo del ejecutable (sin Python en el camino)
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\AutoEvalPsi\AutoEvalPsi.exe -ArgumentList '--prueba-humo','--informe',"$PWD\humo.txt" -Wait -PassThru
+          Get-Content humo.txt
+          if ($p.ExitCode -ne 0) { throw "La prueba de humo falló (código $($p.ExitCode))" }
+
+      - name: Instalador (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DVersion=${{ steps.ver.outputs.version }}" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc falló" }
+
+      - name: Instalar en silencio, probar lo instalado y desinstalar
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem salida\AutoEvalPsi-Instalador-*.exe | Select-Object -First 1
+          $destino = "$env:RUNNER_TEMP\AutoEvalPsi"
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$destino",'/TASKS=escritorio' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "La instalación falló (código $($p.ExitCode))" }
+          $regla = netsh advfirewall firewall show rule name=AutoEvalPsi
+          $regla
+          if (($regla -join "`n") -notmatch '8765') { throw "No se creó la regla de firewall" }
+          $p = Start-Process "$destino\AutoEvalPsi.exe" -ArgumentList '--prueba-humo','--informe',"$PWD\humo2.txt" -Wait -PassThru
+          Get-Content humo2.txt
+          if ($p.ExitCode -ne 0) { throw "La prueba de humo de lo instalado falló" }
+          $u = Start-Process "$destino\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "La desinstalación falló" }
+          if ((netsh advfirewall firewall show rule name=AutoEvalPsi) -join "`n" -notmatch 'No rules match') { throw "La regla de firewall no se quitó" }
+
+      - name: Zip para entregar
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          New-Item -ItemType Directory -Force entrega | Out-Null
+          Copy-Item salida\AutoEvalPsi-Instalador-$v.exe entrega\
+          Compress-Archive -Path entrega\* -DestinationPath "AutoEvalPsi-$v.zip" -Force
+          (Get-FileHash "AutoEvalPsi-$v.zip" -Algorithm SHA256).Hash | Out-File "AutoEvalPsi-$v.zip.sha256" -Encoding ascii
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoEvalPsi-${{ steps.ver.outputs.version }}
+          path: |
+            AutoEvalPsi-*.zip
+            AutoEvalPsi-*.zip.sha256
+
+      - name: Publicar el Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME AutoEvalPsi-*.zip AutoEvalPsi-*.zip.sha256 --title "AutoEvalPsi ${{ steps.ver.outputs.version }}" --notes "Instalador de Windows. Descomprime el .zip y ejecuta el instalador."
