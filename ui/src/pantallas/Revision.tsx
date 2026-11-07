@@ -513,6 +513,31 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
     [borradores, guardar],
   );
 
+  /** Confirma de una vez todas las filas por revisar (con lo que ya se haya cambiado en ellas). */
+  const confirmarTodas = useCallback(async () => {
+    const porConfirmar = filas.filter((f) => !f.revisada || borradores[f.item]);
+    if (porConfirmar.length === 0) return;
+    const conAvisos = porConfirmar.filter((f) => f.banderas.length > 0).length;
+    const aviso =
+      conAvisos > 0
+        ? `${conAvisos} de ellas tienen avisos (marca dudosa, doble o sin marca). `
+        : "";
+    if (
+      !window.confirm(
+        `Vas a confirmar ${porConfirmar.length} fila(s) sin revisarlas una por una. ${aviso}¿Confirmar todas?`,
+      )
+    ) {
+      return;
+    }
+    const nueva = await guardar({
+      filas: porConfirmar.map((f) => {
+        const b = borradores[f.item] ?? {};
+        return { item: f.item, ...("opcion" in b ? { opcion: b.opcion ?? null } : {}), observacion: b.observacion };
+      }),
+    });
+    if (nueva) setBorradores({});
+  }, [filas, borradores, guardar]);
+
   // Teclado: ↑/↓ cambian de fila, 1–9 eligen la opción, 0 «sin respuesta», Enter confirma.
   const tecla = useRef<(e: KeyboardEvent) => void>(() => undefined);
   tecla.current = (e) => {
@@ -571,6 +596,14 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
           />
           Mostrar solo lo que falta
         </label>
+        <Boton
+          variante="suave"
+          className="px-3 py-1 text-sm"
+          disabled={guardando || (pendientes === 0 && Object.keys(borradores).length === 0)}
+          onClick={() => void confirmarTodas()}
+        >
+          Confirmar todas las filas
+        </Boton>
         <p className="hidden text-sm text-slate-600 2xl:block">
           Teclado: ↑ ↓ fila · 1, 2, 3… respuesta · 0 sin respuesta · Enter confirma
         </p>
