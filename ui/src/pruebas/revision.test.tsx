@@ -54,7 +54,7 @@ describe("pantalla de revisión", () => {
   it("muestra lo que falta, los ítems con su texto y las banderas en palabras", () => {
     montar(clienteFalso());
     expect(screen.getByText("Faltan 2 filas por revisar")).toBeInTheDocument();
-    expect(screen.getByText(/2\. Trato con el equipo/)).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: /Trato con el equipo/ })).toBeInTheDocument();
     expect(within(filaDe(2)).getByText("Hay más de una marca")).toBeInTheDocument();
     expect(within(filaDe(2)).getByText("El texto leído es dudoso")).toBeInTheDocument();
     expect(within(filaDe(3)).getByText("No se ve ninguna marca")).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe("pantalla de revisión", () => {
     expect(filaDe(1)).not.toHaveAttribute("aria-current");
     const img = screen.getByAltText("Observación escrita a mano del ítem 2");
     expect(img).toHaveAttribute("src", "/recorte/ev1/2");
-    expect(within(filaDe(1)).getByText("No había nada escrito en la observación.")).toBeInTheDocument();
+    expect(within(filaDe(1)).queryByAltText(/Observación escrita a mano/)).not.toBeInTheDocument();
   });
 
   it("el texto del OCR es siempre una sugerencia: se avisa y se puede editar", async () => {
@@ -182,13 +182,46 @@ describe("teclado", () => {
   });
 });
 
+describe("tabla compacta", () => {
+  it("una columna por opción y los avisos como iconos con su motivo al pasar el ratón", () => {
+    montar(clienteFalso());
+    for (const o of ["A", "B", "C"]) expect(screen.getByRole("columnheader", { name: o })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Avisos" })).toBeInTheDocument();
+    const avisos = within(filaDe(2)).getAllByRole("tooltip");
+    expect(avisos.map((a) => a.textContent)).toEqual(["Hay más de una marca", "El texto leído es dudoso"]);
+    expect(within(filaDe(1)).queryAllByRole("tooltip")).toHaveLength(0);
+  });
+
+  it("filas seguidas con las mismas opciones comparten una sola tabla", () => {
+    montar(clienteFalso());
+    expect(document.querySelectorAll("table")).toHaveLength(1);
+  });
+
+  it("sin columna de observación si la hoja no la tiene ni hay nada leído", () => {
+    const ev = evaluacion({
+      filas: [fila({ item: 1 }), fila({ item: 2 }), fila({ item: 3 })],
+      filas_pendientes: 0,
+    });
+    montar(clienteFalso(), ev);
+    expect(screen.queryByRole("columnheader", { name: "Observación" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Observación del ítem/)).not.toBeInTheDocument();
+  });
+
+  it("si la foto no calzó con el formulario lo dice una vez para toda la hoja", () => {
+    const ev = evaluacion();
+    ev.paginas[0]!.registro = { ok: false };
+    montar(clienteFalso(), ev);
+    expect(screen.getByRole("alert")).toHaveTextContent("La foto no calzó bien con el formulario");
+  });
+});
+
 describe("filtro, cabecera y fotos", () => {
   it("«Mostrar solo lo que falta» oculta lo ya revisado", async () => {
     montar(clienteFalso());
-    expect(screen.getByText(/1\. Puntualidad/)).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: /Puntualidad/ })).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Mostrar solo lo que falta"));
-    expect(screen.queryByText(/1\. Puntualidad/)).not.toBeInTheDocument();
-    expect(screen.getByText(/2\. Trato con el equipo/)).toBeInTheDocument();
+    expect(screen.queryByRole("rowheader", { name: /Puntualidad/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: /Trato con el equipo/ })).toBeInTheDocument();
   });
 
   it("con todo revisado lo dice, y queda lista para exportar si la cabecera está confirmada", () => {
@@ -250,7 +283,7 @@ describe("PantallaRevision", () => {
       plantilla: vi.fn().mockResolvedValue(plantilla()),
     });
     pantalla(api);
-    expect(await screen.findByText(/2\. Trato con el equipo/)).toBeInTheDocument();
+    expect(await screen.findByRole("rowheader", { name: /Trato con el equipo/ })).toBeInTheDocument();
     expect(api.plantilla).toHaveBeenCalledWith("evaluacion-continua", 1);
   });
 
