@@ -77,6 +77,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
+from autoevalpsi.app.carpetas import carpeta_descargas
 from autoevalpsi.app.cola import ColaLlena, ColaProcesamiento, FotoEnProceso, Trabajo
 from autoevalpsi.app.datos import (
     BaseDatos,
@@ -260,7 +261,7 @@ class PedidoBorrarFotos(BaseModel):
 
 class PedidoExportar(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    carpeta: str | None = None  # por defecto: la configurada o `<raíz>/exportaciones`
+    carpeta: str | None = None  # por defecto: la configurada, Descargas o `<raíz>/exportaciones`
     iniciales: bool = False
     recortes: bool = False
 
@@ -290,13 +291,14 @@ def crear_app(
     estaticos: Path = ESTATICOS,
     puertos_laptop: frozenset[int] = frozenset(),
     guardar_fallidas: Path | None = None,
+    carpeta_por_defecto: Path | None = None,
 ) -> FastAPI:
     """`lector` (OCR) es opcional: sin él solo se leen las casillas. `app.state.token` es el
     token del arranque y `app.state.cola` la cola, por si quien arranca los necesita. `puerto` e
     `interfaces` (IP de la red local, AP-02) arman la URL del QR. `estaticos` es la carpeta de la
     interfaz compilada; si no existe, `/` explica que falta compilarla. `puertos_laptop` y
-    `guardar_fallidas` (carpeta donde dejar las fotos que no se pudieron leer) son solo para la
-    prueba en Docker; en producción van vacíos."""
+    `guardar_fallidas` (carpeta donde dejar las fotos que no se pudieron leer) y
+    `carpeta_por_defecto` (en lugar de Descargas) son solo para la prueba en Docker."""
     token = token or secrets.token_urlsafe(16)
 
     def ejecutar(trabajo: Trabajo, subida: object) -> bool:
@@ -353,7 +355,12 @@ def crear_app(
             raise _error(404, "evaluacion_inexistente", str(e)) from e
 
     def carpeta_exportacion() -> Path:
-        return Path(bd.leer_configuracion("carpeta_exportacion") or bd.raiz / "exportaciones")
+        """La que eligió la usuaria; si no, Descargas (donde ella busca sus archivos); si no existe,
+        `<raíz>/exportaciones`."""
+        elegida = bd.leer_configuracion("carpeta_exportacion")
+        if elegida:
+            return Path(elegida)
+        return carpeta_por_defecto or carpeta_descargas() or bd.raiz / "exportaciones"
 
     def detalle(id: str) -> dict:
         ev = evaluacion(id)
