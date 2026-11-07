@@ -119,6 +119,7 @@ export function clienteFalso(sobre: Partial<Cliente> = {}): Cliente {
     cola: sinUsar,
     evaluaciones: sinUsar,
     evaluacion: sinUsar,
+    exportar: sinUsar,
     borrarFotos: sinUsar,
     plantilla: sinUsar,
     corregirEvaluacion: sinUsar,

@@ -12,7 +12,8 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     GET  /api/evaluaciones                   resúmenes, más recientes primero
     GET  /api/evaluaciones/{id}              evaluación completa, lo leído y lo confirmado
     PUT  /api/evaluaciones/{id}              confirma/corrige filas y cabecera (deja correcciones)
-    POST /api/evaluaciones/{id}/exportar     a Excel; 409 si hay algo sin revisar (AP-06)
+    POST /api/evaluaciones/{id}/exportar     a Excel; 409 si hay algo sin revisar (AP-06) o el
+                                             archivo está abierto; {carpeta, evaluacion, consolidado}
     GET  /api/plantillas[/{id}]              plantillas instaladas
     POST /api/plantillas/importar            .zip con el .json y las imágenes en blanco (PL-D2)
     POST /api/vinculo/iniciar[?ip=]          código de vínculo de un solo uso (5 min), su QR y las IP (AP-02)
@@ -510,7 +511,11 @@ def crear_app(
             except ArchivoBloqueado as e:
                 raise _error(409, "archivo_bloqueado", str(e)) from e
             bd.marcar_exportada(id)
-        return {"evaluacion": str(archivos.evaluacion), "consolidado": str(archivos.consolidado)}
+        return {
+            "carpeta": str(carpeta),
+            "evaluacion": str(archivos.evaluacion),
+            "consolidado": str(archivos.consolidado),
+        }
 
     @app.post("/api/evaluaciones/{id}/borrar_fotos")
     def borrar_fotos(id: str, pedido: PedidoBorrarFotos | None = None) -> dict:

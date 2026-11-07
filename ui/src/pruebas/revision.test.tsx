@@ -53,7 +53,7 @@ describe("textos", () => {
 describe("pantalla de revisión", () => {
   it("muestra lo que falta, los ítems con su texto y las banderas en palabras", () => {
     montar(clienteFalso());
-    expect(screen.getByText(/Faltan 2 filas por revisar/)).toBeInTheDocument();
+    expect(screen.getByText("Faltan 2 filas por revisar")).toBeInTheDocument();
     expect(screen.getByText(/2\. Trato con el equipo/)).toBeInTheDocument();
     expect(within(filaDe(2)).getByText("Hay más de una marca")).toBeInTheDocument();
     expect(within(filaDe(2)).getByText("El texto leído es dudoso")).toBeInTheDocument();

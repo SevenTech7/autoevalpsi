@@ -139,12 +139,18 @@ class ServidorLocal:
 class Puente:
     """Lo que la página de la ventana puede pedir al escritorio (`window.pywebview.api`).
 
-    `dialogo` recibe la carpeta inicial y devuelve la elegida o None; se inyecta para probar sin
-    ventana."""
+    `dialogo` recibe la carpeta inicial y devuelve la elegida o None; `abrir` muestra una carpeta
+    en el Explorador. Ambos se inyectan para probar sin ventana."""
 
-    def __init__(self, bd: BaseDatos, dialogo: Callable[[str], str | None]) -> None:
+    def __init__(
+        self,
+        bd: BaseDatos,
+        dialogo: Callable[[str], str | None],
+        abrir: Callable[[Path], None] | None = None,
+    ) -> None:
         self._bd = bd
         self._dialogo = dialogo
+        self._abrir = abrir or _abrir_en_explorador
 
     def elegir_carpeta_exportacion(self) -> str | None:
         """Diálogo nativo; si la usuaria elige, queda guardada para AP-R6. None si cancela."""
@@ -154,6 +160,24 @@ class Puente:
             return None
         self._bd.guardar_configuracion(CLAVE_CARPETA_EXPORTACION, str(Path(elegida)))
         return str(Path(elegida))
+
+    def abrir_carpeta(self, ruta: str) -> bool:
+        """Muestra una carpeta en el Explorador (AP-R6). Solo carpetas que existen: nunca ejecuta
+        un archivo. False si no se pudo."""
+        carpeta = Path(ruta)
+        if not ruta or not carpeta.is_dir():
+            return False
+        try:
+            self._abrir(carpeta)
+        except OSError as e:
+            log.warning("No se pudo abrir %s (%s)", carpeta, e)
+            return False
+        return True
+
+
+def _abrir_en_explorador(carpeta: Path) -> None:  # pragma: no cover - solo Windows
+    if os.name == "nt":
+        os.startfile(carpeta)
 
 
 def avisar(mensaje: str) -> None:

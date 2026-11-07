@@ -138,6 +138,28 @@ def test_puente_cancelar_no_cambia_nada(tmp_path):
         assert bd.leer_configuracion(CLAVE_CARPETA_EXPORTACION) == "C:/vieja"
 
 
+def test_puente_abre_solo_carpetas_que_existen(tmp_path):
+    abiertas = []
+    with BaseDatos(tmp_path) as bd:
+        puente = Puente(bd, lambda _i: None, abrir=abiertas.append)
+        assert puente.abrir_carpeta(str(tmp_path)) is True
+        assert abiertas == [tmp_path]
+        archivo = tmp_path / "x.xlsx"
+        archivo.write_bytes(b"")
+        assert puente.abrir_carpeta(str(archivo)) is False  # un archivo no se ejecuta
+        assert puente.abrir_carpeta(str(tmp_path / "no_existe")) is False
+        assert puente.abrir_carpeta("") is False
+        assert abiertas == [tmp_path]
+
+
+def test_puente_abrir_carpeta_no_revienta_si_el_sistema_falla(tmp_path):
+    def falla(_c):
+        raise OSError("sin explorador")
+
+    with BaseDatos(tmp_path) as bd:
+        assert Puente(bd, lambda _i: None, abrir=falla).abrir_carpeta(str(tmp_path)) is False
+
+
 def test_ejecutar_abre_la_ventana_con_el_token_y_cierra_todo(tmp_path):
     vistas = []
 

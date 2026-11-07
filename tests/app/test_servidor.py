@@ -373,6 +373,7 @@ def test_revisar_y_exportar_deja_el_excel_y_marca_exportada(entorno, lote_sintet
     assert r.status_code == 200, r.text
     assert (carpeta / r.json()["evaluacion"].split("\\")[-1].split("/")[-1]).is_file()
     assert "Luis" in r.json()["evaluacion"]
+    assert r.json()["carpeta"] == str(carpeta)
     assert cliente.get(f"/api/evaluaciones/{id}").json()["estado"] == "exportada"
 
 

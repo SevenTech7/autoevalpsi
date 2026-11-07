@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Cliente } from "../api/cliente";
 import type { Evaluacion, FilaGuardada, Plantilla } from "../api/tipos";
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
+import { Exportar } from "../componentes/Exportar";
 import { fechaLegible } from "../componentes/TablaEvaluaciones";
 import { mensajeDe, useApi, useCarga } from "../hooks";
 import { enlace } from "../ruta";
@@ -77,13 +78,18 @@ interface PropsCabecera {
   campos: string[];
   guardando: boolean;
   alConfirmar: (paciente: string, cabecera: Record<string, string>) => void;
+  alCambiarEstado: (sinConfirmar: boolean) => void;
 }
 
-function Cabecera({ api, evaluacion, campos, guardando, alConfirmar }: PropsCabecera) {
+function Cabecera({ api, evaluacion, campos, guardando, alConfirmar, alCambiarEstado }: PropsCabecera) {
   const [paciente, setPaciente] = useState(evaluacion.paciente);
   const [valores, setValores] = useState<Record<string, string>>(evaluacion.cabecera);
   const cambiada =
     paciente !== evaluacion.paciente || campos.some((c) => (valores[c] ?? "") !== (evaluacion.cabecera[c] ?? ""));
+  useEffect(() => {
+    alCambiarEstado(cambiada);
+    return () => alCambiarEstado(false);
+  }, [cambiada, alCambiarEstado]);
 
   const campo = (clave: string, etiqueta: string, valor: string, poner: (v: string) => void) => (
     <div key={clave} className="space-y-1">
@@ -288,6 +294,7 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cabeceraSinConfirmar, setCabeceraSinConfirmar] = useState(false);
 
   useEffect(() => {
     // una foto descartada se lleva sus filas: si la activa ya no existe, pasa a la primera por revisar
@@ -400,6 +407,7 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
         campos={campos}
         guardando={guardando}
         alConfirmar={(paciente, cabecera) => void guardar({ paciente, cabecera })}
+        alCambiarEstado={setCabeceraSinConfirmar}
       />
 
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
@@ -472,6 +480,13 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
           )}
         </Tarjeta>
       ))}
+
+      <Exportar
+        api={api}
+        evaluacion={evaluacion}
+        cambiosSinGuardar={cabeceraSinConfirmar || Object.keys(borradores).length > 0}
+        alExportar={alActualizar}
+      />
     </div>
   );
 }
