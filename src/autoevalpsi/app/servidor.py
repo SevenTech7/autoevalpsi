@@ -66,8 +66,14 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qs
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
@@ -320,9 +326,7 @@ def crear_app(
 
     app = FastAPI(title="AutoEvalPsi", lifespan=vida, docs_url=None, redoc_url=None)
     vinculos = Vinculos(bd)
-    app.add_middleware(
-        Guardia, token=token, vinculos=vinculos, puertos_laptop=puertos_laptop
-    )
+    app.add_middleware(Guardia, token=token, vinculos=vinculos, puertos_laptop=puertos_laptop)
     app.state.token = token
     app.state.cola = cola
     app.state.vinculos = vinculos
@@ -569,7 +573,9 @@ def crear_app(
             if t["estado"] in ("en_cola", "procesando")
         )
         if leyendo:
-            raise _error(409, "foto_en_lectura", "Esa foto todavía se está leyendo; espera un momento.")
+            raise _error(
+                409, "foto_en_lectura", "Esa foto todavía se está leyendo; espera un momento."
+            )
         try:
             eliminada = bd.descartar_pagina(id, pagina)
         except EvaluacionInexistente as e:
@@ -697,9 +703,12 @@ def crear_app(
         app.mount("/assets", StaticFiles(directory=estaticos / "assets"), name="assets")
 
     @app.get("/", response_class=HTMLResponse)
-    def interfaz() -> HTMLResponse:
+    def interfaz(request: Request) -> Response:
         """La interfaz de la ventana. Estática y sin secretos: el token viaja en la URL de
-        arranque y lo lee la propia página."""
+        arranque y lo lee la propia página. Quien entra desde otro equipo (el celular, que escribe
+        solo `http://IP:puerto`) no tiene nada que hacer aquí: va a la página de captura."""
+        if not _es_laptop(request.scope, puertos_laptop):
+            return RedirectResponse(RUTA_CAPTURA, status_code=302)
         if not index.is_file():
             return HTMLResponse(
                 "<!doctype html><meta charset=utf-8><title>AutoEvalPsi</title>"
