@@ -107,7 +107,11 @@ export interface Plantilla {
   version: number;
   paginas: {
     cabecera: { campo: string }[];
-    tablas: { opciones: string[]; filas: { item: number; texto: string }[] }[];
+    tablas: {
+      opciones: string[];
+      observacion_x?: number[] | null; // si la hoja tiene columna de observación
+      filas: { item: number; texto: string }[];
+    }[];
   }[];
 }
 

@@ -4,7 +4,7 @@ import type { Cliente } from "../api/cliente";
 import type { Evaluacion, ResultadoExportacion } from "../api/tipos";
 import { mensajeDe } from "../hooks";
 import { abrirCarpetaNativa, elegirCarpetaNativa } from "../puente";
-import { Aviso, Boton, Tarjeta } from "./base";
+import { Aviso, Boton } from "./base";
 
 /** Por qué todavía no se puede exportar, en palabras de la usuaria; null si ya se puede. */
 export function motivoBloqueo(ev: Evaluacion, cambiosSinGuardar: boolean): string | null {
@@ -77,17 +77,42 @@ export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Pro
   }
 
   return (
-    <Tarjeta titulo="Exportar a Excel">
-      <div className="space-y-4">
+    <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <h3 className="text-base font-semibold">Exportar a Excel</h3>
+        <label className="flex items-center gap-2 text-base">
+          <input
+            type="checkbox"
+            checked={iniciales}
+            onChange={(e) => setIniciales(e.target.checked)}
+            className="size-5"
+          />
+          Usar solo las iniciales del paciente en el nombre del archivo
+        </label>
+        <label className="flex items-center gap-2 text-base">
+          <input
+            type="checkbox"
+            checked={borrarFotos}
+            onChange={(e) => setBorrarFotos(e.target.checked)}
+            className="size-5"
+          />
+          Borrar las fotos de esta evaluación después de exportar
+        </label>
+        <Boton className="ml-auto" disabled={bloqueo !== null || ocupado} onClick={() => void exportar()}>
+          {ocupado ? "Exportando…" : yaExportada ? "Exportar de nuevo" : "Exportar a Excel"}
+        </Boton>
+      </div>
+      <div className="mt-2 space-y-2 empty:hidden">
         {bloqueo ? (
-          <Aviso tipo="info">{bloqueo} Cuando esté todo revisado podrás exportar.</Aviso>
+          <p className="text-slate-700">{bloqueo} Cuando esté todo revisado podrás exportar.</p>
         ) : (
-          yaExportada && !hecho && <Aviso tipo="info">Esta evaluación ya se exportó. Si exportas de nuevo, se reemplaza su Excel.</Aviso>
+          yaExportada &&
+          !hecho && <Aviso tipo="info">Esta evaluación ya se exportó. Si exportas de nuevo, se reemplaza su Excel.</Aviso>
         )}
         {error && <Aviso>{error}</Aviso>}
         {aviso && <Aviso tipo="info">{aviso}</Aviso>}
         {hecho && (
-          <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Aviso tipo="ok">
               Listo: se guardó «{nombreDe(hecho.evaluacion)}» y se actualizó «{nombreDe(hecho.consolidado)}» en{" "}
               <strong className="break-all">{hecho.carpeta}</strong>.
@@ -99,30 +124,7 @@ export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Pro
             )}
           </div>
         )}
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-base">
-            <input
-              type="checkbox"
-              checked={iniciales}
-              onChange={(e) => setIniciales(e.target.checked)}
-              className="size-5"
-            />
-            Usar solo las iniciales del paciente en el nombre del archivo
-          </label>
-          <label className="flex items-center gap-2 text-base">
-            <input
-              type="checkbox"
-              checked={borrarFotos}
-              onChange={(e) => setBorrarFotos(e.target.checked)}
-              className="size-5"
-            />
-            Borrar las fotos de esta evaluación después de exportar
-          </label>
-        </div>
-        <Boton disabled={bloqueo !== null || ocupado} onClick={() => void exportar()}>
-          {ocupado ? "Exportando…" : yaExportada ? "Exportar de nuevo" : "Exportar a Excel"}
-        </Boton>
       </div>
-    </Tarjeta>
+    </section>
   );
 }

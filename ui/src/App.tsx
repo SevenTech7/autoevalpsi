@@ -31,10 +31,11 @@ function Pantalla({ ruta }: { ruta: Ruta }) {
 export function App({ token }: { token: string | null }) {
   const ruta = useRuta();
   const api = useMemo(() => (token ? crearCliente({ token }) : null), [token]);
+  const ancha = ruta.pantalla === "evaluacion"; // la revisión usa todo el ancho: menos desplazarse
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className={ancha ? "px-3 py-2" : "mx-auto max-w-5xl px-6 py-6"}>
+      <header className={`flex flex-wrap items-center justify-between gap-4 ${ancha ? "mb-2" : "mb-6"}`}>
         <h1 className="text-2xl font-bold text-acento">AutoEvalPsi</h1>
         <nav aria-label="Principal" className="flex gap-2">
           {MENU.map((m) => {
