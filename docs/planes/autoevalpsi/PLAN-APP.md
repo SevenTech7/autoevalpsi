@@ -6,7 +6,7 @@ pipeline desde la interfaz). Prefijo `AP`.
 | Fase | Título | Estado |
 |---|---|---|
 | AP-R0 | Capa de datos local (SQLite + imágenes) | hecha |
-| AP-R1 | Servidor FastAPI y cola de procesamiento | pendiente |
+| AP-R1 | Servidor FastAPI y cola de procesamiento | hecha |
 | AP-R2 | Página de captura en el celular, QR e IP local | pendiente |
 | AP-R3 | Ventana de escritorio con pywebview | pendiente |
 | AP-R4 | Interfaz React base | pendiente (requiere Node, BS-03) |
@@ -57,7 +57,8 @@ pipeline desde la interfaz). Prefijo `AP`.
 ## AP-R1 — Servidor FastAPI y cola de procesamiento
 
 - **Requiere:** AP-R0.
-- **Esfuerzo:** M.
+- **Estado:** hecha (2026-11-06). `app/servidor.py` (`crear_app`, contrato HTTP v1 en su docstring), `app/cola.py`, `app/plantillas.py`; 45 tests en `tests/app/test_servidor.py`.
+- **Esfuerzo:** M. **Toca un contrato** (API HTTP).
 - **Pasos:** endpoints `POST /api/fotos` (con token, AP-03), `GET /api/evaluaciones`,
   `GET/PUT /api/evaluaciones/{id}`, `POST /api/evaluaciones/{id}/exportar` (AP-06),
   `POST /api/plantillas/importar` (PL-D2), estado de la cola; trabajador único (AP-04);
