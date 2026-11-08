@@ -6,6 +6,7 @@ import type {
   InicioVinculo,
   Plantilla,
   PlantillaDef,
+  RespuestaSubida,
   ResultadoDesdeFoto,
   ResultadoLibro,
   ResultadoPagina,
@@ -88,6 +89,21 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
       pedir<Plantilla>("GET", `/api/plantillas/${id(plantilla)}?version=${version}`),
     corregirEvaluacion: (evaluacion: string, cambio: CambioEvaluacion) =>
       pedir<Evaluacion>("PUT", `/api/evaluaciones/${id(evaluacion)}`, cambio),
+    /** Sube la foto de una hoja de una evaluación que ya existe (o la primera, si no existe). */
+    subirFoto: (evaluacion: string, plantilla: string, pagina: number, foto: File) => {
+      const form = new FormData();
+      form.append("foto", foto);
+      form.append("plantilla", plantilla);
+      form.append("pagina", String(pagina));
+      form.append("evaluacion", evaluacion);
+      return pedir<RespuestaSubida>("POST", "/api/fotos", form);
+    },
+    /** Elimina el formulario con todas sus versiones; con evaluaciones, hay que confirmarlo. */
+    eliminarPlantilla: (plantilla: string, conEvaluaciones = false) =>
+      pedir<{ eliminada: boolean; evaluaciones_eliminadas: number }>(
+        "DELETE",
+        `/api/plantillas/${id(plantilla)}${conEvaluaciones ? "?con_evaluaciones=true" : ""}`,
+      ),
     eliminarEvaluacion: (evaluacion: string) =>
       pedir<{ eliminada: boolean }>("DELETE", `/api/evaluaciones/${id(evaluacion)}`),
     descartarPagina: (evaluacion: string, pagina: number) =>

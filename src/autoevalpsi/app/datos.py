@@ -189,6 +189,8 @@ class ResumenEvaluacion:
     creada_en: str
     n_filas: int
     filas_pendientes: int
+    plantilla_version: int = 1
+    paginas_subidas: int = 0
 
 
 @dataclass(frozen=True)
@@ -721,6 +723,15 @@ class BaseDatos:
                 pass
         return not quedan
 
+    def evaluaciones_de_plantilla(self, plantilla_id: str) -> list[str]:
+        with self._candado:
+            return [
+                r[0]
+                for r in self._con.execute(
+                    "SELECT id FROM evaluaciones WHERE plantilla_id = ?", (plantilla_id,)
+                )
+            ]
+
     def eliminar_evaluacion(self, evaluacion_id: str) -> None:
         """Elimina la evaluación entera (todas sus fotos, lecturas, correcciones y recortes).
         Los Excel ya exportados no se tocan. Lanza `EvaluacionInexistente` si no existe."""
@@ -807,7 +818,9 @@ class BaseDatos:
             rs = self._con.execute(
                 "SELECT e.id, e.plantilla_id, e.paciente, e.fecha, e.estado, e.creada_en,"
                 " COUNT(f.item) AS n_filas,"
-                " COALESCE(SUM(f.revisada = 0), 0) AS pendientes"
+                " COALESCE(SUM(f.revisada = 0), 0) AS pendientes,"
+                " e.plantilla_version,"
+                " (SELECT COUNT(*) FROM paginas p WHERE p.evaluacion_id = e.id) AS n_paginas"
                 " FROM evaluaciones e LEFT JOIN filas f ON f.evaluacion_id = e.id"
                 " GROUP BY e.id ORDER BY julianday(e.creada_en) DESC, e.rowid DESC"
             ).fetchall()
@@ -821,6 +834,8 @@ class BaseDatos:
                 r["creada_en"],
                 r["n_filas"],
                 r["pendientes"],
+                r["plantilla_version"],
+                r["n_paginas"],
             )
             for r in rs
         ]

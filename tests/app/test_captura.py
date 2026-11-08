@@ -63,6 +63,15 @@ def test_la_pagina_ofrece_camara_galeria_y_el_aviso_de_vincular(tmp_path, zip_pl
     assert "X-Dispositivo" in html and "?token=" not in html
 
 
+def test_la_pagina_deja_seguir_una_evaluacion_a_la_que_le_falta_una_hoja(tmp_path, zip_plantilla):
+    bd, app = _montar(tmp_path, zip_plantilla, [WIFI])
+    with TestClient(app, client=LAPTOP) as c:
+        html = c.get("/captura").text
+    bd.cerrar()
+    assert 'id="incompleta"' in html and "/api/incompletas" in html
+    assert "Seguir una evaluación" in html
+
+
 def test_el_codigo_de_vinculo_entra_en_la_url_del_qr_y_no_el_token(tmp_path, zip_plantilla):
     bd, app = _montar(tmp_path, zip_plantilla, [HYPERV, WIFI])
     with TestClient(app, headers={"X-Token": TOKEN}, client=LAPTOP) as c:

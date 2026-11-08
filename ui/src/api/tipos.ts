@@ -11,6 +11,8 @@ export interface ResumenEvaluacion {
   creada_en: string;
   n_filas: number;
   filas_pendientes: number;
+  paginas_total: number; // hojas que tiene el formulario
+  paginas_subidas: number; // hojas que ya tienen foto
 }
 
 export interface PaginaGuardada {
@@ -62,6 +64,13 @@ export interface EstadoCola {
   procesando: number;
   lista: number;
   error: number;
+  trabajos?: { id: string; estado: string; evaluacion_id: string; pagina: number; mensaje: string }[];
+}
+
+export interface RespuestaSubida {
+  trabajo: { id: string; evaluacion_id: string };
+  problemas_calidad: string[];
+  repetir: boolean;
 }
 
 export interface Vinculo {

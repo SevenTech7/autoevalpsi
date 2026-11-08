@@ -208,6 +208,20 @@ class RepositorioPlantillas:
             shutil.rmtree(tmp, ignore_errors=True)
         return PlantillaInstalada(plantilla, final / NOMBRE_JSON)
 
+    def eliminar(self, id: str) -> int:
+        """Borra la plantilla con todas sus versiones; devuelve cuántas versiones eran."""
+        if not _ID.fullmatch(id):
+            raise PlantillaNoInstalada(f"No hay una plantilla «{id}» instalada.")
+        versiones = [i for i in self.listar() if i.plantilla.id == id]
+        carpeta = self.carpeta / id
+        if not versiones and not carpeta.is_dir():
+            raise PlantillaNoInstalada(f"No hay una plantilla «{id}» instalada.")
+        with self._candado:
+            shutil.rmtree(carpeta, ignore_errors=True)
+            for clave in [k for k in self._referencias if k[0] == id]:
+                del self._referencias[clave]
+        return len(versiones)
+
     def ruta_imagen(self, inst: PlantillaInstalada, pagina: int) -> Path:
         return inst.ruta.parent / inst.plantilla.paginas[pagina].imagen_referencia
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { ErrorApi } from "../api/cliente";
 import type { Cliente } from "../api/cliente";
 import type { Evaluacion, FilaGuardada, PaginaGuardada, Plantilla } from "../api/tipos";
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
@@ -505,6 +506,75 @@ function AvisoDeHoja({ pagina }: { pagina: PaginaGuardada }) {
   );
 }
 
+/** Las hojas del formulario: cuáles ya tienen foto y cuáles faltan, con dónde subir la que falta. */
+function PanelHojas({
+  evaluacion,
+  total,
+  alSubir,
+}: {
+  evaluacion: Evaluacion;
+  total: number;
+  alSubir: (pagina: number, foto: File) => Promise<void>;
+}) {
+  const hechas = new Set(evaluacion.paginas.map((p) => p.pagina));
+  const [subiendo, setSubiendo] = useState<number | null>(null);
+  const faltan = Array.from({ length: total }, (_, n) => n).filter((n) => !hechas.has(n));
+
+  async function subir(pagina: number, foto: File) {
+    setSubiendo(pagina);
+    try {
+      await alSubir(pagina, foto);
+    } finally {
+      setSubiendo(null);
+    }
+  }
+
+  return (
+    <section
+      aria-label="Hojas de la evaluación"
+      className={`rounded-lg border px-3 py-2 shadow-sm ${faltan.length > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}
+    >
+      <h3 className="text-base font-semibold">
+        Hojas de esta evaluación ({total - faltan.length} de {total})
+      </h3>
+      <ul className="mt-1 space-y-1">
+        {Array.from({ length: total }, (_, n) => (
+          <li key={n} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="min-w-16 font-medium">Hoja {n + 1}</span>
+            {hechas.has(n) ? (
+              <span className="text-emerald-800">✓ Ya está subida</span>
+            ) : (
+              <>
+                <span className="text-amber-900">Falta</span>
+                <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium hover:bg-slate-50">
+                  {subiendo === n ? "Subiendo y leyendo…" : `Subir la foto de la hoja ${n + 1}`}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    aria-label={`Subir la foto de la hoja ${n + 1}`}
+                    disabled={subiendo !== null}
+                    className="sr-only"
+                    onChange={(e) => {
+                      const foto = e.target.files?.[0];
+                      e.target.value = "";
+                      if (foto) void subir(n, foto);
+                    }}
+                  />
+                </label>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      {faltan.length > 0 && (
+        <p className="mt-1 text-sm text-slate-700">
+          También puedes tomarla con el celular: ábrelo y elige esta evaluación en «¿Seguir una evaluación a la que le falta una hoja?».
+        </p>
+      )}
+    </section>
+  );
+}
+
 interface PropsRevision {
   api: Cliente;
   evaluacion: Evaluacion;
@@ -512,10 +582,19 @@ interface PropsRevision {
   alActualizar: (ev: Evaluacion) => void;
   alDescartar: (pagina: number) => Promise<void>;
   alEliminar?: () => Promise<void>; // elimina la evaluación entera
+  alSubirHoja?: (pagina: number, foto: File) => Promise<void>; // sube la foto de una hoja que falta
 }
 
 /** Pantalla de revisión (AP-R5): una tabla con la pregunta, las casillas, los avisos y la observación. */
-export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar, alEliminar }: PropsRevision) {
+export function Revision({
+  api,
+  evaluacion,
+  plantilla,
+  alActualizar,
+  alDescartar,
+  alEliminar,
+  alSubirHoja,
+}: PropsRevision) {
   const info = useMemo(() => infoDeItems(plantilla), [plantilla]);
   const filas = evaluacion.filas;
   const [borradores, setBorradores] = useState<Record<number, Borrador>>({});
@@ -722,6 +801,10 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
         alCambiarEstado={setCabeceraSinConfirmar}
       />
 
+      {alSubirHoja && plantilla.paginas.length > 1 && (
+        <PanelHojas evaluacion={evaluacion} total={plantilla.paginas.length} alSubir={alSubirHoja} />
+      )}
+
       {porPagina.map(({ pagina, tramos }) => (
         <section key={pagina.pagina} className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between gap-3 px-3 py-1">
@@ -857,6 +940,35 @@ export function PantallaRevision({ id }: { id: string }) {
     }
   }, [api, id, avisar]);
 
+  const subirHoja = useCallback(
+    async (pagina: number, foto: File) => {
+      if (!evaluacion) return;
+      try {
+        const r = await api.subirFoto(id, evaluacion.plantilla_id, pagina, foto);
+        if (r.repetir) {
+          await avisar({
+            tipo: "info",
+            titulo: "Mejor repite la foto",
+            mensaje: r.problemas_calidad.join(" "),
+          });
+        }
+        for (let i = 0; i < 120; i++) {
+          const cola = await api.cola();
+          const t = cola.trabajos?.find((x) => x.id === r.trabajo.id);
+          if (t?.estado === "error") {
+            throw new ErrorApi(422, "lectura", t.mensaje || "No se pudo leer la foto.");
+          }
+          if (t?.estado === "lista") break;
+          await new Promise((ok) => setTimeout(ok, 1500));
+        }
+        setActual(await api.evaluacion(id));
+      } catch (e) {
+        void avisar({ tipo: "error", titulo: "No se pudo subir la hoja", mensaje: mensajeDe(e) });
+      }
+    },
+    [api, id, evaluacion, avisar],
+  );
+
   if (carga.error && !evaluacion) {
     return (
       <Tarjeta titulo="Revisión">
@@ -880,6 +992,7 @@ export function PantallaRevision({ id }: { id: string }) {
         alActualizar={setActual}
         alDescartar={descartar}
         alEliminar={eliminar}
+        alSubirHoja={subirHoja}
       />
     </>
   );

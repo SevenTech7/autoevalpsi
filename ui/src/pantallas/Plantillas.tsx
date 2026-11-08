@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import type { ResumenPlantilla } from "../api/tipos";
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
 import { useDialogos } from "../componentes/Dialogos";
+import { ErrorApi } from "../api/cliente";
 import { mensajeDe, useApi, useCarga } from "../hooks";
 import { enlace } from "../ruta";
 
@@ -123,8 +124,38 @@ function ImportarZip({ alImportar }: { alImportar: () => void }) {
 
 export function Plantillas() {
   const api = useApi();
+  const { confirmar, avisar } = useDialogos();
   const lista = useCarga(() => api.plantillas());
   const ultimas = ultimasVersiones(lista.datos ?? []);
+
+  /** Pide confirmar; si el formulario tiene evaluaciones, lo dice y vuelve a pedirlo. */
+  async function eliminar(p: ResumenPlantilla) {
+    const acepto = await confirmar({
+      titulo: "Eliminar el formulario",
+      mensaje: `Se elimina «${p.nombre}» con todas sus versiones. No se puede deshacer.`,
+      confirmar: "Sí, eliminar",
+      peligro: true,
+    });
+    if (!acepto) return;
+    try {
+      try {
+        await api.eliminarPlantilla(p.id);
+      } catch (e) {
+        if (!(e instanceof ErrorApi) || e.codigo !== "plantilla_en_uso") throw e;
+        const sigue = await confirmar({
+          titulo: "Tiene evaluaciones",
+          mensaje: `${e.message} Los Excel que ya exportaste no se tocan.`,
+          confirmar: "Sí, eliminar todo",
+          peligro: true,
+        });
+        if (!sigue) return;
+        await api.eliminarPlantilla(p.id, true);
+      }
+      lista.recargar();
+    } catch (e) {
+      await avisar({ tipo: "error", titulo: "No se pudo eliminar", mensaje: mensajeDe(e) });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -142,12 +173,22 @@ export function Plantillas() {
                   Versión {p.version} · {p.items} preguntas · {p.paginas} {p.paginas === 1 ? "página" : "páginas"}
                 </p>
               </div>
-              <a
-                href={enlace.plantilla(p.id)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-base font-medium hover:bg-slate-50"
-              >
-                Editar
-              </a>
+              <div className="flex gap-2">
+                <a
+                  href={enlace.plantilla(p.id)}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-base font-medium hover:bg-slate-50"
+                >
+                  Editar
+                </a>
+                <button
+                  type="button"
+                  aria-label={`Eliminar el formulario ${p.nombre}`}
+                  className="rounded-lg border border-red-300 px-4 py-2.5 text-base text-red-800 hover:bg-red-50"
+                  onClick={() => void eliminar(p)}
+                >
+                  Eliminar
+                </button>
+              </div>
             </li>
           ))}
         </ul>

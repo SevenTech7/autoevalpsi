@@ -27,6 +27,8 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     GET  /api/evaluaciones/{id}/cabecera/{campo}  PNG del recorte de un campo de la cabecera
     DELETE /api/evaluaciones/{id}/paginas/{n}     descarta una foto para repetirla (AP-R5)
     DELETE /api/evaluaciones/{id}                 elimina la evaluación entera (los Excel exportados quedan)
+    GET  /api/incompletas                    evaluaciones a las que les falta una hoja (también el celular)
+    DELETE /api/plantillas/{id}[?con_evaluaciones=true]  elimina el formulario (409 si tiene evaluaciones)
     GET  /captura                            página del celular (HTML estático, sin secretos); AP-07
     GET  /, /assets/*                        la interfaz React compilada (AP-R4); estática y sin secretos
 
@@ -36,7 +38,7 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
   interfaz compilada (`/`, `/assets/*`): son archivos estáticos; el token de la app llega a la
   ventana en la URL de arranque y la interfaz lo manda en cada llamada a `/api`.
 - *Celular vinculado* (cabecera `X-Dispositivo` con su credencial): `POST /api/fotos`,
-  `GET /api/cola*` y `GET /api/plantillas*`. Una credencial que no es la del celular vinculado
+  `GET /api/cola*`, `GET /api/plantillas*` y `GET /api/incompletas`. Una credencial que no es la del celular vinculado
   recibe 403 `dispositivo_no_vinculado`.
 - *Laptop*: todo lo demás, y también lo del celular. Exige el **token de la app** (cada arranque
   genera uno de 128 bits, en `Authorization: Bearer`, `X-Token` o `?token=`) **y** que la petición
@@ -155,7 +157,7 @@ def _del_celular(metodo: str, ruta: str) -> bool:
     if metodo == "POST":
         return ruta == "/api/fotos"
     if metodo == "GET":
-        return ruta in ("/api/cola", "/api/plantillas") or ruta.startswith(
+        return ruta in ("/api/cola", "/api/plantillas", "/api/incompletas") or ruta.startswith(
             ("/api/cola/", "/api/plantillas/")
         )
     return False
@@ -513,7 +515,46 @@ def crear_app(
 
     @app.get("/api/evaluaciones")
     def listar_evaluaciones() -> list[dict]:
-        return [asdict(r) for r in bd.listar_evaluaciones()]
+        return [
+            {
+                **asdict(r),
+                "paginas_total": paginas_de(r.plantilla_id, r.plantilla_version, r.paginas_subidas),
+            }
+            for r in bd.listar_evaluaciones()
+        ]
+
+    def paginas_de(plantilla_id: str, version: int, por_defecto: int) -> int:
+        """Cuántas hojas tiene el formulario con que se hizo la evaluación."""
+        try:
+            return len(plantillas.obtener(plantilla_id, version).plantilla.paginas)
+        except PlantillaNoInstalada:
+            return por_defecto
+
+    @app.get("/api/incompletas")
+    def evaluaciones_incompletas() -> list[dict]:
+        """Evaluaciones a las que les falta alguna hoja: sirven para seguir desde el celular."""
+        salida = []
+        for r in bd.listar_evaluaciones():
+            try:
+                inst = plantillas.obtener(r.plantilla_id, r.plantilla_version)
+            except PlantillaNoInstalada:
+                continue
+            total = len(inst.plantilla.paginas)
+            if r.paginas_subidas >= total:
+                continue
+            ev = bd.leer_evaluacion(r.id)
+            hechas = {p.pagina for p in ev.paginas}
+            salida.append(
+                {
+                    "id": r.id,
+                    "paciente": r.paciente,
+                    "plantilla_id": r.plantilla_id,
+                    "plantilla_nombre": inst.plantilla.nombre,
+                    "paginas_total": total,
+                    "faltan": [n for n in range(total) if n not in hechas],
+                }
+            )
+        return salida
 
     @app.get("/api/evaluaciones/{id}")
     def leer_evaluacion(id: str) -> dict:
@@ -711,6 +752,33 @@ def crear_app(
     @app.get("/api/plantillas")
     def listar_plantillas() -> list[dict]:
         return [resumen(i) for i in plantillas.listar()]
+
+    @app.delete("/api/plantillas/{id}")
+    def eliminar_plantilla(id: str, con_evaluaciones: bool = False) -> dict:
+        """Elimina un formulario con todas sus versiones. Si tiene evaluaciones, pide confirmarlo
+        (`con_evaluaciones=true`) y se eliminan también; los Excel ya exportados quedan."""
+        instalada(id)
+        usadas = bd.evaluaciones_de_plantilla(id)
+        leyendo = any(
+            t["plantilla_id"] == id
+            for t in cola.estado()["trabajos"]
+            if t["estado"] in ("en_cola", "procesando")
+        )
+        if leyendo:
+            raise _error(
+                409, "foto_en_lectura", "Hay una foto de este formulario leyéndose; espera."
+            )
+        if usadas and not con_evaluaciones:
+            raise _error(
+                409,
+                "plantilla_en_uso",
+                f"Hay {len(usadas)} evaluaciones hechas con este formulario. "
+                "Si lo eliminas, también se eliminan.",
+            )
+        for ev in usadas:
+            bd.eliminar_evaluacion(ev)
+        plantillas.eliminar(id)
+        return {"eliminada": True, "evaluaciones_eliminadas": len(usadas)}
 
     @app.get("/api/plantillas/{id}")
     def leer_plantilla(id: str, version: int | None = None) -> dict:

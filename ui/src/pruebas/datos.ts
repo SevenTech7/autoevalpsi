@@ -93,6 +93,8 @@ export function resumen(parcial: Partial<ResumenEvaluacion> = {}): ResumenEvalua
     creada_en: "2026-11-07T10:30:00",
     n_filas: 12,
     filas_pendientes: 3,
+    paginas_total: 1,
+    paginas_subidas: 1,
     ...parcial,
   };
 }
@@ -125,6 +127,8 @@ export function clienteFalso(sobre: Partial<Cliente> = {}): Cliente {
     corregirEvaluacion: sinUsar,
     descartarPagina: sinUsar,
     eliminarEvaluacion: sinUsar,
+    subirFoto: sinUsar,
+    eliminarPlantilla: sinUsar,
     urlRecorteFila: (e: string, i: number) => `/recorte/${e}/${i}`,
     urlRecorteCabecera: (e: string, c: string) => `/cabecera/${e}/${c}`,
     plantillas: sinUsar,

@@ -277,6 +277,78 @@ def test_eliminar_una_evaluacion_entera(entorno, lote_sintetico):
     assert len(cliente.get("/api/evaluaciones").json()) == 1
 
 
+def _con_dos_hojas(entorno) -> str:
+    """Deja la plantilla de prueba con 2 hojas (la segunda es copia de la primera) y devuelve su id."""
+    cliente, _app, _bd, plantillas = entorno
+    id = _id_plantilla(cliente)
+    d = cliente.get(f"/api/plantillas/{id}").json()
+    segunda = json.loads(json.dumps(d["paginas"][0]))
+    segunda["imagen_referencia"] = "hoja2.png"
+    for t in segunda["tablas"]:
+        for f in t["filas"]:
+            f["item"] += 1000
+            f.pop("celda", None)
+    inst = plantillas.obtener(id)
+    imagen = (inst.ruta.parent / d["paginas"][0]["imagen_referencia"]).read_bytes()
+    plantillas.agregar_pagina(id, segunda, imagen)
+    return id
+
+
+def test_una_evaluacion_con_una_hoja_menos_se_ve_incompleta(entorno, lote_sintetico):
+    cliente = entorno[0]
+    id = _con_dos_hojas(entorno)
+    ev = _procesar(entorno, lote_sintetico[0].foto, evaluacion="sesion-2", paciente="Ana")[
+        "trabajo"
+    ]["evaluacion_id"]
+    resumen = cliente.get("/api/evaluaciones").json()[0]
+    assert resumen["paginas_total"] == 2 and resumen["paginas_subidas"] == 1
+    faltan = cliente.get("/api/incompletas").json()
+    assert faltan == [
+        {
+            "id": ev,
+            "paciente": "Ana",
+            "plantilla_id": id,
+            "plantilla_nombre": faltan[0]["plantilla_nombre"],
+            "paginas_total": 2,
+            "faltan": [1],
+        }
+    ]
+    # al subir la hoja que faltaba deja de estar incompleta
+    r = _subir(cliente, lote_sintetico[1].foto, evaluacion=ev, pagina=1)
+    assert r.status_code == 202, r.text
+    entorno[1].state.cola.esperar(60)
+    assert cliente.get("/api/incompletas").json() == []
+
+
+def test_el_celular_vinculado_puede_pedir_las_incompletas(entorno):
+    from autoevalpsi.app.servidor import _del_celular
+
+    assert _del_celular("GET", "/api/incompletas")
+    assert not _del_celular("DELETE", "/api/incompletas")
+
+
+def test_eliminar_un_formulario_pide_confirmar_si_tiene_evaluaciones(entorno, lote_sintetico):
+    cliente, _app, _bd, plantillas = entorno
+    id = _id_plantilla(cliente)
+    _procesar(entorno, lote_sintetico[0].foto)
+    r = cliente.delete(f"/api/plantillas/{id}")
+    assert r.status_code == 409 and _codigo(r) == "plantilla_en_uso" and "1 evaluaciones" in r.text
+    assert cliente.get("/api/plantillas").json()  # sigue instalado
+    r = cliente.delete(f"/api/plantillas/{id}", params={"con_evaluaciones": "true"})
+    assert r.json() == {"eliminada": True, "evaluaciones_eliminadas": 1}
+    assert cliente.get("/api/plantillas").json() == []
+    assert cliente.get("/api/evaluaciones").json() == []
+    assert cliente.delete(f"/api/plantillas/{id}").status_code == 404
+    assert not (plantillas.carpeta / id).exists()
+
+
+def test_eliminar_un_formulario_sin_evaluaciones_no_pide_nada(entorno):
+    cliente = entorno[0]
+    id = _id_plantilla(cliente)
+    assert cliente.delete(f"/api/plantillas/{id}").json()["eliminada"] is True
+    assert cliente.get("/api/plantillas").json() == []
+
+
 def test_hoja_en_blanco_deja_el_trabajo_en_error_y_el_trabajador_sigue(entorno, lote_sintetico):
     cliente = entorno[0]
     ruta = lote_sintetico[0].foto.parent / "negra.jpg"

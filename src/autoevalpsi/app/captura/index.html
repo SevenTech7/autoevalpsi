@@ -50,6 +50,13 @@
   </div>
 
   <form id="formulario" hidden>
+    <div id="continuar" hidden>
+      <label class="campo" for="incompleta">¿Seguir una evaluación a la que le falta una hoja?</label>
+      <select id="incompleta">
+        <option value="">No, es una evaluación nueva</option>
+      </select>
+    </div>
+
     <label class="campo" for="plantilla">Formulario</label>
     <select id="plantilla" name="plantilla" required>
       <option value="" disabled selected>Cargando formularios…</option>
@@ -109,6 +116,7 @@ function guardarCredencial(valor) {
 
 let evaluacion = null;   // solo se fija en formularios de varias hojas
 let pagina = 0;
+let porSubir = null;     // al seguir una evaluación: las hojas que le faltan, en orden
 let ocupado = false;
 
 function nuevoId() {
@@ -158,16 +166,53 @@ function pasoActual() {
   paso.textContent = total > 1 ? "Hoja " + (pagina + 1) + " de " + total : "";
 }
 
+// Evaluaciones a las que les falta alguna hoja: se pueden seguir desde aquí aunque se haya cerrado la página.
+let incompletas = [];
+const selIncompleta = document.getElementById("incompleta");
+function mostrarIncompletas(lista) {
+  incompletas = lista;
+  selIncompleta.replaceChildren();
+  const nueva = document.createElement("option");
+  nueva.value = ""; nueva.textContent = "No, es una evaluación nueva";
+  selIncompleta.append(nueva);
+  for (const e of lista) {
+    const o = document.createElement("option");
+    o.value = e.id;
+    o.textContent = (e.paciente || "Sin nombre") + " · " + e.plantilla_nombre + " · falta la hoja " + (e.faltan[0] + 1);
+    selIncompleta.append(o);
+  }
+  document.getElementById("continuar").hidden = lista.length === 0;
+}
+function cargarIncompletas() {
+  pedir("GET", "/api/incompletas", null, (x) => {
+    if (x.status !== 200) return;
+    try { mostrarIncompletas(JSON.parse(x.responseText)); } catch (e) { /* se ignora */ }
+  });
+}
+selIncompleta.addEventListener("change", () => {
+  const e = incompletas.find((i) => i.id === selIncompleta.value);
+  if (!e) return reiniciarFormulario();
+  selPlantilla.value = e.plantilla_id;
+  evaluacion = e.id;
+  porSubir = [...e.faltan];
+  pagina = porSubir[0];
+  if (e.paciente) document.getElementById("paciente").value = e.paciente;
+  pasoActual();
+});
+
 function bloquear(si) {
   ocupado = si;
   for (const b of botones) b.setAttribute("aria-disabled", String(si));
   for (const e of entradas) e.disabled = si;
   selPlantilla.disabled = si;
+  selIncompleta.disabled = si;
 }
 
 function reiniciarFormulario() {
   evaluacion = null;
+  porSubir = null;
   pagina = 0;
+  selIncompleta.value = "";
   pasoActual();
 }
 
@@ -243,7 +288,7 @@ function mostrarFormulario(plantillas) {
 function cargarFormularios() {
   if (!leerCredencial()) return mostrarSinVinculo();
   pedir("GET", "/api/plantillas", null, (x) => {
-    if (x.status === 200) return mostrarFormulario(JSON.parse(x.responseText));
+    if (x.status === 200) { mostrarFormulario(JSON.parse(x.responseText)); cargarIncompletas(); return; }
     if (x.status === 401 || x.status === 403) {
       guardarCredencial("");
       return mostrarSinVinculo("Este celular ya no está vinculado. Vuelve a vincularlo desde la laptop.");
@@ -329,12 +374,14 @@ function enviar(archivo) {
     if (r.repetir) {
       return ventana("aviso", "Mejor repite la foto", r.problemas_calidad);
     }
-    const ultima = pagina + 1 >= total;
+    if (porSubir) porSubir.shift();
+    const ultima = porSubir ? porSubir.length === 0 : pagina + 1 >= total;
     if (ultima) {
       reiniciarFormulario();
       mostrar("aviso", "Foto recibida. La estoy leyendo…");
+      setTimeout(cargarIncompletas, 4000);
     } else {
-      pagina += 1;
+      pagina = porSubir ? porSubir[0] : pagina + 1;
       pasoActual();
       ventana("ok", "Foto recibida ✓ Ahora toma la hoja " + (pagina + 1) + " de " + total + ".");
     }

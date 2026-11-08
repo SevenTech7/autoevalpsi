@@ -23,6 +23,9 @@ export function fechaHoraBolivia(iso: string): string {
 
 export function describirEstado(e: ResumenEvaluacion): string {
   if (e.estado === "exportada") return "Exportada";
+  if (e.paginas_total > e.paginas_subidas) {
+    return `Faltan hojas por subir (${e.paginas_subidas} de ${e.paginas_total})`;
+  }
   if (e.estado === "revisada") return "Lista para exportar";
   if (e.filas_pendientes > 0) {
     return e.filas_pendientes === 1
