@@ -115,8 +115,7 @@ function guardarCredencial(valor) {
 }
 
 let evaluacion = null;   // solo se fija en formularios de varias hojas
-let pagina = 0;
-let porSubir = null;     // al seguir una evaluación: las hojas que le faltan, en orden
+let restan = null;       // hojas que faltan por subir de esta evaluación (null: aún no se empieza)
 let ocupado = false;
 
 function nuevoId() {
@@ -163,7 +162,10 @@ document.getElementById("ventana-aceptar").addEventListener("click", () => {
 
 function pasoActual() {
   const total = paginas[selPlantilla.value] || 1;
-  paso.textContent = total > 1 ? "Hoja " + (pagina + 1) + " de " + total : "";
+  const faltan = restan === null ? total : restan;
+  paso.textContent = total > 1
+    ? "Formulario de " + total + " hojas · faltan " + faltan + ". Toma cualquiera: la aplicación reconoce cuál es."
+    : "";
 }
 
 // Evaluaciones a las que les falta alguna hoja: se pueden seguir desde aquí aunque se haya cerrado la página.
@@ -194,8 +196,7 @@ selIncompleta.addEventListener("change", () => {
   if (!e) return reiniciarFormulario();
   selPlantilla.value = e.plantilla_id;
   evaluacion = e.id;
-  porSubir = [...e.faltan];
-  pagina = porSubir[0];
+  restan = e.faltan.length;
   if (e.paciente) document.getElementById("paciente").value = e.paciente;
   pasoActual();
 });
@@ -210,8 +211,7 @@ function bloquear(si) {
 
 function reiniciarFormulario() {
   evaluacion = null;
-  porSubir = null;
-  pagina = 0;
+  restan = null;
   selIncompleta.value = "";
   pasoActual();
 }
@@ -348,7 +348,6 @@ function enviar(archivo) {
   const datos = new FormData();
   datos.append("foto", archivo, archivo.name || "foto.jpg");
   datos.append("plantilla", selPlantilla.value);
-  datos.append("pagina", String(pagina));
   datos.append("paciente", document.getElementById("paciente").value);
   if (evaluacion !== null) datos.append("evaluacion", evaluacion);
 
@@ -371,19 +370,20 @@ function enviar(archivo) {
     }
     if (xhr.status !== 202) return ventana("mal", "No se pudo enviar la foto", [mensajeDe(xhr)]);
     const r = JSON.parse(xhr.responseText);
+    restan = (restan === null ? total : restan) - 1;  // la foto ya quedó recibida aunque sea mala
     if (r.repetir) {
+      pasoActual();
       return ventana("aviso", "Mejor repite la foto", r.problemas_calidad);
     }
-    if (porSubir) porSubir.shift();
-    const ultima = porSubir ? porSubir.length === 0 : pagina + 1 >= total;
+    const ultima = restan <= 0;
     if (ultima) {
       reiniciarFormulario();
       mostrar("aviso", "Foto recibida. La estoy leyendo…");
       setTimeout(cargarIncompletas, 4000);
     } else {
-      pagina = porSubir ? porSubir[0] : pagina + 1;
       pasoActual();
-      ventana("ok", "Foto recibida ✓ Ahora toma la hoja " + (pagina + 1) + " de " + total + ".");
+      const hoja = r.trabajo.pagina + 1;
+      ventana("ok", "Foto recibida ✓ Era la hoja " + hoja + " de " + total + ". Quedan " + restan + (restan === 1 ? " hoja." : " hojas."));
     }
     seguirTrabajo(r.trabajo.id, total, ultima);
   };

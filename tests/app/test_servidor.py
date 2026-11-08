@@ -297,9 +297,9 @@ def _con_dos_hojas(entorno) -> str:
 def test_una_evaluacion_con_una_hoja_menos_se_ve_incompleta(entorno, lote_sintetico):
     cliente = entorno[0]
     id = _con_dos_hojas(entorno)
-    ev = _procesar(entorno, lote_sintetico[0].foto, evaluacion="sesion-2", paciente="Ana")[
-        "trabajo"
-    ]["evaluacion_id"]
+    ev = _procesar(
+        entorno, lote_sintetico[0].foto, evaluacion="sesion-2", pagina=0, paciente="Ana"
+    )["trabajo"]["evaluacion_id"]
     resumen = cliente.get("/api/evaluaciones").json()[0]
     assert resumen["paginas_total"] == 2 and resumen["paginas_subidas"] == 1
     faltan = cliente.get("/api/incompletas").json()
@@ -318,6 +318,21 @@ def test_una_evaluacion_con_una_hoja_menos_se_ve_incompleta(entorno, lote_sintet
     assert r.status_code == 202, r.text
     entorno[1].state.cola.esperar(60)
     assert cliente.get("/api/incompletas").json() == []
+
+
+def test_sin_pagina_la_app_decide_la_hoja_y_no_adivina_si_hay_empate(entorno, lote_sintetico):
+    cliente = entorno[0]
+    id = _con_dos_hojas(entorno)  # las dos hojas son iguales: la foto calza igual con ambas
+    r = _subir(cliente, lote_sintetico[0].foto, evaluacion="sesion-3")
+    assert r.status_code == 422 and _codigo(r) == "hoja_no_reconocida"
+    # con una sola hoja pendiente no hay nada que elegir: es esa
+    _procesar(entorno, lote_sintetico[0].foto, evaluacion="sesion-3", pagina=1)
+    r = _subir(cliente, lote_sintetico[1].foto, evaluacion="sesion-3")
+    assert r.status_code == 202 and r.json()["trabajo"]["pagina"] == 0
+    entorno[1].state.cola.esperar(60)
+    r = _subir(cliente, lote_sintetico[2].foto, evaluacion="sesion-3")  # ya están las dos
+    assert r.status_code == 409 and _codigo(r) == "pagina_repetida"
+    assert id
 
 
 def test_el_celular_vinculado_puede_pedir_las_incompletas(entorno):

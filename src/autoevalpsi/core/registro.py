@@ -445,6 +445,31 @@ def _registrar_directo(
     )
 
 
+def puntaje_de_hoja(foto: np.ndarray, referencia: np.ndarray) -> int:
+    """Cuánto se parece `foto` a esta página: los puntos que calzan con poco error (0 si no calza).
+
+    Sirve para decidir a qué hoja de un formulario de varias pertenece una foto: la hoja correcta
+    calza con cientos de puntos y las demás con unas decenas."""
+    referencia = _gris(referencia)
+    H, m = _homografia_directa(_gris(foto), referencia)
+    if H is None or m["error"] > 2.5 or m["cobertura"] < 0.2:
+        return 0
+    return int(m["inliers"])
+
+
+def elegir_hoja(foto: np.ndarray, referencias: dict[int, np.ndarray]) -> int | None:
+    """La página de `referencias` (n° -> imagen en blanco) a la que pertenece la foto, o None si no
+    se reconoce ninguna con claridad (poca coincidencia o dos páginas casi empatadas)."""
+    if len(referencias) == 1:
+        return next(iter(referencias))
+    puntajes = {n: puntaje_de_hoja(foto, ref) for n, ref in referencias.items()}
+    orden = sorted(puntajes.items(), key=lambda kv: -kv[1])
+    mejor, segundo = orden[0], orden[1][1]
+    if mejor[1] < 40 or mejor[1] < 2 * segundo:
+        return None
+    return mejor[0]
+
+
 def registrar(
     foto: np.ndarray,
     referencia: np.ndarray,

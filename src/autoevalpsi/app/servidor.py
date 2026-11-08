@@ -8,6 +8,7 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
 
     GET  /api/salud                          sin token; para esperar a que el servidor arranque
     POST /api/fotos                          foto + plantilla [+ evaluacion, pagina, paciente, fecha]
+                                             sin `pagina`, la app decide a qué hoja pertenece la foto
     GET  /api/cola, /api/cola/{trabajo}      estado del procesamiento
     GET  /api/evaluaciones                   resúmenes, más recientes primero
     GET  /api/evaluaciones/{id}              evaluación completa, lo leído y lo confirmado
@@ -107,6 +108,7 @@ from autoevalpsi.core.libro import LibroBaseInvalido
 from autoevalpsi.core.ocr.lector import Lector
 from autoevalpsi.core.ocr.onnx import LectorONNX
 from autoevalpsi.core.pipeline import procesar_foto
+from autoevalpsi.core.registro import elegir_hoja
 
 log = logging.getLogger(__name__)
 
@@ -423,7 +425,7 @@ def crear_app(
         foto: Annotated[UploadFile, File()],
         plantilla: Annotated[str, Form()],
         evaluacion_id: Annotated[str | None, Form(alias="evaluacion")] = None,
-        pagina: Annotated[int, Form()] = 0,
+        pagina: Annotated[int | None, Form()] = None,
         paciente: Annotated[str, Form()] = "",
         fecha: Annotated[str | None, Form()] = None,
     ) -> dict:
@@ -438,6 +440,7 @@ def crear_app(
             raise _error(422, "fecha_invalida", "La fecha debe ser AAAA-MM-DD.") from None
 
         version = None
+        hechas: set[int] = set()
         if evaluacion_id is not None:
             try:
                 validar_id(evaluacion_id)
@@ -454,11 +457,36 @@ def crear_app(
                         "plantilla_distinta",
                         f"Esa evaluación es de la plantilla «{previa.plantilla_id}».",
                     )
-                if any(p.pagina == pagina for p in previa.paginas):
-                    raise _error(409, "pagina_repetida", f"La página {pagina + 1} ya se subió.")
                 version = previa.plantilla_version
+                hechas = {p.pagina for p in previa.paginas}
         inst = instalada(plantilla, version)
-        if not 0 <= pagina < len(inst.plantilla.paginas):
+        total = len(inst.plantilla.paginas)
+        if pagina is None:
+            # Sin `pagina`: la app decide a qué hoja del formulario pertenece la foto, entre las que
+            # todavía no se subieron.
+            pendientes = [n for n in range(total) if n not in hechas]
+            if not pendientes:
+                raise _error(
+                    409, "pagina_repetida", "Ya se subieron todas las hojas de esta evaluación."
+                )
+            referencias = {n: plantillas.referencia(inst, n) for n in pendientes}
+            try:
+                imagen = cargar_imagen(datos)
+            except ImagenInvalida as e:
+                raise _error(422, "imagen_invalida", str(e)) from e
+            elegida = elegir_hoja(imagen, referencias)
+            if elegida is None:
+                raise _error(
+                    422,
+                    "hoja_no_reconocida",
+                    "No se reconoce a qué hoja del formulario pertenece la foto. Revisa que sea "
+                    "el formulario correcto, que se vea la hoja entera y que no sea una hoja que "
+                    "ya subiste.",
+                )
+            pagina = elegida
+        if pagina in hechas:
+            raise _error(409, "pagina_repetida", f"La página {pagina + 1} ya se subió.")
+        if not 0 <= pagina < total:
             raise _error(
                 422,
                 "pagina_invalida",

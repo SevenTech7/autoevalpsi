@@ -293,6 +293,18 @@ def test_sift_calza_otra_foto_de_la_misma_hoja_con_otra_escala_y_perspectiva(con
     assert np.abs(esq - origen).max() < 6
 
 
+def test_elegir_hoja_reconoce_a_cual_de_las_paginas_pertenece_la_foto(lote_sintetico, contexto):
+    _, ref = contexto
+    otra = cv2.resize(_formulario_ajeno(), (ref.shape[1], ref.shape[0]))
+    foto = _hoja_llena_el_cuadro(lote_sintetico[0])
+    assert registro.elegir_hoja(foto, {0: ref, 1: otra}) == 0
+    assert registro.elegir_hoja(foto, {0: otra, 1: ref}) == 1
+    assert registro.elegir_hoja(foto, {1: otra}) == 1  # una sola candidata: no hay nada que elegir
+    # ninguna de las dos es la hoja: no se adivina
+    ruido = np.random.default_rng(5).integers(0, 255, (1600, 1200, 3), dtype=np.uint8)
+    assert registro.elegir_hoja(ruido, {0: ref, 1: otra}) is None
+
+
 def test_el_emparejamiento_directo_no_da_por_buena_una_hoja_ajena(contexto):
     """Ruido a cuadro completo: ni contorno de papel ni coincidencias con la plantilla."""
     _, ref = contexto
