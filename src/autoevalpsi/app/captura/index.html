@@ -320,6 +320,7 @@ function mensajeDe(xhr) {
   try {
     const d = JSON.parse(xhr.responseText).detail;
     if (d && d.mensaje) return d.mensaje;
+    if (Array.isArray(d)) return "Faltan datos para enviar la foto. Elige el formulario y vuelve a intentarlo.";
   } catch (e) { /* respuesta que no es JSON */ }
   if (xhr.status === 0) return "No hay conexión con la laptop. Revisa que el celular esté en el mismo WiFi.";
   if (xhr.status === 401 || xhr.status === 403) return "Este celular ya no está vinculado. Vuelve a vincularlo desde la laptop.";
@@ -343,6 +344,9 @@ function seguirTrabajo(id, total, ultima) {
 
 function enviar(archivo) {
   if (!archivo || ocupado) return;
+  if (!selPlantilla.value) {
+    return ventana("aviso", "Primero elige el formulario", ["Elige arriba el formulario de la hoja y vuelve a tomar la foto."]);
+  }
   const total = paginas[selPlantilla.value] || 1;
   if (total > 1 && evaluacion === null) evaluacion = nuevoId();
   const datos = new FormData();

@@ -72,6 +72,15 @@ def test_la_pagina_deja_seguir_una_evaluacion_a_la_que_le_falta_una_hoja(tmp_pat
     assert "Seguir una evaluación" in html
 
 
+def test_la_pagina_no_envia_sin_formulario_elegido_y_explica_los_422(tmp_path, zip_plantilla):
+    bd, app = _montar(tmp_path, zip_plantilla, [WIFI])
+    with TestClient(app, client=LAPTOP) as c:
+        html = c.get("/captura").text
+    bd.cerrar()
+    assert "Primero elige el formulario" in html  # no manda una foto sin plantilla (daba 422)
+    assert "Array.isArray(d)" in html  # un 422 de validación se explica, no sale «error 422»
+
+
 def test_el_codigo_de_vinculo_entra_en_la_url_del_qr_y_no_el_token(tmp_path, zip_plantilla):
     bd, app = _montar(tmp_path, zip_plantilla, [HYPERV, WIFI])
     with TestClient(app, headers={"X-Token": TOKEN}, client=LAPTOP) as c:
