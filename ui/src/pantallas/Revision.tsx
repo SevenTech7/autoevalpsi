@@ -44,6 +44,13 @@ interface InfoItem {
   texto: string;
   opciones: string[];
   tipo: "marcas" | "digito";
+  seccion: string | null;
+}
+
+/** El número impreso en la hoja: «ESCUCHAR Y ENTENDER · 31» → «31» (el `item` es solo interno). */
+function numeroImpreso(texto: string | undefined, item: number): string {
+  const n = texto?.split(" · ").pop()?.trim();
+  return n && /^[0-9]+$/.test(n) ? n : String(item);
 }
 
 function infoDeItems(plantilla: Plantilla): Map<number, InfoItem> {
@@ -51,7 +58,12 @@ function infoDeItems(plantilla: Plantilla): Map<number, InfoItem> {
   for (const p of plantilla.paginas) {
     for (const t of p.tablas) {
       for (const f of t.filas) {
-        mapa.set(f.item, { texto: f.texto, opciones: t.opciones, tipo: t.tipo ?? "marcas" });
+        mapa.set(f.item, {
+          texto: f.texto,
+          opciones: t.opciones,
+          tipo: t.tipo ?? "marcas",
+          seccion: t.seccion ?? null,
+        });
       }
     }
   }
@@ -318,10 +330,18 @@ function FilaTabla(p: PropsFila) {
       onClick={p.alElegir}
       className={`${fondo} ${activa ? "outline outline-2 -outline-offset-2 outline-acento" : ""}`}
     >
-      <th scope="row" className={`${CELDA} pl-2 pr-3 text-left font-normal`}>
-        <span className="mr-2 inline-block min-w-6 font-semibold text-slate-500">{fila.item}.</span>
-        <span title={info?.texto}>{info?.texto || `Ítem ${fila.item}`}</span>
-      </th>
+      {digitos ? (
+        <th scope="row" className={`${CELDA} pl-2 pr-3 text-left`} title={info?.texto}>
+          <span className="inline-block min-w-8 text-lg font-semibold">
+            {numeroImpreso(info?.texto, fila.item)}
+          </span>
+        </th>
+      ) : (
+        <th scope="row" className={`${CELDA} pl-2 pr-3 text-left font-normal`}>
+          <span className="mr-2 inline-block min-w-6 font-semibold text-slate-500">{fila.item}.</span>
+          <span title={info?.texto}>{info?.texto || `Ítem ${fila.item}`}</span>
+        </th>
+      )}
 
       {opciones.map((o, n) => {
         const elegida = opcion === o;
@@ -448,14 +468,18 @@ function FilaTabla(p: PropsFila) {
 function tramosPorOpciones(
   filas: FilaGuardada[],
   info: Map<number, InfoItem>,
-): { opciones: string[]; filas: FilaGuardada[] }[] {
-  const tramos: { clave: string; opciones: string[]; filas: FilaGuardada[] }[] = [];
+): { opciones: string[]; filas: FilaGuardada[]; titulo: string | null }[] {
+  const tramos: { clave: string; opciones: string[]; filas: FilaGuardada[]; titulo: string | null }[] = [];
   for (const f of filas) {
     const opciones = info.get(f.item)?.opciones ?? [];
-    const clave = `${info.get(f.item)?.tipo ?? "marcas"}\u0002${opciones.join("\u0001")}`;
+    const tipo = info.get(f.item)?.tipo ?? "marcas";
+    // En un formulario de números cada área (columna maestra) es una sola lista Número · Valor,
+    // aunque la hoja la parta en dos columnas (1–30 y 31–39) o en varias tablas.
+    const titulo = tipo === "digito" ? (info.get(f.item)?.seccion ?? null) : null;
+    const clave = `${tipo}\u0002${opciones.join("\u0001")}\u0002${titulo ?? ""}`;
     const ultimo = tramos[tramos.length - 1];
     if (ultimo && ultimo.clave === clave) ultimo.filas.push(f);
-    else tramos.push({ clave, opciones, filas: [f] });
+    else tramos.push({ clave, opciones, filas: [f], titulo });
   }
   return tramos;
 }
@@ -703,10 +727,15 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
           ) : (
             tramos.map((tramo) => (
               <table key={tramo.filas[0]!.item} className="w-full border-collapse text-[0.95rem]">
+                {tramo.titulo && (
+                  <caption className="bg-slate-200 px-2 py-1 text-left text-base font-semibold">
+                    {tramo.titulo}
+                  </caption>
+                )}
                 <thead>
                   <tr>
                     <th scope="col" className={`${ENCABEZADO} pl-2 text-left`}>
-                      Pregunta
+                      {info.get(tramo.filas[0]!.item)?.tipo === "digito" ? "Número" : "Pregunta"}
                     </th>
                     {tramo.opciones.map((o) => (
                       <th key={o} scope="col" className={`${ENCABEZADO} w-20 leading-tight`}>

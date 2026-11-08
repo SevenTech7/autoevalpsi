@@ -109,6 +109,7 @@ export interface Plantilla {
     cabecera: { campo: string }[];
     tablas: {
       tipo?: "marcas" | "digito"; // «digito»: un número escrito a mano, no una casilla
+      seccion?: string | null; // el área (columna maestra) de la hoja
       opciones: string[];
       observacion_x?: number[] | null; // si la hoja tiene columna de observación
       filas: { item: number; texto: string }[];

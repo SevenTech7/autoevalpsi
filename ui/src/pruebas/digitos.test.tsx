@@ -69,6 +69,42 @@ function montar(corregirEvaluacion = vi.fn()) {
 
 const filaDe = (item: number) => document.querySelector<HTMLElement>(`[data-item="${item}"]`)!;
 
+describe("área de la hoja con dos columnas", () => {
+  it("sale como una sola lista Número · Valor, con el número impreso y no el interno", () => {
+    const plantilla: Plantilla = {
+      id: "vineland",
+      nombre: "Vineland",
+      version: 1,
+      paginas: [
+        {
+          cabecera: [],
+          tablas: [
+            { tipo: "digito", seccion: "ESCUCHAR Y ENTENDER", opciones: ["0", "1", "2"], filas: [{ item: 1, texto: "ESCUCHAR Y ENTENDER · 1" }] },
+            { tipo: "digito", seccion: "ESCUCHAR Y ENTENDER", opciones: ["0", "1", "2"], filas: [{ item: 31, texto: "ESCUCHAR Y ENTENDER · 31" }] },
+            { tipo: "digito", seccion: "HABLAR", opciones: ["0", "1", "2"], filas: [{ item: 40, texto: "HABLAR · 1" }] },
+          ],
+        },
+      ],
+    };
+    const ev = evaluacion({
+      plantilla_id: "vineland",
+      cabecera_revisada: true,
+      filas: [
+        fila({ item: 1, opcion: null, opcion_leida: null, banderas: ["celda_vacia"], revisada: false }),
+        fila({ item: 31, opcion: "1", opcion_leida: "1", revisada: false }),
+        fila({ item: 40, opcion: "2", opcion_leida: "2", revisada: false }),
+      ],
+      filas_pendientes: 3,
+    });
+    render(<Revision api={clienteFalso()} evaluacion={ev} plantilla={plantilla} alActualizar={vi.fn()} alDescartar={vi.fn()} />);
+    expect(screen.getAllByRole("table")).toHaveLength(2); // una por área
+    expect(screen.getByRole("table", { name: "ESCUCHAR Y ENTENDER" })).toBeInTheDocument();
+    const rotulos = within(filaDe(31)).getByRole("rowheader");
+    expect(rotulos).toHaveTextContent(/^31$/); // el número impreso, no «31 ESCUCHAR Y ENTENDER · 31»
+    expect(within(filaDe(40)).getByRole("rowheader")).toHaveTextContent(/^1$/); // «HABLAR · 1», no 40
+  });
+});
+
 describe("revisión de números manuscritos", () => {
   it("muestra el número como opción, lo escrito (la celda) y avisa lo dudoso y lo vacío", () => {
     montar();
