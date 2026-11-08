@@ -239,6 +239,31 @@ def test_la_misma_foto_dos_veces_es_409(entorno, lote_sintetico):
     assert r.status_code == 409 and _codigo(r) == "foto_repetida"
 
 
+def test_la_misma_foto_con_otro_formulario_se_permite(entorno, lote_sintetico, zip_plantilla):
+    """Se equivocó de formulario: puede subir la foto otra vez con el correcto."""
+    cliente, _app, bd, plantillas = entorno
+    foto = lote_sintetico[0].foto
+    primera = _procesar(entorno, foto)["trabajo"]["evaluacion_id"]
+
+    with zipfile.ZipFile(io.BytesIO(zip_plantilla)) as zf:
+        archivos = {n: zf.read(n) for n in zf.namelist()}
+    datos = json.loads(archivos["plantilla.json"])
+    datos["id"] = "otro-formulario"
+    archivos["plantilla.json"] = json.dumps(datos).encode()
+    plantillas.importar_zip(_zip(archivos))
+
+    r = _subir(cliente, foto, plantilla="otro-formulario")
+    assert r.status_code == 202, r.text
+    segunda = r.json()["trabajo"]["evaluacion_id"]
+    assert segunda != primera
+    entorno[1].state.cola.esperar(60)
+    assert {primera, segunda} <= {e["id"] for e in cliente.get("/api/evaluaciones").json()}
+    # con el mismo formulario sigue siendo un duplicado, y el mensaje dice qué hacer
+    r = _subir(cliente, foto, plantilla="otro-formulario")
+    assert r.status_code == 409 and "descártala" in r.json()["detail"]["mensaje"]
+    assert bd.lecturas_de_foto("0" * 64) == []
+
+
 def test_hoja_en_blanco_deja_el_trabajo_en_error_y_el_trabajador_sigue(entorno, lote_sintetico):
     cliente = entorno[0]
     ruta = lote_sintetico[0].foto.parent / "negra.jpg"

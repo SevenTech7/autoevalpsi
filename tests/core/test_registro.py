@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from tools.sintetico.fotografiar import fotografiar
 
+from autoevalpsi.core import registro
 from autoevalpsi.core.hoja import HojaNoEncontrada
 from autoevalpsi.core.imagen import cargar_imagen
 from autoevalpsi.core.plantilla import cargar_plantilla
@@ -15,6 +16,7 @@ from autoevalpsi.core.registro import (
     Registro,
     RegistroInvalido,
     UmbralesRegistro,
+    _evaluar,
     cargar_referencia,
     registrar,
 )
@@ -240,6 +242,36 @@ def test_hoja_que_llena_el_cuadro_se_registra_por_emparejamiento_directo(
     b -= cv2.GaussianBlur(b, (0, 0), 30)
     assert float(np.corrcoef(a.ravel(), b.ravel())[0, 1]) > 0.9
     assert reg.imagen.shape[:2] == ref.shape
+
+
+def test_con_una_esquina_fuera_la_proporcion_baja_pero_el_registro_vale():
+    """Sobran puntos de la referencia sin pareja: muchos inliers con error chico bastan."""
+    u = UmbralesRegistro()
+    m = {"coincidencias": 1000, "inliers": 280, "error": 0.6, "cobertura": 0.40}
+    assert _evaluar(m, 0.78, u)  # proporción 0,28 < 0,30 pero 280 inliers a 0,6 px
+    assert not _evaluar({**m, "inliers": 80, "coincidencias": 400}, 0.78, u)  # pocos: no se fía
+    assert not _evaluar({**m, "error": 3.0}, 0.78, u)  # muchos pero imprecisos: no
+
+
+def test_una_foto_reconocida_pero_dudosa_sale_con_bandera_y_no_se_rechaza(contexto, monkeypatch):
+    _, ref = contexto
+    dudoso = Registro(
+        homografia=np.eye(3), imagen=np.zeros((10, 10, 3), np.uint8), metodo_hoja="directo",
+        giro=0, coincidencias=600, inliers=110, proporcion_inliers=0.18, error_reproyeccion=0.7,
+        cobertura=0.28, correlacion_lineas=0.39, ajuste_lineas=False,
+        banderas=("registro_dudoso",),
+    )  # fmt: skip
+    monkeypatch.setattr(registro, "_registrar_directo", lambda *a, **k: dudoso)
+    monkeypatch.setattr(
+        registro, "detectar_hoja", lambda *a, **k: (_ for _ in ()).throw(HojaNoEncontrada())
+    )
+    reg = registrar(np.zeros((1600, 1200, 3), np.uint8), ref)
+    assert reg is dudoso and not reg.ok
+    # con muy pocas coincidencias sí es otro formulario: se rechaza
+    pocas = Registro(**{**dudoso.__dict__, "inliers": 12})
+    monkeypatch.setattr(registro, "_registrar_directo", lambda *a, **k: pocas)
+    with pytest.raises(HojaNoEncontrada):
+        registrar(np.zeros((1600, 1200, 3), np.uint8), ref)
 
 
 def test_el_emparejamiento_directo_no_da_por_buena_una_hoja_ajena(contexto):

@@ -469,20 +469,32 @@ def crear_app(
             raise _error(422, "imagen_invalida", str(e)) from e
 
         sha = hashlib.sha256(datos).hexdigest()
-        if (otra := bd.evaluacion_de_foto(sha)) is not None:
-            raise _error(409, "foto_repetida", f"Esa foto ya se subió (evaluación {otra}).")
+        previas = bd.lecturas_de_foto(sha)
+        for otra, plantilla_previa in previas:
+            if plantilla_previa == inst.plantilla.id:
+                raise _error(
+                    409,
+                    "foto_repetida",
+                    "Esa foto ya se subió con este mismo formulario. Si quieres repetirla, "
+                    "descártala antes en la lista de evaluaciones.",
+                )
+        # Misma foto leída con otro formulario (se equivocó de plantilla): se permite, como una
+        # evaluación aparte; la anterior queda en la lista para descartarla.
+        id_nuevo = sha[:12]
+        if previas and evaluacion_id is None:
+            id_nuevo = hashlib.sha256(f"{sha}/{inst.plantilla.id}".encode()).hexdigest()[:12]
         try:
             trabajo = cola.encolar(
                 _Subida(
                     datos,
                     inst.plantilla.id,
                     inst.plantilla.version,
-                    evaluacion_id,
+                    evaluacion_id or (id_nuevo if previas else None),
                     paciente.strip(),
                     fecha_eval,
                 ),
                 sha256=sha,
-                evaluacion_id=evaluacion_id or sha[:12],
+                evaluacion_id=evaluacion_id or id_nuevo,
                 pagina=pagina,
                 plantilla_id=inst.plantilla.id,
                 problemas_calidad=problemas,

@@ -293,9 +293,13 @@ def _ajuste_lineas(registrada: np.ndarray, referencia: np.ndarray):
 
 
 def _evaluar(m: dict, correlacion: float, umbrales: UmbralesRegistro) -> bool:
+    # Con una esquina fuera de la foto sobran puntos de la referencia sin pareja y la proporción
+    # baja aunque el registro sea exacto: muchos inliers con error chico también valen.
+    proporcion = m["inliers"] / max(m["coincidencias"], 1)
+    sobrado = m["inliers"] >= 3 * umbrales.inliers_min and m["error"] <= 2.0
     return (
         m["inliers"] >= umbrales.inliers_min
-        and m["inliers"] / max(m["coincidencias"], 1) >= umbrales.proporcion_inliers_min
+        and (proporcion >= umbrales.proporcion_inliers_min or sobrado)
         and m["error"] <= umbrales.error_reproyeccion_max
         and m["cobertura"] >= umbrales.cobertura_min
         and correlacion >= umbrales.correlacion_lineas_min
@@ -454,5 +458,12 @@ def registrar(
     if directo.ok:
         return directo
     if por_hoja is None:
+        # No se rechaza una foto que sí se reconoce (muchas coincidencias con poco error) solo
+        # porque no pasa todas las métricas: sale con `registro_dudoso` y se revisa.
+        if (
+            directo.inliers >= umbrales.inliers_min
+            and directo.error_reproyeccion <= umbrales.error_reproyeccion_max
+        ):
+            return directo
         raise HojaNoEncontrada(MENSAJE_NO_RECONOCIDA) from error
     return directo if directo.inliers > por_hoja.inliers else por_hoja

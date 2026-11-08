@@ -822,6 +822,17 @@ class BaseDatos:
             ).fetchone()
         return r[0] if r else None
 
+    def lecturas_de_foto(self, foto_sha256: str) -> list[tuple[str, str]]:
+        """(id de la evaluación, id de su plantilla) de cada lectura que ya tiene esta foto.
+        La misma foto puede leerse con otro formulario (la usuaria se equivocó de plantilla)."""
+        with self._candado:
+            filas = self._con.execute(
+                "SELECT p.evaluacion_id, e.plantilla_id FROM paginas p"
+                " JOIN evaluaciones e ON e.id = p.evaluacion_id WHERE p.foto_sha256 = ?",
+                (foto_sha256,),
+            ).fetchall()
+        return [(f[0], f[1]) for f in filas]
+
     def cabecera_revisada(self, evaluacion_id: str) -> bool:
         with self._candado:
             r = self._con.execute(
