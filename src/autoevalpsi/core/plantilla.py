@@ -11,9 +11,11 @@ Contrato público (versión de esquema 1). Cambiarlo exige subir `ESQUEMA_VERSIO
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
+from openpyxl.utils import range_boundaries
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -64,10 +66,21 @@ class CampoCabecera(_Modelo):
     tipo: Literal["texto"] = "texto"
 
 
+_CELDA = re.compile(r"^[A-Z]{1,3}[1-9][0-9]{0,6}$")
+
+
 class Fila(_Modelo):
     item: int = Field(ge=1)
     texto: str = ""
     y: Intervalo
+    # Celda del libro de Excel de la usuaria donde va el valor de este ítem («A19»); ver `Libro`.
+    celda: str | None = None
+
+    @model_validator(mode="after")
+    def _celda_valida(self) -> Self:
+        if self.celda is not None and not _CELDA.fullmatch(self.celda):
+            raise ValueError(f"celda de Excel no válida: «{self.celda}» (se espera algo como A19)")
+        return self
 
 
 class Tabla(_Modelo):
@@ -151,6 +164,27 @@ class Pagina(_Modelo):
         return self
 
 
+class Libro(_Modelo):
+    """Libro de Excel de la usuaria que sirve de molde de la salida (VD-R3).
+
+    La exportación llena una **copia** de `archivo` (que vive junto al .json de la plantilla):
+    vacía los rangos de `vaciar` y escribe cada ítem en su `celda`. Fórmulas y formato quedan.
+    """
+
+    archivo: str = Field(min_length=1)
+    hoja: str | None = None  # por defecto, la primera
+    vaciar: list[str] = []  # rangos que se limpian antes de escribir: «A1:L58», «I63:I71»…
+
+    @model_validator(mode="after")
+    def _rangos(self) -> Self:
+        for r in self.vaciar:
+            try:
+                range_boundaries(r)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"rango de Excel no válido en `vaciar`: «{r}»") from e
+        return self
+
+
 class UmbralesOMR(_Modelo):
     """CO-02: parámetros de decisión de casilla; se ajustan por plantilla (PI-R2)."""
 
@@ -164,6 +198,7 @@ class Plantilla(_Modelo):
     nombre: str = Field(min_length=1)
     version: int = Field(ge=1)
     omr: UmbralesOMR = UmbralesOMR()
+    libro: Libro | None = None
     paginas: list[Pagina] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -176,6 +211,10 @@ class Plantilla(_Modelo):
         repetidos = sorted({i for i in items if items.count(i) > 1})
         if repetidos:
             raise ValueError(f"item repetidos en la plantilla: {repetidos}")
+        celdas = [f.celda for p in self.paginas for t in p.tablas for f in t.filas if f.celda]
+        iguales = sorted({c for c in celdas if celdas.count(c) > 1})
+        if iguales:
+            raise ValueError(f"dos ítems escriben en la misma celda del Excel: {iguales}")
         return self
 
 

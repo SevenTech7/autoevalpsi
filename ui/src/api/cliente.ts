@@ -7,6 +7,8 @@ import type {
   Plantilla,
   PlantillaDef,
   ResultadoDesdeFoto,
+  ResultadoLibro,
+  ResultadoPagina,
   ResultadoExportacion,
   ResumenEvaluacion,
   ResumenPlantilla,
@@ -122,6 +124,18 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
       form.append("foto", foto);
       form.append("nombre", nombre);
       return pedir<ResultadoDesdeFoto>("POST", "/api/plantillas/desde-foto", form);
+    },
+    /** El libro de Excel de la usuaria pasa a ser el molde de la salida (versión nueva). */
+    ponerLibro: (plantilla: string, archivo: File) => {
+      const form = new FormData();
+      form.append("archivo", archivo);
+      return pedir<ResultadoLibro>("POST", `/api/plantillas/${id(plantilla)}/libro`, form);
+    },
+    /** Una página más para la plantilla (por ejemplo el reverso), armada desde otra foto. */
+    agregarPagina: (plantilla: string, foto: File) => {
+      const form = new FormData();
+      form.append("foto", foto);
+      return pedir<ResultadoPagina>("POST", `/api/plantillas/${id(plantilla)}/paginas`, form);
     },
     importarPlantilla: (archivo: File) => {
       const form = new FormData();

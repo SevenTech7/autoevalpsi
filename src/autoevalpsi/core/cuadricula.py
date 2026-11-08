@@ -15,6 +15,7 @@ from itertools import pairwise
 
 import cv2
 import numpy as np
+from openpyxl.utils import get_column_letter
 
 
 @dataclass(frozen=True)
@@ -266,16 +267,17 @@ def _nombre_de_seccion(
 
 
 def _tramos_rectos(filas: list[Celda], ancho: float) -> list[list[int]]:
-    """Índices de filas seguidas cuya celda no se desvía más de un cuarto de celda de la mediana
-    del tramo: una columna inclinada se parte en varias tablas rectas."""
+    """Índices de filas seguidas cuya celda cae a menos de 6 % del ancho de la primera del tramo.
+
+    La tabla del esquema tiene **una** franja x para todas sus filas: en una columna inclinada (la
+    foto de una hoja curva) o escalonada, cada tramo recto es su propia tabla y así cada celda
+    queda a unos pocos píxeles de donde está de verdad."""
     tramos: list[list[int]] = []
     for k, c in enumerate(filas):
-        if tramos:
-            cx = float(np.median([filas[i].cx for i in tramos[-1]]))
-            if abs(c.cx - cx) <= 0.25 * ancho:
-                tramos[-1].append(k)
-                continue
-        tramos.append([k])
+        if tramos and abs(c.cx - filas[tramos[-1][0]].cx) <= 0.06 * ancho:
+            tramos[-1].append(k)
+        else:
+            tramos.append([k])
     return tramos
 
 
@@ -297,6 +299,9 @@ def plantilla_de_digitos(
     nombre: str,
     textos: list | None = None,
     digitos: tuple[str, ...] = ("0", "1", "2"),
+    primer_item: int = 1,
+    primera_columna: int = 0,
+    imagen: str | None = None,
 ) -> tuple[dict, np.ndarray, list[BloqueItems]]:
     """Plantilla (esquema v1) con una tabla de dígitos por columna de respuestas, la referencia con
     las celdas sin lo escrito a mano, y los bloques hallados. Es un borrador: se corrige en el editor."""
@@ -306,9 +311,14 @@ def plantilla_de_digitos(
     bloques = bloques_de_items(gris, lector, textos)
     tablas: list[dict] = []
     zona = np.zeros_like(gris)
-    item = 0
+    item = primer_item - 1
+    columna = primera_columna - 1  # columna del libro de Excel: una por área (A, B, C…)
     for k, b in enumerate(bloques, start=1):
         seccion = b.seccion or f"Columna {k}"
+        if b.numeros[0] == 1 or columna < primera_columna:
+            columna += (
+                1  # un bloque que vuelve a empezar en 1 es un área nueva; el 31… sigue en la misma
+            )
         for tramo in _tramos_rectos(b.filas, ancho):
             fs = [b.filas[i] for i in tramo]
             x0 = int(np.median([c.x0 for c in fs]))
@@ -317,7 +327,14 @@ def plantilla_de_digitos(
             filas = []
             for i, banda in zip(tramo, bandas, strict=True):
                 item += 1
-                filas.append({"item": item, "texto": f"{seccion} · {b.numeros[i]}", "y": banda})
+                filas.append(
+                    {
+                        "item": item,
+                        "texto": f"{seccion} · {b.numeros[i]}",
+                        "y": banda,
+                        "celda": f"{get_column_letter(columna + 1)}{b.numeros[i]}",
+                    }
+                )
             tablas.append(
                 {
                     "tipo": "digito",
@@ -348,7 +365,7 @@ def plantilla_de_digitos(
         "version": 1,
         "paginas": [
             {
-                "imagen_referencia": f"{id}.png",
+                "imagen_referencia": imagen or f"{id}.png",
                 "tamano_px": [ancho_foto, alto_foto],
                 "tablas": tablas,
             }

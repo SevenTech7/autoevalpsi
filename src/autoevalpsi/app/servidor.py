@@ -100,6 +100,7 @@ from autoevalpsi.app.vinculo import Vinculos
 from autoevalpsi.core.borrador import plantilla_automatica
 from autoevalpsi.core.excel import ArchivoBloqueado, NombreArchivo, exportar
 from autoevalpsi.core.imagen import ImagenInvalida, cargar_imagen, evaluar_calidad
+from autoevalpsi.core.libro import LibroBaseInvalido
 from autoevalpsi.core.ocr.lector import Lector
 from autoevalpsi.core.ocr.onnx import LectorONNX
 from autoevalpsi.core.pipeline import procesar_foto
@@ -115,6 +116,15 @@ _SUBIDAS = {
     "/api/plantillas/importar": MAX_ZIP,
     "/api/plantillas/desde-foto": MAX_FOTO,
 }
+_SUBIDA_DE_PLANTILLA = re.compile(r"/api/plantillas/[^/]+/(libro|paginas)")  # libro .xlsx o foto
+
+
+def _tope_de_subida(ruta: str) -> int | None:
+    if ruta in _SUBIDAS:
+        return _SUBIDAS[ruta]
+    return MAX_FOTO if _SUBIDA_DE_PLANTILLA.fullmatch(ruta) else None
+
+
 PUERTO = 8765
 PAGINA_CAPTURA = Path(__file__).parent / "captura" / "index.html"
 ESTATICOS = Path(__file__).parent / "estaticos"  # salida de `ui/` (vite build)
@@ -221,7 +231,7 @@ class Guardia:
             return await r(scope, receive, send)
         if scope["method"] in ("POST", "PUT", "PATCH"):
             largo = cabeceras.get("content-length")
-            tope = _SUBIDAS.get(ruta)
+            tope = _tope_de_subida(ruta)
             if largo is None and tope is not None:
                 r = _respuesta(411, "sin_tamano", "La petición no indica su tamaño.")
                 return await r(scope, receive, send)
@@ -564,9 +574,12 @@ def crear_app(
                     carpeta,
                     nombre=modo,
                     incluir_recortes=pedido.recortes,
+                    libro_base=plantillas.ruta_libro(inst),
                 )
             except ArchivoBloqueado as e:
                 raise _error(409, "archivo_bloqueado", str(e)) from e
+            except LibroBaseInvalido as e:
+                raise _error(422, "libro_base_invalido", str(e)) from e
             bd.marcar_exportada(id)
         return {
             "carpeta": str(carpeta),
@@ -741,6 +754,71 @@ def crear_app(
             definicion, {definicion["paginas"][0]["imagen_referencia"]: png.tobytes()}
         )
         return {**resumen(inst), "secciones": hallazgo["secciones"], "tipo": hallazgo["tipo"]}
+
+    @app.post("/api/plantillas/{id}/libro", status_code=201)
+    def poner_libro_de_excel(id: str, archivo: Annotated[UploadFile, File()]) -> dict:
+        """VD-R3: el libro de Excel de la usuaria pasa a ser el molde de la salida (versión nueva)."""
+        instalada(id)
+        datos = archivo.file.read(MAX_FOTO + 1)
+        if len(datos) > MAX_FOTO:
+            raise _error(413, "demasiado_grande", "El libro supera el máximo de 25 MB.")
+        if not (archivo.filename or "").lower().endswith(".xlsx"):
+            raise _error(422, "no_es_xlsx", "El libro debe ser un archivo de Excel (.xlsx).")
+        try:
+            inst, vaciar = plantillas.poner_libro(id, datos)
+        except LibroBaseInvalido as e:
+            raise _error(422, "libro_base_invalido", str(e)) from e
+        except PlantillaYaInstalada as e:
+            raise _error(409, "plantilla_ya_instalada", str(e)) from e
+        return {**resumen(inst), "vaciar": vaciar}
+
+    @app.post("/api/plantillas/{id}/paginas", status_code=201)
+    def agregar_pagina_desde_foto(id: str, foto: Annotated[UploadFile, File()]) -> dict:
+        """Una página más para la plantilla (el reverso de una hoja), armada desde otra foto."""
+        base = instalada(id)
+        if not isinstance(lector, LectorONNX):
+            raise _error(
+                409,
+                "ocr_no_disponible",
+                "Armar una página desde una foto necesita el lector de texto (OCR), que esta "
+                "instalación no tiene activado.",
+            )
+        datos = foto.file.read(MAX_FOTO + 1)
+        if len(datos) > MAX_FOTO:
+            raise _error(413, "demasiado_grande", "La foto supera el máximo de 25 MB.")
+        try:
+            imagen = cargar_imagen(datos)
+        except ImagenInvalida as e:
+            raise _error(422, "foto_invalida", str(e)) from e
+        p = base.plantilla
+        filas = [f for pg in p.paginas for t in pg.tablas for f in t.filas]
+        letras = {re.match(r"[A-Z]+", f.celda).group() for f in filas if f.celda}
+        n = len(p.paginas) + 1
+        definicion, limpia, hallazgo = plantilla_automatica(
+            imagen,
+            lector,
+            id=id,
+            nombre=p.nombre,
+            primer_item=max((f.item for f in filas), default=0) + 1,
+            primera_columna=len(letras),
+            imagen=f"{id}-p{n}.png",
+        )
+        if hallazgo["items"] == 0:
+            raise _error(
+                422,
+                "sin_items",
+                "No encontré preguntas ni celdas numeradas en esa foto. Prueba con una foto más "
+                "derecha, con buena luz y la hoja completa.",
+            )
+        ok, png = cv2.imencode(".png", limpia)
+        if not ok:
+            raise _error(500, "imagen", "No se pudo guardar la imagen de la página.")
+        pagina = definicion["paginas"][0]
+        try:
+            inst = plantillas.agregar_pagina(id, pagina, png.tobytes())
+        except PlantillaYaInstalada as e:
+            raise _error(409, "plantilla_ya_instalada", str(e)) from e
+        return {**resumen(inst), "items_nuevos": hallazgo["items"], "tipo": hallazgo["tipo"]}
 
     # --- vínculo del celular (AP-D2) y página de captura (AP-R2) ------------------------------
 

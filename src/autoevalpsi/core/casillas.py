@@ -57,8 +57,8 @@ class ParametrosLectura:
     percentil_fondo: float = 85.0
     contraste_min: float = 100.0  # profundidad mínima de la tinta de la ganadora (0-255)
     desenfoque_sigma: float = 1.0  # quita el ruido de grano/JPEG antes de umbralizar
-    delta_digito_min: float = 22.0  # caída mínima de gris (0-255) para contar un píxel como tinta
-    delta_digito_rel: float = 0.28  # …o esta fracción del gris del papel, si es mayor
+    delta_digito_min: float = 20.0  # caída mínima de gris (0-255) para contar un píxel como tinta
+    delta_digito_rel: float = 0.15  # …o esta fracción del gris del papel, si es mayor
     tinta_digito: float = 0.008  # tinta mínima de una celda de dígito para considerarla escrita
     digito_confianza: float = 0.6  # por debajo: el dígito se propone pero se marca como dudoso
     digito_margen: float = 0.3  # distancia mínima al segundo dígito para no marcarlo dudoso

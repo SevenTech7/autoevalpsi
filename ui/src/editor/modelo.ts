@@ -241,6 +241,25 @@ export function textoDeFila(p: PaginaDef, t: number, f: number, texto: string): 
   return nueva;
 }
 
+export function celdaDeFila(p: PaginaDef, t: number, f: number, celda: string): PaginaDef {
+  const nueva = copiar(p);
+  nueva.tablas[t]!.filas[f]!.celda = celda.trim().toUpperCase() || null;
+  return nueva;
+}
+
+/** «A1:L58, I63:I71» → ["A1:L58", "I63:I71"]: separa por comas, punto y coma o saltos de línea. */
+export function rangosDeTexto(texto: string): string[] {
+  return texto
+    .split(/[\s,;]+/)
+    .map((r) => r.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+export function rangosAVaciar(plantilla: PlantillaDef, texto: string): PlantillaDef {
+  if (!plantilla.libro) return plantilla;
+  return { ...plantilla, libro: { ...plantilla.libro, vaciar: rangosDeTexto(texto) } };
+}
+
 export function seccionDeTabla(p: PaginaDef, t: number, seccion: string): PaginaDef {
   const nueva = copiar(p);
   nueva.tablas[t]!.seccion = seccion.trim() || null;
