@@ -192,7 +192,14 @@ def _limpiar_etiqueta(texto: str) -> str:
 
 
 def a_plantilla(
-    borrador: dict, gris: np.ndarray, *, id: str, nombre: str, tinta_minima: float = 0.02
+    borrador: dict,
+    gris: np.ndarray,
+    *,
+    id: str,
+    nombre: str,
+    tinta_minima: float = 0.02,
+    primer_item: int = 1,
+    imagen: str | None = None,
 ) -> tuple[dict, np.ndarray]:
     """Plantilla del esquema v1 (una tabla de una fila por ítem) y su referencia sin marcas.
 
@@ -202,7 +209,7 @@ def a_plantilla(
     alto, ancho = gris.shape[:2]
     tablas: list[dict] = []
     zona = np.zeros_like(gris)
-    n = 0
+    n = primer_item - 1
     for s in borrador["secciones"]:
         for it in s["items"]:
             n += 1
@@ -228,7 +235,11 @@ def a_plantilla(
         "version": 1,
         "omr": {"tinta_minima": tinta_minima},
         "paginas": [
-            {"imagen_referencia": f"{id}.png", "tamano_px": [ancho, alto], "tablas": tablas}
+            {
+                "imagen_referencia": imagen or f"{id}.png",
+                "tamano_px": [ancho, alto],
+                "tablas": tablas,
+            }
         ],
     }
     return plantilla, limpia
@@ -257,11 +268,15 @@ def plantilla_desde_foto(
     id: str,
     nombre: str,
     lineas: list[LineaCar] | None = None,
+    primer_item: int = 1,
+    imagen: str | None = None,
 ) -> tuple[dict, np.ndarray, dict]:
     """Foto llena (BGR) → (plantilla v1, referencia sin marcas, borrador con las secciones)."""
     borrador = construir(lineas if lineas is not None else leer_con_posiciones(img, lector))
     gris = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    plantilla, limpia = a_plantilla(borrador, gris, id=id, nombre=nombre)
+    plantilla, limpia = a_plantilla(
+        borrador, gris, id=id, nombre=nombre, primer_item=primer_item, imagen=imagen
+    )
     return plantilla, limpia, borrador
 
 
@@ -270,7 +285,14 @@ MINIMO_ITEMS_CELDAS = 20
 
 
 def plantilla_automatica(
-    img: np.ndarray, lector: LectorONNX, *, id: str, nombre: str
+    img: np.ndarray,
+    lector: LectorONNX,
+    *,
+    id: str,
+    nombre: str,
+    primer_item: int = 1,
+    primera_columna: int = 0,
+    imagen: str | None = None,
 ) -> tuple[dict, np.ndarray, dict]:
     """Elige el tipo de formulario por lo que ve y arma su borrador de plantilla.
 
@@ -281,7 +303,14 @@ def plantilla_automatica(
 
     lineas = leer_con_posiciones(img, lector)
     definicion, limpia, bloques = plantilla_de_digitos(
-        img, lector, id=id, nombre=nombre, textos=lineas
+        img,
+        lector,
+        id=id,
+        nombre=nombre,
+        textos=lineas,
+        primer_item=primer_item,
+        primera_columna=primera_columna,
+        imagen=imagen,
     )
     if (
         len(bloques) >= MINIMO_BLOQUES
@@ -298,7 +327,13 @@ def plantilla_automatica(
             },
         )
     definicion, limpia, borrador = plantilla_desde_foto(
-        img, lector, id=id, nombre=nombre, lineas=lineas
+        img,
+        lector,
+        id=id,
+        nombre=nombre,
+        lineas=lineas,
+        primer_item=primer_item,
+        imagen=imagen,
     )
     return (
         definicion,

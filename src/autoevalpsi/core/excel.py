@@ -290,12 +290,22 @@ def exportar_evaluacion(
     *,
     nombre: NombreArchivo = NombreArchivo.PACIENTE,
     incluir_recortes: bool = False,
+    libro_base: Path | None = None,
 ) -> Path:
     """Escribe el `.xlsx` de la evaluación en `carpeta` y devuelve su ruta."""
     carpeta = Path(carpeta)
     carpeta.mkdir(parents=True, exist_ok=True)
     ruta = _ruta_libre(carpeta, nombre_archivo(ev, nombre), ev.id)
-    _guardar(_hoja_evaluacion(ev, incluir_recortes), ruta)
+    if ev.plantilla.libro is not None:
+        if libro_base is None:
+            raise ValueError("la plantilla usa un libro de Excel y no se indicó dónde está")
+        from autoevalpsi.core.libro import libro_de_la_usuaria
+
+        libro = libro_de_la_usuaria(ev, libro_base)
+        libro.properties.identifier = ev.id  # reexportar la misma evaluación la reemplaza
+    else:
+        libro = _hoja_evaluacion(ev, incluir_recortes)
+    _guardar(libro, ruta)
     return ruta
 
 
@@ -371,8 +381,11 @@ def exportar(
     *,
     nombre: NombreArchivo = NombreArchivo.PACIENTE,
     incluir_recortes: bool = False,
+    libro_base: Path | None = None,
 ) -> ResultadoExportacion:
     """Archivo de la evaluación + consolidado. Si el consolidado está bloqueado se lanza
     `ArchivoBloqueado` *después* de guardar el de la evaluación (CO-08)."""
-    archivo = exportar_evaluacion(ev, carpeta, nombre=nombre, incluir_recortes=incluir_recortes)
+    archivo = exportar_evaluacion(
+        ev, carpeta, nombre=nombre, incluir_recortes=incluir_recortes, libro_base=libro_base
+    )
     return ResultadoExportacion(archivo, actualizar_consolidado(ev, carpeta))

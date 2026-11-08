@@ -10,6 +10,7 @@ import io
 import json
 import re
 import shutil
+import tempfile
 import threading
 import uuid
 import zipfile
@@ -19,6 +20,7 @@ from pathlib import Path, PurePosixPath
 import numpy as np
 from pydantic import ValidationError
 
+from autoevalpsi.core.libro import proponer_vaciado
 from autoevalpsi.core.plantilla import Plantilla, PlantillaInvalida, cargar_plantilla
 from autoevalpsi.core.registro import RegistroInvalido, cargar_referencia
 
@@ -208,6 +210,67 @@ class RepositorioPlantillas:
 
     def ruta_imagen(self, inst: PlantillaInstalada, pagina: int) -> Path:
         return inst.ruta.parent / inst.plantilla.paginas[pagina].imagen_referencia
+
+    def ruta_libro(self, inst: PlantillaInstalada) -> Path | None:
+        """El libro de Excel base de la plantilla, si declara uno."""
+        libro = inst.plantilla.libro
+        return inst.ruta.parent / libro.archivo if libro else None
+
+    def _nueva_version(
+        self, id: str, cambiar, archivos: dict[str, bytes] | None = None
+    ) -> PlantillaInstalada:
+        """Copia la versión más nueva de `id`, aplica `cambiar(dict)` a su definición, le agrega
+        `archivos` y la instala como la versión siguiente. Nada queda a medias si algo falla."""
+        base = self.obtener(id)
+        datos = base.plantilla.model_dump(mode="json")
+        datos["version"] = base.plantilla.version + 1
+        cambiar(datos)
+        tmp = self.carpeta / f".editando-{uuid.uuid4().hex}"
+        try:
+            shutil.copytree(base.ruta.parent, tmp)
+            for nombre, contenido in (archivos or {}).items():
+                (tmp / self._ruta_segura(nombre).name).write_bytes(contenido)
+            (tmp / NOMBRE_JSON).write_text(
+                json.dumps(datos, indent=1, ensure_ascii=False), encoding="utf-8"
+            )
+            plantilla = self._validar(tmp / NOMBRE_JSON)
+            final = self.carpeta / id / f"v{plantilla.version}"
+            with self._candado:
+                if final.exists():
+                    raise PlantillaYaInstalada(
+                        "Alguien guardó otra versión a la vez; vuelve a abrir."
+                    )
+                tmp.rename(final)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        return PlantillaInstalada(plantilla, final / NOMBRE_JSON)
+
+    def agregar_pagina(self, id: str, pagina: dict, imagen: bytes) -> PlantillaInstalada:
+        """Versión nueva con una página más (armada desde otra foto); su imagen se guarda aparte."""
+        return self._nueva_version(
+            id, lambda d: d["paginas"].append(pagina), {pagina["imagen_referencia"]: imagen}
+        )
+
+    def poner_libro(self, id: str, contenido: bytes) -> tuple[PlantillaInstalada, list[str]]:
+        """Versión nueva que declara `contenido` (un .xlsx) como libro base de la salida.
+
+        Devuelve también los rangos que se vaciarán (una propuesta, que se corrige en el editor).
+        Lanza `LibroBaseInvalido` si el archivo no es un libro de Excel."""
+        base = self.obtener(id)
+        celdas = [
+            f.celda for p in base.plantilla.paginas for t in p.tablas for f in t.filas if f.celda
+        ]
+        with tempfile.TemporaryDirectory(dir=self.carpeta, prefix=".analizando-") as d:
+            ruta = Path(d) / "base.xlsx"
+            ruta.write_bytes(contenido)
+            vaciar = proponer_vaciado(ruta, None, celdas)
+        archivo = f"libro-{uuid.uuid4().hex[:8]}.xlsx"
+        inst = self._nueva_version(
+            id,
+            lambda d: d.update(libro={"archivo": archivo, "hoja": None, "vaciar": vaciar}),
+            {archivo: contenido},
+        )
+        return inst, vaciar
 
     @staticmethod
     def _ruta_segura(nombre: str) -> PurePosixPath:

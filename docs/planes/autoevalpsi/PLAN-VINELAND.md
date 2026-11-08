@@ -47,7 +47,7 @@ pueden ser de otro paciente pero tienen el mismo formato.
 | VD-R0 | Spike: ¿se leen los dígitos 0/1/2 con el OCR restringido? | hecha (2026-11-07) |
 | VD-R1 | Tabla de dígitos (`Tabla.tipo = "digito"`, una columna, una fila por ítem) y su lectura | hecha (2026-11-07) |
 | VD-R2 | Detectar la cuadrícula en la foto y armar la plantilla (borrador editable en el editor) | hecha (2026-11-07) |
-| VD-R3 | Exportar en el libro de la usuaria (`Fila.celda` + libro base, reglas de blancos) | pendiente |
+| VD-R3 | Exportar en el libro de la usuaria (`Fila.celda` + libro base, reglas de blancos) | hecha (2026-11-07) |
 | VD-R4 | Reverso: áreas 7–10 y letras A/B/C | pendiente |
 
 ## VD-R0 — resultado
@@ -126,3 +126,37 @@ foto»: si ve una cuadrícula de celdas numeradas arma tablas de dígitos; si no
 - **Límites conocidos:** una hoja curva se parte en muchas tablas pequeñas; el encabezado de una
   sección puede salir vacío si su celda no se detecta (se llama «Columna N»); el nombre del
   paciente, escrito a mano arriba, no se ubica solo (se agrega como campo en el editor).
+
+## VD-R3 — resultado
+
+- **Esquema (aditivo):** `Fila.celda` («A19») y `Plantilla.libro` (`archivo`, `hoja`, `vaciar`:
+  rangos). Las celdas no pueden repetirse; sin `libro`, se ignoran.
+- **Exportar:** `core/libro.py` abre una **copia** del libro de la usuaria, vacía los rangos de
+  `vaciar` (nunca una fórmula), escribe cada ítem en su celda (un dígito como número; sin respuesta
+  → vacía) y agrega la hoja «AutoEvalPsi» (paciente, fecha, formulario, campos de la cabecera). Las
+  sumas se recalculan al abrir. El consolidado sigue siendo el genérico.
+- **Libro base:** `POST /api/plantillas/{id}/libro` (versión nueva). El servidor **propone** qué se
+  vacía: el rectángulo de los ítems, los números escritos a mano fuera de él y los textos cortos
+  junto a un número o fórmula (clasificaciones). Sobre el libro de muestra propuso
+  `A1:L58, I63:I71, J75:J77, J79, K63:K71, K79`: justo lo que la usuaria llena a mano; los
+  rótulos y las fórmulas quedan. Se corrige en el editor («Libro de Excel»).
+- **Varias hojas:** `POST /api/plantillas/{id}/paginas` arma otra página desde otra foto (el
+  reverso), continuando la numeración de ítems y la columna del libro (una por área; un bloque que
+  vuelve a empezar en 1 abre columna nueva, el 31… sigue en la misma: A…F en el frente, G…I y J…L
+  en el reverso).
+- **Editor:** campo «Celda del Excel» por fila (si hay libro), lista de rangos que se vacían, subir
+  el libro y agregar una página (piden no tener cambios sin guardar).
+- **Prueba de punta a punta con el material real** (servidor de prueba): frente + reverso → plantilla
+  de 2 páginas (427 celdas) + libro de la muestra → las dos fotos leídas → exportar. El Excel sale
+  con los dígitos en sus columnas (A…L) y filas, `=SUM` y `=A59` intactos, los valores a mano de la
+  muestra vaciados y «AutoEvalPsi» con el paciente.
+- **Ajustes de lectura que salieron de esa prueba:** una columna se parte en tablas rectas cada vez
+  que su celda se desvía más de 6 % del ancho de la primera del tramo; el contraste mínimo de la
+  tinta es `max(20, 0,15 × papel)` (el lápiz fino del área 6 solo baja ~40 niveles sobre un papel de
+  177). Resultado leyendo la misma foto con su plantilla: frente 85 celdas vacías (hay ≈ 80 de
+  verdad), el resto con dígito; reverso 158 de 158 con dígito. Algunas celdas con lápiz muy fino
+  aún salen «vacía» (se avisa y se ve el recorte).
+- **Pruebas:** 10 del libro, 4 del servidor (libro, exportación, página) y 7 de la interfaz; suites
+  completas en verde (449 de Python, 139 de la interfaz).
+- **Pendiente (VD-R4):** nombre del paciente y las letras A/B/C como campos; hoja curva muy
+  distinta de la de referencia (hoy se parte en muchas tablas).

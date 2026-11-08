@@ -138,6 +138,14 @@ export interface FilaDef {
   item: number;
   texto: string;
   y: Intervalo;
+  celda?: string | null; // celda del libro de Excel donde va el valor («A19»)
+}
+
+/** El libro de Excel de la usuaria, que sirve de molde de la salida. */
+export interface LibroDef {
+  archivo: string;
+  hoja?: string | null;
+  vaciar: string[]; // rangos que se limpian antes de escribir la evaluación
 }
 
 export interface TablaDef {
@@ -168,7 +176,17 @@ export interface PlantillaDef {
   nombre: string;
   version: number;
   omr: { tinta_minima: number; margen_relativo: number };
+  libro?: LibroDef | null;
   paginas: PaginaDef[];
+}
+
+export interface ResultadoLibro extends ResumenPlantilla {
+  vaciar: string[];
+}
+
+export interface ResultadoPagina extends ResumenPlantilla {
+  items_nuevos: number;
+  tipo: "si_no" | "celdas";
 }
 
 export interface ResultadoDesdeFoto extends ResumenPlantilla {

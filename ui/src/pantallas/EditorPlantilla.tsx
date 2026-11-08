@@ -10,6 +10,8 @@ import {
   agregarColumna,
   agregarFila,
   agregarPreguntaSiNo,
+  celdaDeFila,
+  rangosAVaciar,
   cajaDeCelda,
   contarItems,
   moverCabecera,
@@ -97,6 +99,9 @@ function EditorCargado({
   const [guardando, setGuardando] = useState(false);
   const [listo, setListo] = useState(false);
   const [campoNuevo, setCampoNuevo] = useState("");
+  const [ocupadoServidor, setOcupadoServidor] = useState(false);
+  const entradaLibro = useRef<HTMLInputElement>(null);
+  const entradaPagina = useRef<HTMLInputElement>(null);
   const contenedor = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const arrastre = useRef<Arrastre | null>(null);
@@ -294,6 +299,39 @@ function EditorCargado({
       setGuardando(false);
     }
   }
+
+  /** Lo que crea una versión en el servidor (libro, página): exige no tener cambios sin guardar. */
+  async function enElServidor(hacer: () => Promise<string>, falla: string) {
+    setOcupadoServidor(true);
+    try {
+      const mensaje = await hacer();
+      await avisar({ tipo: "ok", titulo: "Listo", mensaje });
+      alGuardar();
+    } catch (e) {
+      await avisar({ tipo: "error", titulo: falla, mensaje: mensajeDe(e) });
+    } finally {
+      setOcupadoServidor(false);
+      if (entradaLibro.current) entradaLibro.current.value = "";
+      if (entradaPagina.current) entradaPagina.current.value = "";
+    }
+  }
+
+  const ponerLibro = (archivo: File) =>
+    enElServidor(async () => {
+      const r = await api.ponerLibro(inicial.id, archivo);
+      return (
+        `El libro de Excel quedó como molde de la salida (versión ${r.version}). ` +
+        (r.vaciar.length > 0
+          ? `Antes de escribir cada evaluación se vaciarán: ${r.vaciar.join(", ")}. Revisa esa lista en «Libro de Excel» y corrígela si hace falta.`
+          : "No se vaciará ninguna celda: revisa la lista en «Libro de Excel».")
+      );
+    }, "No se pudo usar ese libro");
+
+  const agregarPagina = (foto: File) =>
+    enElServidor(async () => {
+      const r = await api.agregarPagina(inicial.id, foto);
+      return `Se agregó la página ${r.paginas} con ${r.items_nuevos} ${r.tipo === "celdas" ? "celdas de respuesta" : "preguntas"} (versión ${r.version}). Es un borrador: revísala.`;
+    }, "No se pudo agregar la página");
 
   async function borrarTabla(t: number) {
     const n = pagina.tablas[t]!.filas.length;
@@ -563,6 +601,57 @@ function EditorCargado({
                   Agregar
                 </Boton>
               </form>
+
+              <div className="space-y-2 border-t border-slate-200 pt-3">
+                <h3 className="font-semibold">Libro de Excel</h3>
+                {borrador.libro ? (
+                  <label className="block text-slate-700">
+                    Celdas del libro que se vacían antes de escribir (rangos separados por comas)
+                    <textarea
+                      aria-label="Rangos que se vacían"
+                      rows={2}
+                      className="mt-1 block w-full rounded-lg border border-slate-300 px-2 py-1.5 text-base"
+                      value={borrador.libro.vaciar.join(", ")}
+                      onChange={(e) => aplicar(rangosAVaciar(borrador, e.target.value), "vaciar")}
+                      onBlur={() => despachar({ t: "soltarClave" })}
+                    />
+                  </label>
+                ) : (
+                  <p className="text-slate-700">
+                    La salida es el Excel genérico. Si tienes tu propio libro, elígelo y cada pregunta se escribe en su
+                    celda.
+                  </p>
+                )}
+                <input
+                  ref={entradaLibro}
+                  type="file"
+                  aria-label="Elegir el libro de Excel"
+                  accept=".xlsx"
+                  disabled={sinGuardar || ocupadoServidor}
+                  className="block text-base"
+                  onChange={(e) => {
+                    const archivo = e.target.files?.[0];
+                    if (archivo) void ponerLibro(archivo);
+                  }}
+                />
+                <h3 className="pt-1 font-semibold">Páginas ({borrador.paginas.length})</h3>
+                <p className="text-slate-700">Agrega el reverso u otra hoja del formulario desde una foto.</p>
+                <input
+                  ref={entradaPagina}
+                  type="file"
+                  aria-label="Agregar una página desde una foto"
+                  accept="image/jpeg,image/png"
+                  disabled={sinGuardar || ocupadoServidor}
+                  className="block text-base"
+                  onChange={(e) => {
+                    const foto = e.target.files?.[0];
+                    if (foto) void agregarPagina(foto);
+                  }}
+                />
+                {sinGuardar && (
+                  <p className="text-sm text-amber-800">Guarda los cambios antes de cambiar el libro o agregar una página.</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -737,6 +826,7 @@ function PanelTabla({
   const tabla = pagina.tablas[sel.tabla]!;
   const fila = tabla.filas[sel.fila]!;
   const campo = "mt-1 block w-full rounded-lg border border-slate-300 px-2 py-1.5 text-base";
+  const hayLibro = Boolean(plantilla.libro);
   return (
     <div className="space-y-3">
       <h3 className="font-semibold">
@@ -815,6 +905,17 @@ function PanelTabla({
                 onChange={(e) => aplicarPagina(textoDeFila(pagina, sel.tabla, i, e.target.value), `txt-${f.item}`)}
                 onBlur={soltar}
               />
+              {hayLibro && (
+                <input
+                  aria-label={`Celda del Excel de la fila ${f.item}`}
+                  placeholder="A1"
+                  className="w-16 shrink-0 rounded border border-slate-300 px-1.5 py-1 text-base uppercase"
+                  value={f.celda ?? ""}
+                  onFocus={() => elegir({ tipo: "celda", tabla: sel.tabla, fila: i, columna: sel.columna })}
+                  onChange={(e) => aplicarPagina(celdaDeFila(pagina, sel.tabla, i, e.target.value), `cel-${f.item}`)}
+                  onBlur={soltar}
+                />
+              )}
               <button
                 type="button"
                 aria-label={`Quitar la fila ${f.item}`}

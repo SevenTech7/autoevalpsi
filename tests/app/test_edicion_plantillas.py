@@ -144,3 +144,165 @@ def test_el_nombre_es_obligatorio(tmp_path):
                 data={"nombre": "  "},
             )
     assert r.status_code == 422 and _codigo(r) == "nombre_vacio"
+
+
+# --- libro de Excel de la usuaria y páginas nuevas (VD-R3) ---------------------------------------
+
+
+def _xlsx(celdas: dict[str, object]) -> bytes:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Hoja1"
+    for k, v in celdas.items():
+        hoja[k] = v
+    buf = BytesIO()
+    libro.save(buf)
+    return buf.getvalue()
+
+
+def test_poner_el_libro_crea_la_version_siguiente_con_lo_que_se_vaciara(entorno):
+    cliente, repo = entorno
+    id, definicion = _definicion(cliente)
+    editada = copy.deepcopy(definicion)
+    filas = editada["paginas"][0]["tablas"][0]["filas"]
+    filas[0]["celda"], filas[1]["celda"] = "A1", "A2"
+    assert (
+        cliente.post(f"/api/plantillas/{id}/versiones", json={"plantilla": editada}).status_code
+        == 201
+    )
+    base = _xlsx(
+        {
+            "A1": 2,
+            "A2": 1,
+            "A9": "=SUM(A1:A2)",
+            "I63": 9,
+            "H63": "receptivo",
+            "J63": "=A9",
+            "K63": "b",
+        }
+    )
+    r = cliente.post(
+        f"/api/plantillas/{id}/libro",
+        files={"archivo": ("VINELAND.xlsx", base, "application/octet-stream")},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["version"] == definicion["version"] + 2
+    assert r.json()["vaciar"] == ["A1:A2", "I63", "K63"]  # el rótulo y las fórmulas no
+    nueva = cliente.get(f"/api/plantillas/{id}").json()
+    assert nueva["libro"]["vaciar"] == ["A1:A2", "I63", "K63"]
+    assert repo.ruta_libro(repo.obtener(id)).is_file()
+
+
+def test_el_libro_debe_ser_xlsx_y_legible(entorno):
+    cliente, _ = entorno
+    id, _ = _definicion(cliente)
+    r = cliente.post(f"/api/plantillas/{id}/libro", files={"archivo": ("x.txt", b"hola")})
+    assert r.status_code == 422 and _codigo(r) == "no_es_xlsx"
+    r = cliente.post(f"/api/plantillas/{id}/libro", files={"archivo": ("x.xlsx", b"no es excel")})
+    assert r.status_code == 422 and _codigo(r) == "libro_base_invalido"
+    assert (
+        "x.xlsx" not in r.json()["detail"]["mensaje"]
+        or "base.xlsx" in r.json()["detail"]["mensaje"]
+    )
+
+
+def test_exportar_escribe_en_el_libro_de_la_usuaria(tmp_path, zip_plantilla, lote_sintetico):
+    from openpyxl import load_workbook
+
+    bd = BaseDatos(tmp_path / "d")
+    repo = RepositorioPlantillas(tmp_path / "d" / "plantillas")
+    repo.importar_zip(zip_plantilla)
+    app = crear_app(bd, repo, token=TOKEN)
+    try:
+        with TestClient(app, headers=AUTH, client=LAPTOP) as c:
+            id, definicion = _definicion(c)
+            editada = copy.deepcopy(definicion)
+            filas = [f for t in editada["paginas"][0]["tablas"] for f in t["filas"]]
+            for k, f in enumerate(filas, start=1):
+                f["celda"] = f"A{k}"
+            assert (
+                c.post(f"/api/plantillas/{id}/versiones", json={"plantilla": editada}).status_code
+                == 201
+            )
+            r = c.post(
+                f"/api/plantillas/{id}/libro",
+                files={"archivo": ("base.xlsx", _xlsx({"A40": "=SUM(A1:A12)"}))},
+            )
+            assert r.status_code == 201, r.text
+            sub = c.post(
+                "/api/fotos",
+                data={"plantilla": id},
+                files={"foto": ("f.jpg", lote_sintetico[0].foto.read_bytes())},
+            )
+            assert app.state.cola.esperar(60)
+            ev_id = sub.json()["trabajo"]["evaluacion_id"]
+            assert (
+                c.put(f"/api/evaluaciones/{ev_id}", json={"confirmar_cabecera": True}).status_code
+                == 200
+            )
+            ex = c.post(
+                f"/api/evaluaciones/{ev_id}/exportar", json={"carpeta": str(tmp_path / "x")}
+            )
+            assert ex.status_code == 200, ex.text
+            libro = load_workbook(ex.json()["evaluacion"])
+            assert "AutoEvalPsi" in libro.sheetnames  # hoja con paciente y fecha
+            assert libro["Hoja1"]["A40"].value == "=SUM(A1:A12)"  # la fórmula de la usuaria sigue
+            leidos = [libro["Hoja1"][f"A{k}"].value for k in range(1, 13)]
+            assert any(v is not None for v in leidos)  # los ítems quedaron en sus celdas
+    finally:
+        bd.cerrar()
+
+
+def test_agregar_una_pagina_desde_otra_foto(tmp_path, zip_plantilla, monkeypatch):
+    """El constructor (OCR) se sustituye por uno falso: aquí se prueba el cableado y la versión."""
+    from autoevalpsi.core.ocr.onnx import LectorONNX
+
+    llamadas = {}
+
+    def falso(foto, lector, **kw):
+        llamadas.update(kw)
+        pagina = {
+            "imagen_referencia": kw["imagen"],
+            "tamano_px": [300, 300],
+            "tablas": [
+                {
+                    "tipo": "digito",
+                    "opciones": ["0", "1", "2"],
+                    "columnas_x": [[100, 150]],
+                    "filas": [
+                        {"item": kw["primer_item"], "texto": "nueva", "y": [10, 40], "celda": "Z1"}
+                    ],
+                }
+            ],
+        }
+        return (
+            {"paginas": [pagina]},
+            np.full((300, 300), 255, np.uint8),
+            {"tipo": "celdas", "items": 1, "secciones": 1},
+        )
+
+    monkeypatch.setattr("autoevalpsi.app.servidor.plantilla_automatica", falso)
+    bd = BaseDatos(tmp_path / "d")
+    repo = RepositorioPlantillas(tmp_path / "d" / "plantillas")
+    repo.importar_zip(zip_plantilla)
+    app = crear_app(bd, repo, token=TOKEN, lector=LectorONNX())
+    try:
+        with TestClient(app, headers=AUTH, client=LAPTOP) as c:
+            id, definicion = _definicion(c)
+            items = sum(len(t["filas"]) for t in definicion["paginas"][0]["tablas"])
+            r = c.post(f"/api/plantillas/{id}/paginas", files={"foto": ("f.png", _foto_png())})
+            assert r.status_code == 201, r.text
+            assert r.json()["paginas"] == 2 and r.json()["version"] == definicion["version"] + 1
+            assert llamadas["primer_item"] == items + 1  # la numeración sigue donde iba
+            assert llamadas["imagen"] == f"{id}-p2.png"
+            assert (
+                c.get(f"/api/plantillas/{id}/referencia/1").status_code == 200
+            )  # su imagen se sirve
+            vieja = c.get(f"/api/plantillas/{id}", params={"version": definicion["version"]}).json()
+            assert len(vieja["paginas"]) == 1  # la versión anterior no cambió
+    finally:
+        bd.cerrar()

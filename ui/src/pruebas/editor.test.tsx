@@ -240,3 +240,88 @@ describe("pantalla de plantillas", () => {
     expect(within(popup).getByText(/61 preguntas en 12 secciones/)).toBeInTheDocument();
   });
 });
+
+describe("libro de Excel y páginas (VD-R3)", () => {
+  const conLibro = (): PlantillaDef => ({
+    ...definicion(),
+    libro: { archivo: "libro-ab12.xlsx", hoja: null, vaciar: ["A1:L58", "I63:I71"] },
+  });
+
+  function montarConLibro(sobre: Parameters<typeof clienteFalso>[0] = {}) {
+    const api = clienteFalso({ plantillaDef: vi.fn().mockResolvedValue(conLibro()), ...sobre });
+    render(
+      <ContextoApi.Provider value={api}>
+        <EditorPlantilla id="sino" />
+      </ContextoApi.Provider>,
+    );
+    return api;
+  }
+
+  it("las celdas del Excel se editan por fila, en mayúsculas, solo si hay libro", async () => {
+    montar(); // sin libro
+    await userEvent.click(await screen.findByRole("button", { name: /1\. Martillo/ }));
+    expect(screen.queryByLabelText("Celda del Excel de la fila 1")).not.toBeInTheDocument();
+  });
+
+  it("con libro: escribir la celda la guarda normalizada", async () => {
+    montarConLibro();
+    await userEvent.click(await screen.findByRole("button", { name: /1\. Martillo/ }));
+    const celda = screen.getByLabelText("Celda del Excel de la fila 1");
+    await userEvent.type(celda, "b12");
+    expect(celda).toHaveValue("B12");
+    expect(screen.getByText("Cambios sin guardar")).toBeInTheDocument();
+  });
+
+  it("muestra los rangos que se vacían y se pueden corregir", async () => {
+    montarConLibro();
+    const caja = await screen.findByLabelText("Rangos que se vacían");
+    expect(caja).toHaveValue("A1:L58, I63:I71");
+    fireEvent.change(caja, { target: { value: "a1:b5; i63" } });
+    expect(screen.getByLabelText("Rangos que se vacían")).toHaveValue("A1:B5, I63");
+  });
+
+  it("elegir un libro lo manda al servidor y avisa qué se vaciará", async () => {
+    const ponerLibro = vi
+      .fn()
+      .mockResolvedValue({ id: "sino", nombre: "Sí/No", version: 3, paginas: 1, items: 2, vaciar: ["A1:L58", "I63"] });
+    montar({ ponerLibro });
+    const archivo = new File(["x"], "VINELAND.xlsx");
+    await userEvent.upload(await screen.findByLabelText("Elegir el libro de Excel"), archivo);
+    expect(ponerLibro).toHaveBeenCalledWith("sino", archivo);
+    const popup = await screen.findByRole("dialog");
+    expect(popup).toHaveTextContent("versión 3");
+    expect(popup).toHaveTextContent("A1:L58, I63");
+  });
+
+  it("con cambios sin guardar no deja cambiar el libro ni agregar páginas", async () => {
+    montar();
+    await userEvent.type(await screen.findByLabelText("Nombre de la plantilla"), "x");
+    expect(screen.getByLabelText("Elegir el libro de Excel")).toBeDisabled();
+    expect(screen.getByLabelText("Agregar una página desde una foto")).toBeDisabled();
+    expect(screen.getByText(/Guarda los cambios antes/)).toBeInTheDocument();
+  });
+
+  it("agregar una página desde una foto avisa cuántas celdas encontró", async () => {
+    const agregarPagina = vi.fn().mockResolvedValue({
+      id: "sino",
+      nombre: "Sí/No",
+      version: 3,
+      paginas: 2,
+      items: 160,
+      items_nuevos: 158,
+      tipo: "celdas",
+    });
+    montar({ agregarPagina });
+    const foto = new File(["x"], "reverso.jpg", { type: "image/jpeg" });
+    await userEvent.upload(await screen.findByLabelText("Agregar una página desde una foto"), foto);
+    expect(agregarPagina).toHaveBeenCalledWith("sino", foto);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("página 2 con 158 celdas de respuesta");
+  });
+
+  it("si el servidor rechaza el libro lo dice en una ventana", async () => {
+    const ponerLibro = vi.fn().mockRejectedValue(new ErrorApi(422, "libro_base_invalido", "No se pudo abrir el libro."));
+    montar({ ponerLibro });
+    await userEvent.upload(await screen.findByLabelText("Elegir el libro de Excel"), new File(["x"], "a.xlsx"));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("No se pudo abrir el libro.");
+  });
+});
