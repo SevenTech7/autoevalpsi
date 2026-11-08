@@ -289,6 +289,14 @@ describe("libro de Excel y páginas (VD-R3)", () => {
     expect(screen.getByText("Cambios sin guardar")).toBeInTheDocument();
   });
 
+  it("las celdas que se conservan se escriben normalizadas", async () => {
+    montarConLibro();
+    const caja = await screen.findByLabelText("Celdas que se conservan");
+    fireEvent.change(caja, { target: { value: "k12; j15" } });
+    expect(screen.getByLabelText("Celdas que se conservan")).toHaveValue("K12, J15");
+    expect(screen.getByText("Cambios sin guardar")).toBeInTheDocument();
+  });
+
   it("elegir un libro lo manda al servidor y avisa qué se vaciará", async () => {
     const ponerLibro = vi
       .fn()

@@ -175,6 +175,9 @@ class Libro(_Modelo):
     hoja: str | None = None  # por defecto, la primera
     vaciar: list[str] = []  # rangos que se limpian antes de escribir: «A1:L58», «I63:I71»…
     celda_paciente: str | None = None  # dónde se escribe el nombre que pone la usuaria («N1»)
+    conservar: list[
+        str
+    ] = []  # celdas que no se vacían aunque caigan en un rango: rótulos fijos («J15»)
 
     @model_validator(mode="after")
     def _rangos(self) -> Self:
@@ -183,6 +186,9 @@ class Libro(_Modelo):
                 range_boundaries(r)
             except (ValueError, TypeError) as e:
                 raise ValueError(f"rango de Excel no válido en `vaciar`: «{r}»") from e
+        for c in self.conservar:
+            if not _CELDA.fullmatch(c):
+                raise ValueError(f"celda de Excel no válida en `conservar`: «{c}»")
         if self.celda_paciente is not None and not _CELDA.fullmatch(self.celda_paciente):
             raise ValueError(
                 f"celda de Excel no válida para el paciente: «{self.celda_paciente}» (se espera algo como N1)"

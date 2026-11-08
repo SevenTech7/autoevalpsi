@@ -194,6 +194,7 @@ def test_poner_el_libro_crea_la_version_siguiente_con_lo_que_se_vaciara(entorno)
     assert r.json()["vaciar"] == ["A1:A2", "I63", "K63"]  # el rótulo y las fórmulas no
     nueva = cliente.get(f"/api/plantillas/{id}").json()
     assert nueva["libro"]["vaciar"] == ["A1:A2", "I63", "K63"]
+    assert nueva["libro"]["conservar"] == []
     assert repo.ruta_libro(repo.obtener(id)).is_file()
 
 

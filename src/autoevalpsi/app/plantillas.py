@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath
 import numpy as np
 from pydantic import ValidationError
 
-from autoevalpsi.core.libro import proponer_vaciado
+from autoevalpsi.core.libro import proponer_conservar, proponer_vaciado
 from autoevalpsi.core.plantilla import Plantilla, PlantillaInvalida, cargar_plantilla
 from autoevalpsi.core.registro import RegistroInvalido, cargar_referencia
 
@@ -278,10 +278,13 @@ class RepositorioPlantillas:
             ruta = Path(d) / "base.xlsx"
             ruta.write_bytes(contenido)
             vaciar = proponer_vaciado(ruta, None, celdas)
+            conservar = proponer_conservar(ruta, None, celdas)
         archivo = f"libro-{uuid.uuid4().hex[:8]}.xlsx"
         inst = self._nueva_version(
             id,
-            lambda d: d.update(libro={"archivo": archivo, "hoja": None, "vaciar": vaciar}),
+            lambda d: d.update(
+                libro={"archivo": archivo, "hoja": None, "vaciar": vaciar, "conservar": conservar}
+            ),
             {archivo: contenido},
         )
         return inst, vaciar

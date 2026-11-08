@@ -29,11 +29,11 @@ def _valor(opcion: str) -> int | str:
     return int(opcion) if opcion.isdigit() else opcion
 
 
-def _vaciar(hoja, rango: str) -> None:
+def _vaciar(hoja, rango: str, conservar: frozenset[str] = frozenset()) -> None:
     c0, f0, c1, f1 = range_boundaries(rango)
     for fila in hoja.iter_rows(min_row=f0, max_row=f1, min_col=c0, max_col=c1):
         for celda in fila:
-            if isinstance(celda, MergedCell):
+            if isinstance(celda, MergedCell) or celda.coordinate in conservar:
                 continue
             if isinstance(celda.value, str) and celda.value.startswith("="):
                 continue  # una fórmula nunca se borra: es el cálculo de la usuaria
@@ -54,8 +54,9 @@ def libro_de_la_usuaria(ev, base: Path) -> Workbook:
     if libro_decl.hoja and libro_decl.hoja not in libro.sheetnames:
         raise LibroBaseInvalido(f"El libro base no tiene la hoja «{libro_decl.hoja}».")
     hoja = libro[libro_decl.hoja] if libro_decl.hoja else libro.worksheets[0]
+    conservar = frozenset(libro_decl.conservar)
     for rango in libro_decl.vaciar:
-        _vaciar(hoja, rango)
+        _vaciar(hoja, rango, conservar)
 
     por_item = {f.item: f for f in ev.filas}
     for pagina in ev.plantilla.paginas:
@@ -91,6 +92,34 @@ def libro_de_la_usuaria(ev, base: Path) -> Workbook:
     datos.column_dimensions["A"].width = 18
     datos.column_dimensions["B"].width = 44
     return libro
+
+
+def proponer_conservar(base: Path, hoja: str | None, celdas: list[str]) -> list[str]:
+    """Celdas que quedan dentro del rectángulo de los ítems pero no son datos: textos fijos de la
+    hoja de la usuaria (p. ej. la letra A, B o C que marca el final de cada columna). Se conservan
+    al vaciar; los valores del paciente son números y esos sí se limpian."""
+    if not celdas:
+        return []
+    try:
+        libro = load_workbook(base)
+    except (OSError, ValueError, KeyError, BadZipFile) as e:
+        raise LibroBaseInvalido(f"No se pudo abrir el libro de Excel «{base.name}»: {e}") from e
+    if hoja and hoja not in libro.sheetnames:
+        raise LibroBaseInvalido(f"El libro no tiene la hoja «{hoja}».")
+    ws = libro[hoja] if hoja else libro.worksheets[0]
+    limites = [range_boundaries(c) for c in celdas]
+    c0, f0 = min(b[0] for b in limites), min(b[1] for b in limites)
+    c1, f1 = max(b[2] for b in limites), max(b[3] for b in limites)
+    mias = set(celdas)
+    return [
+        c.coordinate
+        for fila in ws.iter_rows(min_row=f0, max_row=f1, min_col=c0, max_col=c1)
+        for c in fila
+        if isinstance(c.value, str)
+        and c.value.strip()
+        and not c.value.startswith("=")
+        and c.coordinate not in mias
+    ]
 
 
 def proponer_vaciado(base: Path, hoja: str | None, celdas: list[str]) -> list[str]:

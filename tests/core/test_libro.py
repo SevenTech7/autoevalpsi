@@ -6,7 +6,7 @@ import pytest
 from openpyxl import Workbook, load_workbook
 
 from autoevalpsi.core.excel import Evaluacion, FilaEvaluacion, exportar
-from autoevalpsi.core.libro import HOJA_DATOS, LibroBaseInvalido
+from autoevalpsi.core.libro import HOJA_DATOS, LibroBaseInvalido, proponer_conservar
 from autoevalpsi.core.plantilla import Plantilla
 
 
@@ -162,6 +162,35 @@ def test_un_libro_base_ilegible_dice_cual(tmp_path):
     malo.write_bytes(b"no soy un excel")
     with pytest.raises(LibroBaseInvalido, match="base.xlsx"):
         exportar(evaluacion(), tmp_path / "salida", libro_base=malo)
+
+
+def test_los_rotulos_dentro_del_rango_se_conservan(tmp_path):
+    """La letra A, B o C que marca el final de una columna es del libro, no del paciente."""
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Hoja1"
+    for r in range(1, 5):
+        hoja.cell(r, 1, 2)  # valores de otro paciente
+    hoja["B3"] = "B"  # rótulo fijo dentro del rectángulo de los ítems
+    hoja["B1"] = 7  # número suelto: este sí es dato
+    ruta = tmp_path / "base.xlsx"
+    libro.save(ruta)
+    assert proponer_conservar(ruta, None, ["A1", "A4", "B1"]) == ["B3"]
+    assert proponer_conservar(ruta, None, []) == []
+
+    decl = {"archivo": "base.xlsx", "vaciar": ["A1:B4"], "conservar": ["B3"]}
+    ev = evaluacion()
+    ev = Evaluacion(
+        id=ev.id, plantilla=plantilla(libro=decl), fecha=ev.fecha, paciente="x", filas=ev.filas
+    )
+    salida = load_workbook(exportar(ev, tmp_path / "salida", libro_base=ruta).evaluacion)["Hoja1"]
+    assert salida["B3"].value == "B"  # el rótulo sigue
+    assert salida["B2"].value is None and salida["A4"].value is None  # lo demás se vació
+
+
+def test_conservar_pide_celdas_validas():
+    with pytest.raises(ValueError, match="conservar"):
+        plantilla(libro={"archivo": "b.xlsx", "conservar": ["J"]})
 
 
 def test_el_esquema_valida_las_celdas_y_los_rangos():

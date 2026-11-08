@@ -260,6 +260,11 @@ export function rangosAVaciar(plantilla: PlantillaDef, texto: string): Plantilla
   return { ...plantilla, libro: { ...plantilla.libro, vaciar: rangosDeTexto(texto) } };
 }
 
+export function celdasAConservar(plantilla: PlantillaDef, texto: string): PlantillaDef {
+  if (!plantilla.libro) return plantilla;
+  return { ...plantilla, libro: { ...plantilla.libro, conservar: rangosDeTexto(texto) } };
+}
+
 export function celdaDelPaciente(plantilla: PlantillaDef, celda: string): PlantillaDef {
   if (!plantilla.libro) return plantilla;
   return { ...plantilla, libro: { ...plantilla.libro, celda_paciente: celda.trim().toUpperCase() || null } };

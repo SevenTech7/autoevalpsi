@@ -157,6 +157,7 @@ export interface LibroDef {
   hoja?: string | null;
   vaciar: string[]; // rangos que se limpian antes de escribir la evaluación
   celda_paciente?: string | null; // donde se escribe el nombre que pone la usuaria («N1»)
+  conservar?: string[]; // celdas que no se vacían aunque caigan en un rango (rótulos fijos)
 }
 
 export interface TablaDef {

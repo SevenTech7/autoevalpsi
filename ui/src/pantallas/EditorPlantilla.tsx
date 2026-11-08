@@ -12,6 +12,7 @@ import {
   agregarPreguntaSiNo,
   celdaDeFila,
   celdaDelPaciente,
+  celdasAConservar,
   rangosAVaciar,
   cajaDeCelda,
   contarItems,
@@ -627,6 +628,18 @@ function EditorCargado({
                       className="mt-1 block w-full rounded-lg border border-slate-300 px-2 py-1.5 text-base"
                       value={borrador.libro.vaciar.join(", ")}
                       onChange={(e) => aplicar(rangosAVaciar(borrador, e.target.value), "vaciar")}
+                      onBlur={() => despachar({ t: "soltarClave" })}
+                    />
+                  </label>
+                ) : null}
+                {borrador.libro ? (
+                  <label className="block text-slate-700">
+                    Celdas que no se vacían aunque estén en esos rangos (rótulos fijos, como la letra A, B o C)
+                    <input
+                      aria-label="Celdas que se conservan"
+                      className="mt-1 block w-full rounded-lg border border-slate-300 px-2 py-1.5 text-base uppercase"
+                      value={(borrador.libro.conservar ?? []).join(", ")}
+                      onChange={(e) => aplicar(celdasAConservar(borrador, e.target.value), "conservar")}
                       onBlur={() => despachar({ t: "soltarClave" })}
                     />
                   </label>
