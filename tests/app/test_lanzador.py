@@ -62,3 +62,43 @@ def test_sin_consola_el_programa_arranca_igual(monkeypatch, tmp_path):
     informe = tmp_path / "humo.txt"
     assert lanzador.main(["--prueba-humo", "--informe", str(informe)]) == 0
     assert "prueba de humo ok" in informe.read_text(encoding="utf-8")
+
+
+def _servir_con_interfaz(tmp_path, nombre_js="app.js", contenido_index=None):
+    from autoevalpsi.app.datos import BaseDatos
+    from autoevalpsi.app.escritorio import ServidorLocal
+    from autoevalpsi.app.plantillas import RepositorioPlantillas
+    from autoevalpsi.app.servidor import crear_app
+
+    est = tmp_path / "estaticos"
+    (est / "assets").mkdir(parents=True)
+    (est / "assets" / nombre_js).write_text("console.log(1)", encoding="utf-8")
+    index = (
+        contenido_index
+        if contenido_index is not None
+        else f'<script type="module" src="/assets/{nombre_js}"></script>'
+    )
+    (est / "index.html").write_text(index, encoding="utf-8")
+    bd = BaseDatos(tmp_path / "d")
+    app = crear_app(bd, RepositorioPlantillas(tmp_path / "d" / "p"), estaticos=est)
+    servidor = ServidorLocal(app, puerto=0)
+    servidor.iniciar()
+    return bd, servidor
+
+
+def test_la_comprobacion_de_la_interfaz_acepta_un_script_bien_servido(tmp_path):
+    bd, servidor = _servir_con_interfaz(tmp_path)
+    try:
+        assert lanzador._interfaz_se_sirve(servidor.puerto) is None
+    finally:
+        servidor.detener()
+        bd.cerrar()
+
+
+def test_la_comprobacion_de_la_interfaz_detecta_que_falta_el_script(tmp_path):
+    bd, servidor = _servir_con_interfaz(tmp_path, contenido_index="<p>sin scripts</p>")
+    try:
+        assert "ningún script" in lanzador._interfaz_se_sirve(servidor.puerto)
+    finally:
+        servidor.detener()
+        bd.cerrar()

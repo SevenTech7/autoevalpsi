@@ -60,6 +60,7 @@ El control de calidad (rápido) se responde en la misma petición; la lectura pe
 import hashlib
 import ipaddress
 import logging
+import mimetypes
 import re
 import secrets
 import threading
@@ -133,6 +134,30 @@ def _tope_de_subida(ruta: str) -> int | None:
 PUERTO = 8765
 PAGINA_CAPTURA = Path(__file__).parent / "captura" / "index.html"
 ESTATICOS = Path(__file__).parent / "estaticos"  # salida de `ui/` (vite build)
+# En Windows `mimetypes` lee el registro, y en muchas laptops `.js` figura como `text/plain` (lo
+# deja algún programa instalado): el navegador se niega a ejecutar el script y la ventana sale en
+# blanco. Los tipos de la interfaz se fijan aquí, sin depender del registro de Windows.
+_TIPOS_ESTATICOS = {
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css",
+    ".html": "text/html",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".woff2": "font/woff2",
+}
+
+
+def _fijar_tipos_estaticos() -> None:
+    previo = mimetypes.guess_type("x.js")[0]
+    for extension, tipo in _TIPOS_ESTATICOS.items():
+        mimetypes.add_type(tipo, extension)
+    if previo != "text/javascript":
+        log.warning("El sistema declara `.js` como %r; se fuerza text/javascript.", previo)
+
+
 _CSP_INTERFAZ = (
     "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
     "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
@@ -181,6 +206,27 @@ def _es_laptop(scope, puertos_laptop: frozenset[int]) -> bool:
         return True
     servidor = scope.get("server")
     return bool(servidor and servidor[1] in puertos_laptop)
+
+
+class RegistroInterfaz:
+    """ASGI: deja en el registro cómo se sirvió la interfaz (`/` y `/assets/*`: estado y tipo).
+    Si una ventana sale en blanco, ahí se ve si faltó un archivo o llegó con un tipo equivocado."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        ruta = scope.get("path", "")
+        if scope["type"] != "http" or not (ruta == "/" or ruta.startswith("/assets/")):
+            return await self.app(scope, receive, send)
+
+        async def enviar(mensaje):
+            if mensaje["type"] == "http.response.start":
+                tipo = dict(mensaje.get("headers", [])).get(b"content-type", b"").decode("latin-1")
+                log.info("interfaz %s -> %s %s", ruta, mensaje["status"], tipo)
+            await send(mensaje)
+
+        await self.app(scope, receive, enviar)
 
 
 class Guardia:
@@ -373,6 +419,7 @@ def crear_app(
     app = FastAPI(title="AutoEvalPsi", lifespan=vida, docs_url=None, redoc_url=None)
     vinculos = Vinculos(bd)
     app.add_middleware(Guardia, token=token, vinculos=vinculos, puertos_laptop=puertos_laptop)
+    app.add_middleware(RegistroInterfaz)
     app.state.token = token
     app.state.cola = cola
     app.state.vinculos = vinculos
@@ -1002,6 +1049,7 @@ def crear_app(
     # --- la interfaz compilada (AP-R4) --------------------------------------------------
 
     index = estaticos / "index.html"
+    _fijar_tipos_estaticos()
     if (estaticos / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=estaticos / "assets"), name="assets")
 

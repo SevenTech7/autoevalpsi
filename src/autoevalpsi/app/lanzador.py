@@ -61,6 +61,10 @@ def _prueba_humo(lector: Lector | None, puerto: int) -> tuple[str, int]:
         if not _responde_salud(puerto, espera=5.0):
             resultado.append("/api/salud no responde")
             return
+        if getattr(sys, "frozen", False):
+            problema = _interfaz_se_sirve(puerto)
+            if problema:
+                resultado.append(problema)
         if lector is not None:
             try:
                 lector.leer(np.full((64, 256, 3), 255, np.uint8))
@@ -80,6 +84,28 @@ def _prueba_humo(lector: Lector | None, puerto: int) -> tuple[str, int]:
     if codigo != 0 or resultado:
         return "PRUEBA DE HUMO FALLÓ: " + "; ".join(resultado or [f"código {codigo}"]), 1
     return "prueba de humo ok" + (" (con OCR)" if lector else " (sin OCR)"), 0
+
+
+def _interfaz_se_sirve(puerto: int) -> str | None:
+    """Que el ejecutable lleve la interfaz y la sirva con los tipos correctos (si el `.js` sale
+    como `text/plain` o falta, la ventana queda en blanco). None si todo está bien."""
+    import re
+    import urllib.request
+
+    base = f"http://127.0.0.1:{puerto}"
+    try:
+        with urllib.request.urlopen(base + "/", timeout=5) as r:
+            html = r.read().decode("utf-8")
+        scripts = re.findall(r'src="(/assets/[^"]+\.js)"', html)
+        if not scripts:
+            return "la interfaz no trae ningún script (¿falta compilarla?)"
+        with urllib.request.urlopen(base + scripts[0], timeout=5) as r:
+            tipo = r.headers.get("content-type", "")
+        if "javascript" not in tipo:
+            return f"el script de la interfaz sale como {tipo!r}, no como JavaScript"
+    except OSError as e:
+        return f"la interfaz no se sirve: {e}"
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:

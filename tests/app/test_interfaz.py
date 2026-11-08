@@ -60,6 +60,41 @@ def _cod(r) -> str:
 # --- la interfaz compilada ---------------------------------------------------------------------
 
 
+def test_los_scripts_salen_como_javascript_aunque_windows_diga_otra_cosa(
+    tmp_path, zip_plantilla, estaticos, monkeypatch
+):
+    """En algunas laptops el registro de Windows declara `.js` como `text/plain`: pantalla en blanco."""
+    import mimetypes
+
+    mimetypes.add_type("text/plain", ".js")
+    bd = BaseDatos(tmp_path / "datos")
+    try:
+        plantillas = RepositorioPlantillas(tmp_path / "datos" / "plantillas")
+        app = crear_app(bd, plantillas, token=TOKEN, estaticos=estaticos)
+        with TestClient(app, client=LAPTOP) as c:
+            r = c.get("/assets/app.js")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/javascript")
+    finally:
+        bd.cerrar()
+
+
+def test_el_registro_deja_como_se_sirvio_la_interfaz(entorno, caplog):
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="autoevalpsi.app.servidor"):
+        c = TestClient(entorno[2], client=LAPTOP)
+        c.get("/")
+        c.get("/assets/app.js")
+        c.get("/api/salud")
+    propios = " | ".join(
+        r.getMessage() for r in caplog.records if r.name == "autoevalpsi.app.servidor"
+    )
+    assert "interfaz / -> 200 text/html" in propios
+    assert "interfaz /assets/app.js -> 200 text/javascript" in propios
+    assert "salud" not in propios  # solo la interfaz, nunca lo que lleva datos
+
+
 def test_la_raiz_sirve_el_index_a_la_laptop_sin_token_y_sin_cache(entorno):
     r = TestClient(entorno[2], client=LAPTOP).get("/")
     assert r.status_code == 200 and "<title>UI</title>" in r.text

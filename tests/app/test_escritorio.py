@@ -242,6 +242,7 @@ def test_el_registro_se_escribe_en_la_carpeta_de_datos(tmp_path):
     from autoevalpsi.app.escritorio import configurar_registro
 
     antes = list(logging.getLogger().handlers)
+    nivel = logging.getLogger().level
     try:
         ruta = configurar_registro(tmp_path / "datos")
         logging.getLogger("prueba").warning("hola desde la prueba")
@@ -254,6 +255,7 @@ def test_el_registro_se_escribe_en_la_carpeta_de_datos(tmp_path):
             if h not in antes:
                 logging.getLogger().removeHandler(h)
                 h.close()
+        logging.getLogger().setLevel(nivel)
 
 
 def test_ejecutar_cierra_el_servidor_si_la_ventana_falla(tmp_path):

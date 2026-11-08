@@ -6,7 +6,17 @@
     <title>AutoEvalPsi</title>
   </head>
   <body>
-    <div id="raiz"></div>
+    <div id="raiz">
+      <!-- Se reemplaza al arrancar la interfaz; si esto sigue a la vista, la interfaz no cargó. -->
+      <p style="font: 18px sans-serif; padding: 32px; color: #334155">
+        Cargando AutoEvalPsi…
+        <span style="display: block; margin-top: 12px; font-size: 15px; color: #64748b">
+          Si esta pantalla no cambia en unos segundos, cierra la ventana y abre AutoEvalPsi otra vez.
+          Si sigue igual, el detalle está en el archivo registro.log de la carpeta AutoEvalPsi (dentro de LOCALAPPDATA).
+egistro.log
+        </span>
+      </p>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
