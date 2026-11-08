@@ -280,6 +280,15 @@ describe("libro de Excel y páginas (VD-R3)", () => {
     expect(screen.getByLabelText("Rangos que se vacían")).toHaveValue("A1:B5, I63");
   });
 
+  it("la celda del nombre del paciente se escribe normalizada y marca cambios", async () => {
+    montarConLibro();
+    const celda = await screen.findByLabelText("Celda del nombre del paciente");
+    expect(celda).toHaveValue("");
+    await userEvent.type(celda, "n1");
+    expect(celda).toHaveValue("N1");
+    expect(screen.getByText("Cambios sin guardar")).toBeInTheDocument();
+  });
+
   it("elegir un libro lo manda al servidor y avisa qué se vaciará", async () => {
     const ponerLibro = vi
       .fn()

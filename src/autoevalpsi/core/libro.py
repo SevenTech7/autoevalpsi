@@ -68,6 +68,10 @@ def libro_de_la_usuaria(ev, base: Path) -> Workbook:
                     _valor(dato.opcion) if dato is not None and dato.opcion is not None else None
                 )
 
+    if libro_decl.celda_paciente:
+        # el nombre lo escribe la usuaria (al subir la foto o al revisar); va tal cual
+        hoja[libro_decl.celda_paciente].value = ev.paciente or None
+
     datos = libro.create_sheet(HOJA_DATOS)
     fecha = ev.fecha
     filas = [
