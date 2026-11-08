@@ -108,6 +108,7 @@ export interface Plantilla {
   paginas: {
     cabecera: { campo: string }[];
     tablas: {
+      tipo?: "marcas" | "digito"; // «digito»: un número escrito a mano, no una casilla
       opciones: string[];
       observacion_x?: number[] | null; // si la hoja tiene columna de observación
       filas: { item: number; texto: string }[];
@@ -140,6 +141,7 @@ export interface FilaDef {
 }
 
 export interface TablaDef {
+  tipo?: "marcas" | "digito"; // «digito»: un número manuscrito en una sola celda
   seccion?: string | null;
   opciones: string[];
   columnas_x: Intervalo[];

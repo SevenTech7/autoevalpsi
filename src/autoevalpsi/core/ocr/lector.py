@@ -53,6 +53,26 @@ class Lector(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class LecturaDigito:
+    """Un dígito manuscrito leído con vocabulario cerrado.
+
+    `digito` es el mejor de los permitidos, o `None` si el recorte parece vacío o ilegible;
+    `confianza` es su peso (0–1) frente al fondo y los demás permitidos; `margen`, la distancia al
+    segundo mejor."""
+
+    digito: str | None
+    confianza: float
+    margen: float
+
+
+@runtime_checkable
+class LectorDigitos(Protocol):
+    def leer_digito(self, recorte: np.ndarray, permitidos: Sequence[str]) -> LecturaDigito:
+        """El dígito manuscrito de `recorte` (una celda), entre `permitidos`."""
+        ...
+
+
 class LectorFalso:
     """Lector de prueba: devuelve las líneas que se le dieron, o falla si se le pide.
 
@@ -65,10 +85,14 @@ class LectorFalso:
         self,
         lineas: Sequence[Linea] | Callable[[np.ndarray], Sequence[Linea]] = (),
         error: Exception | None = None,
+        digitos: Sequence[LecturaDigito] | Callable[[np.ndarray], LecturaDigito] = (),
     ):
         self._lineas = lineas
         self._error = error
+        self._digitos = digitos
+        self._n_digitos = 0
         self.llamadas: list[np.ndarray] = []
+        self.llamadas_digito: list[np.ndarray] = []
 
     def leer(self, imagen: np.ndarray) -> list[Linea]:
         self.llamadas.append(imagen)
@@ -77,6 +101,19 @@ class LectorFalso:
         if callable(self._lineas):
             return list(self._lineas(imagen))
         return list(self._lineas)
+
+    def leer_digito(self, recorte: np.ndarray, permitidos: Sequence[str]) -> LecturaDigito:
+        """Con una función, la llama; con una lista, las va dando en orden (la última se repite)."""
+        self.llamadas_digito.append(recorte)
+        if self._error is not None:
+            raise self._error
+        if callable(self._digitos):
+            return self._digitos(recorte)
+        if not self._digitos:
+            return LecturaDigito(None, 0.0, 0.0)
+        k = min(self._n_digitos, len(self._digitos) - 1)
+        self._n_digitos += 1
+        return self._digitos[k]
 
 
 def ordenar_lectura(lineas: Sequence[Linea]) -> list[Linea]:

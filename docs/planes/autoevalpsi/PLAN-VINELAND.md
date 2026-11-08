@@ -30,17 +30,22 @@ pueden ser de otro paciente pero tienen el mismo formato.
   escritos a mano de la muestra (v-scale, puntajes estándar, clasificaciones) son del paciente de
   la muestra, así que en la copia se vacían y los completa ella; las sumas (`SUM`) se recalculan
   solas al abrir.
-- **VD-D2 — Ítems en blanco.** Siguiendo la muestra: los blancos **antes** del primer dígito de
-  una columna valen 2; los posteriores al último dígito quedan vacíos; un blanco en medio queda
-  vacío y marcado para revisar. Un «?» o cualquier cosa que no sea 0/1/2 **no se adivina**: va a
-  revisión.
+- **VD-D2 — Ítems en blanco (corregida por la usuaria, 2026-11-07).** Una celda vacía **queda
+  vacía**: no se rellena con 2 ni con nada (como en la hoja de papel). Pero **se avisa**, igual que
+  cuando una marca no es nítida: la fila sale con el aviso «La celda está vacía» y hay que
+  confirmarla (vacía). Un «?» o cualquier cosa que no sea un dígito permitido **no se adivina**:
+  va a revisión. (La muestra de Excel traía los ítems previos al de inicio con 2: eso lo escribió la
+  evaluadora; la app no lo inventa.)
+- **VD-D3 — Contratos aditivos aprobados (2026-11-07, «ok»):** `Tabla.tipo`, `Fila.celda` y el libro
+  base. Los valores escritos a mano de la muestra (v-scale, puntajes estándar, clasificación) se
+  vacían en la copia y los completa ella.
 
 ## Fases
 
 | Fase | Título | Estado |
 |---|---|---|
 | VD-R0 | Spike: ¿se leen los dígitos 0/1/2 con el OCR restringido? | hecha (2026-11-07) |
-| VD-R1 | Tabla de dígitos (`Tabla.tipo = "digito"`, una columna, una fila por ítem) y su lectura | pendiente |
+| VD-R1 | Tabla de dígitos (`Tabla.tipo = "digito"`, una columna, una fila por ítem) y su lectura | hecha (2026-11-07) |
 | VD-R2 | Detectar la cuadrícula en la foto y armar la plantilla (borrador editable en el editor) | pendiente |
 | VD-R3 | Exportar en el libro de la usuaria (`Fila.celda` + libro base, reglas de blancos) | pendiente |
 | VD-R4 | Reverso: áreas 7–10 y letras A/B/C | pendiente |
@@ -69,3 +74,23 @@ Sobre la foto del frente (luz amarilla, hojas debajo, sin enderezar):
   dígitos permitidos y hay una sola columna).
 - `Fila.celda: str | None` (celda del libro de Excel, p. ej. `"A19"`) y `Plantilla.libro` (archivo
   base y celdas a vaciar). El editor ganaría un campo «Celda del Excel».
+
+## VD-R1 — resultado
+
+- **Esquema:** `Tabla.tipo: "marcas" | "digito"` (por defecto «marcas»; las plantillas v1 siguen
+  igual). Con «digito»: una sola columna (la celda del número) y `opciones` = dígitos permitidos.
+- **Lectura:** `LectorONNX.leer_digito(recorte, permitidos)` renormaliza el reconocedor sobre el
+  blanco y los dígitos permitidos (probado con el modelo real: 0, 1 y 2 en tipografía manuscrita
+  bien; una letra o una celda en blanco no dan confianza). `casillas._leer_digitos` mide la tinta
+  de cada celda (sin cuadrícula ni impreso) y decide, sin adivinar:
+  - sin tinta → opción vacía + `celda_vacia`;
+  - tinta y lectura segura → el dígito, sin aviso;
+  - lectura poco segura → el dígito propuesto + `ocr_digito_dudoso`;
+  - tinta pero ilegible → vacía + `ocr_digito_ilegible`;
+  - sin lector de texto → vacía + `ocr_sin_lector`.
+- **Revisión:** cada celda con número guarda su recorte y la tabla muestra la columna «Lo escrito»
+  para compararlo; la tecla es el número mismo (0, 1, 2) y Borrar/Supr deja «sin respuesta». Las
+  celdas vacías se confirman vacías (sin inventar valor). Avisos con su texto en español.
+- **Editor:** una tabla de dígitos no deja agregar ni quitar columnas.
+- **Pruebas:** 12 de Python (10 con lector falso + 3 con el modelo real, marcador `lento`) y 5 de la
+  interfaz. Suites completas en verde (428 Python, 132 interfaz).
