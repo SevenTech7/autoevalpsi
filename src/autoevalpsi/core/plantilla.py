@@ -174,6 +174,7 @@ class Libro(_Modelo):
     archivo: str = Field(min_length=1)
     hoja: str | None = None  # por defecto, la primera
     vaciar: list[str] = []  # rangos que se limpian antes de escribir: «A1:L58», «I63:I71»…
+    celda_paciente: str | None = None  # dónde se escribe el nombre que pone la usuaria («N1»)
 
     @model_validator(mode="after")
     def _rangos(self) -> Self:
@@ -182,6 +183,10 @@ class Libro(_Modelo):
                 range_boundaries(r)
             except (ValueError, TypeError) as e:
                 raise ValueError(f"rango de Excel no válido en `vaciar`: «{r}»") from e
+        if self.celda_paciente is not None and not _CELDA.fullmatch(self.celda_paciente):
+            raise ValueError(
+                f"celda de Excel no válida para el paciente: «{self.celda_paciente}» (se espera algo como N1)"
+            )
         return self
 
 
@@ -215,6 +220,10 @@ class Plantilla(_Modelo):
         iguales = sorted({c for c in celdas if celdas.count(c) > 1})
         if iguales:
             raise ValueError(f"dos ítems escriben en la misma celda del Excel: {iguales}")
+        if self.libro is not None and self.libro.celda_paciente in celdas:
+            raise ValueError(
+                f"la celda del paciente ({self.libro.celda_paciente}) es la de un ítem del Excel"
+            )
         return self
 
 

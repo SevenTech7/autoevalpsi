@@ -96,6 +96,39 @@ def test_se_vacian_los_rangos_pero_nunca_las_formulas_ni_lo_demas(tmp_path, base
     assert hoja["B9"].value == "=SUM(B1:B6)"
 
 
+def test_el_nombre_del_paciente_va_en_la_celda_que_la_usuaria_indica(tmp_path, base):
+    libro = {"archivo": "base.xlsx", "vaciar": ["A1:B6"], "celda_paciente": "D5"}
+
+    ev = evaluacion()
+    ev = Evaluacion(
+        id=ev.id,
+        plantilla=plantilla(libro=libro),
+        fecha=ev.fecha,
+        paciente="Ana Pérez",
+        filas=ev.filas,
+    )
+    hoja = load_workbook(exportar(ev, tmp_path / "salida", libro_base=base).evaluacion)["Hoja1"]
+    assert hoja["D5"].value == "Ana Pérez"
+    assert hoja["A1"].value == 2  # lo demás sigue igual
+
+
+def test_sin_nombre_la_celda_del_paciente_queda_vacia(tmp_path, base):
+    libro = {"archivo": "base.xlsx", "vaciar": [], "celda_paciente": "D3"}
+    ev = evaluacion()
+    ev = Evaluacion(
+        id=ev.id, plantilla=plantilla(libro=libro), fecha=ev.fecha, paciente="", filas=ev.filas
+    )
+    hoja = load_workbook(exportar(ev, tmp_path / "salida", libro_base=base).evaluacion)["Hoja1"]
+    assert hoja["D3"].value is None
+
+
+def test_la_celda_del_paciente_debe_ser_valida_y_no_la_de_un_item():
+    with pytest.raises(ValueError, match="paciente"):
+        plantilla(libro={"archivo": "b.xlsx", "celda_paciente": "nombre"})
+    with pytest.raises(ValueError, match="ítem"):
+        plantilla(libro={"archivo": "b.xlsx", "celda_paciente": "A1"})
+
+
 def test_agrega_una_hoja_con_paciente_fecha_y_formulario(tmp_path, base):
     r = exportar(evaluacion(cabecera={"Cargo": "docente"}), tmp_path / "salida", libro_base=base)
     datos = load_workbook(r.evaluacion)[HOJA_DATOS]

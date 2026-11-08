@@ -160,3 +160,13 @@ foto»: si ve una cuadrícula de celdas numeradas arma tablas de dígitos; si no
   completas en verde (449 de Python, 139 de la interfaz).
 - **Pendiente (VD-R4):** nombre del paciente y las letras A/B/C como campos; hoja curva muy
   distinta de la de referencia (hoy se parte en muchas tablas).
+
+## VD-R4a — nombre del paciente en la hoja de la usuaria
+
+- El nombre lo escribe la usuaria (al subir la foto o en la revisión); la app no lo busca en la foto.
+- Contrato aditivo: `Libro.celda_paciente` («N1»; opcional). Si está, la exportación escribe el
+  nombre ahí en su hoja, además de la hoja «AutoEvalPsi». No puede ser la celda de un ítem. El libro
+  de muestra no trae lugar para el nombre: ella elige una celda libre en «Libro de Excel» del editor.
+- Pruebas: 3 de Python (`test_libro.py`) y 1 de la interfaz; 452 y 140 en verde.
+- Sigue pendiente (VD-R4b): letras A/B/C de «Comportamientos problemáticos» (en el libro están como
+  texto en `K12`, `J15`, `L21`, dentro del rango que se vacía) y hojas curvas.

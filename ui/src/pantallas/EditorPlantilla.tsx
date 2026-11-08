@@ -11,6 +11,7 @@ import {
   agregarFila,
   agregarPreguntaSiNo,
   celdaDeFila,
+  celdaDelPaciente,
   rangosAVaciar,
   cajaDeCelda,
   contarItems,
@@ -604,6 +605,19 @@ function EditorCargado({
 
               <div className="space-y-2 border-t border-slate-200 pt-3">
                 <h3 className="font-semibold">Libro de Excel</h3>
+                {borrador.libro ? (
+                  <label className="block text-slate-700">
+                    Celda del nombre del paciente (déjala vacía si no quieres el nombre en tu hoja)
+                    <input
+                      aria-label="Celda del nombre del paciente"
+                      placeholder="N1"
+                      className="mt-1 block w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-base uppercase"
+                      value={borrador.libro.celda_paciente ?? ""}
+                      onChange={(e) => aplicar(celdaDelPaciente(borrador, e.target.value), "celda-paciente")}
+                      onBlur={() => despachar({ t: "soltarClave" })}
+                    />
+                  </label>
+                ) : null}
                 {borrador.libro ? (
                   <label className="block text-slate-700">
                     Celdas del libro que se vacían antes de escribir (rangos separados por comas)

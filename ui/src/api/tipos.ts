@@ -146,6 +146,7 @@ export interface LibroDef {
   archivo: string;
   hoja?: string | null;
   vaciar: string[]; // rangos que se limpian antes de escribir la evaluación
+  celda_paciente?: string | null; // donde se escribe el nombre que pone la usuaria («N1»)
 }
 
 export interface TablaDef {
