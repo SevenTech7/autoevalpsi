@@ -15,12 +15,13 @@ fijo de hilos para no quitarle todos los núcleos al servidor y a la interfaz.
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from autoevalpsi.core.ocr.lector import Caja, Linea, ordenar_lectura
+from autoevalpsi.core.ocr.lector import Caja, LecturaDigito, Linea, ordenar_lectura
 
 MODELOS_POR_DEFECTO = Path("modelos/pp-ocrv6")
 
@@ -176,6 +177,45 @@ class LectorONNX:
         x = ((x - 0.5) / 0.5).transpose(2, 0, 1)[None].astype(np.float32)
         salida = self._rec.run(None, {"x": x})[0][0]
         return decodificar_ctc(salida, self._clases)
+
+    def leer_digito(self, recorte: np.ndarray, permitidos: Sequence[str]) -> LecturaDigito:
+        """Un dígito manuscrito, **restringido** a `permitidos`.
+
+        Se renormalizan las probabilidades del reconocedor sobre el blanco CTC y los dígitos
+        permitidos, y se toma, por dígito, su mejor paso. Así una «A» o una «乙» mal leída por el
+        modelo general cae en el dígito más parecido, con su confianza real (baja si no se parece).
+        El recorte se centra en un lienzo blanco con forma de renglón, que es lo que el modelo espera.
+        """
+        gris = recorte if recorte.ndim == 2 else cv2.cvtColor(recorte, cv2.COLOR_BGR2GRAY)
+        alto, ancho = gris.shape[:2]
+        if alto == 0 or ancho == 0:
+            return LecturaDigito(None, 0.0, 0.0)
+        lienzo_w = max(alto * 3, ancho)
+        lienzo = np.full((alto, lienzo_w), 255, np.uint8)
+        x = (lienzo_w - ancho) // 2
+        lienzo[:, x : x + ancho] = gris
+        with self._candado:
+            self._cargar()
+            indices = [self._clases.index(d) for d in permitidos if d in self._clases]
+            if not indices:
+                return LecturaDigito(None, 0.0, 0.0)
+            salida = self._rec.run(
+                None, {"x": self._preparar(cv2.cvtColor(lienzo, cv2.COLOR_GRAY2BGR))}
+            )[0][0]
+        sub = salida[:, [0, *indices]]
+        sub = sub / np.maximum(sub.sum(1, keepdims=True), 1e-9)
+        por_digito = sub[:, 1:].max(0)
+        orden = np.argsort(por_digito)[::-1]
+        mejor = float(por_digito[orden[0]])
+        segundo = float(por_digito[orden[1]]) if len(orden) > 1 else 0.0
+        return LecturaDigito(permitidos[int(orden[0])], mejor, mejor - segundo)
+
+    @staticmethod
+    def _preparar(bgr: np.ndarray) -> np.ndarray:
+        h, w = bgr.shape[:2]
+        ancho = min(REC_ANCHO_MAX, max(REC_ANCHO_MIN, int(np.ceil(REC_ALTO * w / max(h, 1)))))
+        x = cv2.resize(bgr, (ancho, REC_ALTO)).astype(np.float32) / 255.0
+        return ((x - 0.5) / 0.5).transpose(2, 0, 1)[None].astype(np.float32)
 
     # --- API pública -----------------------------------------------------------------------
 

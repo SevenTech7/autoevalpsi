@@ -20,6 +20,10 @@ export const TEXTO_BANDERA: Record<string, string> = {
   ocr_sin_texto: "No se pudo leer el texto",
   ocr_error: "Falló la lectura del texto",
   cabecera_vacia: "No se leyó este campo",
+  celda_vacia: "La celda está vacía",
+  ocr_digito_dudoso: "El número se lee dudoso",
+  ocr_digito_ilegible: "No se pudo leer el número",
+  ocr_sin_lector: "No se pudo leer el número: el lector de texto no está activo",
 };
 
 export function describirBandera(b: string): string {
@@ -39,13 +43,16 @@ interface Borrador {
 interface InfoItem {
   texto: string;
   opciones: string[];
+  tipo: "marcas" | "digito";
 }
 
 function infoDeItems(plantilla: Plantilla): Map<number, InfoItem> {
   const mapa = new Map<number, InfoItem>();
   for (const p of plantilla.paginas) {
     for (const t of p.tablas) {
-      for (const f of t.filas) mapa.set(f.item, { texto: f.texto, opciones: t.opciones });
+      for (const f of t.filas) {
+        mapa.set(f.item, { texto: f.texto, opciones: t.opciones, tipo: t.tipo ?? "marcas" });
+      }
     }
   }
   return mapa;
@@ -64,7 +71,16 @@ export function camposDeCabecera(plantilla: Plantilla, evaluacion: Evaluacion): 
 /** ¿Hay columna de observaciones? Si la plantilla la declara o ya hay algo leído o escrito. */
 export function hayObservaciones(plantilla: Plantilla, filas: FilaGuardada[]): boolean {
   const declarada = plantilla.paginas.some((p) => p.tablas.some((t) => t.observacion_x));
-  return declarada || filas.some((f) => f.ruta_recorte || f.texto_ocr || f.observacion);
+  // el recorte de una celda de número no es una observación: tiene su propia columna
+  const digitos = new Set(
+    plantilla.paginas.flatMap((p) =>
+      p.tablas.filter((t) => t.tipo === "digito").flatMap((t) => t.filas.map((f) => f.item)),
+    ),
+  );
+  return (
+    declarada ||
+    filas.some((f) => !digitos.has(f.item) && (f.ruta_recorte || f.texto_ocr || f.observacion))
+  );
 }
 
 // --- iconos de aviso -----------------------------------------------------------------------------
@@ -74,6 +90,11 @@ type Dibujo = { color: string; trazo: ReactNode };
 const DIBUJOS: Record<string, Dibujo> = {
   // círculo punteado: no hay marca
   sin_marca: {
+    color: "text-slate-600",
+    trazo: <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />,
+  },
+  // el mismo círculo punteado: celda de número vacía
+  celda_vacia: {
     color: "text-slate-600",
     trazo: <circle cx="12" cy="12" r="8" strokeDasharray="3 3" />,
   },
@@ -271,6 +292,7 @@ const CELDA = "border-b border-slate-200 px-1 py-0.5 align-middle";
 function FilaTabla(p: PropsFila) {
   const { fila, info, borrador, activa } = p;
   const opciones = info?.opciones ?? [];
+  const digitos = info?.tipo === "digito";
   const opcion = borrador && "opcion" in borrador ? (borrador.opcion ?? null) : fila.opcion;
   const observacion = borrador?.observacion ?? fila.observacion;
   const cambiada = borrador !== undefined && Object.keys(borrador).length > 0;
@@ -311,7 +333,7 @@ function FilaTabla(p: PropsFila) {
               role="radio"
               aria-checked={elegida}
               aria-label={o}
-              title={`${n + 1} · ${o}${leida ? " (lo que leyó la aplicación)" : ""}`}
+              title={`${digitos ? o : `${n + 1} · ${o}`}${leida ? " (lo que leyó la aplicación)" : ""}`}
               onClick={() => elegir(o)}
               className={`mx-auto flex size-7 items-center justify-center rounded-full border-2 text-sm font-semibold ${
                 elegida
@@ -321,7 +343,7 @@ function FilaTabla(p: PropsFila) {
                     : "border-slate-300 bg-white text-transparent hover:border-acento hover:text-slate-300"
               }`}
             >
-              {elegida ? "✓" : n + 1}
+              {elegida ? "✓" : digitos ? o : n + 1}
             </button>
           </td>
         );
@@ -333,7 +355,7 @@ function FilaTabla(p: PropsFila) {
           role="radio"
           aria-checked={opcion === null}
           aria-label="Sin respuesta"
-          title="0 · Sin respuesta"
+          title={digitos ? "Borrar · Sin respuesta" : "0 · Sin respuesta"}
           onClick={() => elegir(null)}
           className={`mx-auto flex h-7 min-w-7 items-center justify-center rounded-full border-2 px-1 text-sm ${
             opcion === null
@@ -341,7 +363,7 @@ function FilaTabla(p: PropsFila) {
               : "border-slate-300 bg-white text-slate-400 hover:border-slate-500"
           }`}
         >
-          {opcion === null ? "—" : "0"}
+          {opcion === null || digitos ? "—" : "0"}
         </button>
       </td>
 
@@ -353,7 +375,21 @@ function FilaTabla(p: PropsFila) {
         </span>
       </td>
 
-      {p.conObservaciones && (
+      {digitos && (
+        <td className={`${CELDA} w-28 text-center`}>
+          {fila.ruta_recorte ? (
+            <Recorte
+              src={p.api.urlRecorteFila(p.evaluacionId, fila.item)}
+              alt={`Lo escrito en el ítem ${fila.item}`}
+              clase="mx-auto max-h-10 max-w-24"
+            />
+          ) : (
+            <span className="text-sm text-slate-500">vacía</span>
+          )}
+        </td>
+      )}
+
+      {!digitos && p.conObservaciones && (
         <td className={`${CELDA} min-w-56`}>
           <div className="flex items-center gap-2">
             {fila.ruta_recorte && (
@@ -416,7 +452,7 @@ function tramosPorOpciones(
   const tramos: { clave: string; opciones: string[]; filas: FilaGuardada[] }[] = [];
   for (const f of filas) {
     const opciones = info.get(f.item)?.opciones ?? [];
-    const clave = opciones.join("\u0001");
+    const clave = `${info.get(f.item)?.tipo ?? "marcas"}\u0002${opciones.join("\u0001")}`;
     const ultimo = tramos[tramos.length - 1];
     if (ultimo && ultimo.clave === clave) ultimo.filas.push(f);
     else tramos.push({ clave, opciones, filas: [f] });
@@ -557,6 +593,13 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
       e.preventDefault();
       const otra = visibles[Math.min(visibles.length - 1, Math.max(0, pos + (e.key === "ArrowDown" ? 1 : -1)))];
       if (otra) setActiva(otra.item);
+    } else if (info.get(activa)?.tipo === "digito" && (/^[0-9]$/.test(e.key) || e.key === "Backspace" || e.key === "Delete")) {
+      // en una tabla de números, la tecla es el número mismo; Borrar deja la celda sin respuesta
+      const opciones = info.get(activa)?.opciones ?? [];
+      if (e.key === "Backspace" || e.key === "Delete") poner(activa, { opcion: null });
+      else if (opciones.includes(e.key)) poner(activa, { opcion: e.key });
+      else return;
+      e.preventDefault();
     } else if (/^[0-9]$/.test(e.key)) {
       const opciones = info.get(activa)?.opciones ?? [];
       if (e.key === "0") poner(activa, { opcion: null });
@@ -676,7 +719,12 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
                     <th scope="col" className={`${ENCABEZADO} w-16`}>
                       Avisos
                     </th>
-                    {conObservaciones && (
+                    {info.get(tramo.filas[0]!.item)?.tipo === "digito" && (
+                      <th scope="col" className={`${ENCABEZADO} w-28`}>
+                        Lo escrito
+                      </th>
+                    )}
+                    {info.get(tramo.filas[0]!.item)?.tipo !== "digito" && conObservaciones && (
                       <th scope="col" className={`${ENCABEZADO} w-[26%] text-left`}>
                         Observación
                       </th>

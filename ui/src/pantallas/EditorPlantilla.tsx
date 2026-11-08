@@ -764,6 +764,12 @@ function PanelTabla({
         />
       </div>
 
+      {tabla.tipo === "digito" ? (
+        <p className="text-slate-700">
+          Número escrito a mano. Dígitos permitidos: <strong>{tabla.opciones.join(", ")}</strong>.
+          La celda del número es la casilla de la hoja.
+        </p>
+      ) : (
       <div>
         <p className="mb-1 font-medium text-slate-800">Opciones (columnas)</p>
         <ul className="space-y-1">
@@ -793,6 +799,7 @@ function PanelTabla({
           Agregar opción
         </Boton>
       </div>
+      )}
 
       <div>
         <p className="mb-1 font-medium text-slate-800">Filas de esta tabla</p>

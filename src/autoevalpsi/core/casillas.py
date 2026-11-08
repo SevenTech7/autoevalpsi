@@ -34,12 +34,18 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
+from autoevalpsi.core.ocr.lector import LectorDigitos
 from autoevalpsi.core.plantilla import Plantilla, Tabla
 from autoevalpsi.core.registro import BANDERA_REGISTRO_DUDOSO, Registro
 
 BANDERA_SIN_MARCA = "sin_marca"
 BANDERA_DOBLE_MARCA = "doble_marca"
 BANDERA_CONTRASTE_BAJO = "contraste_bajo"
+# Tablas de dígitos manuscritos (el valor es un número, no una casilla marcada):
+BANDERA_CELDA_VACIA = "celda_vacia"  # no hay nada escrito: queda vacía, pero se avisa
+BANDERA_DIGITO_DUDOSO = "ocr_digito_dudoso"  # hay un número, pero la lectura no es nítida
+BANDERA_DIGITO_ILEGIBLE = "ocr_digito_ilegible"  # hay tinta y no se pudo leer ningún dígito
+BANDERA_SIN_LECTOR = "ocr_sin_lector"  # no hay lector de texto: se escribe a mano
 
 
 @dataclass(frozen=True)
@@ -51,6 +57,11 @@ class ParametrosLectura:
     percentil_fondo: float = 85.0
     contraste_min: float = 100.0  # profundidad mínima de la tinta de la ganadora (0-255)
     desenfoque_sigma: float = 1.0  # quita el ruido de grano/JPEG antes de umbralizar
+    tinta_digito: float = 0.02  # tinta mínima de una celda de dígito para considerarla escrita
+    digito_confianza: float = 0.6  # por debajo: el dígito se propone pero se marca como dudoso
+    digito_margen: float = 0.3  # distancia mínima al segundo dígito para no marcarlo dudoso
+    digito_ilegible: float = 0.3  # por debajo de esta confianza no se propone ningún dígito
+    margen_celda: float = 0.14  # fracción de la celda que se descarta (líneas de la cuadrícula)
 
 
 @dataclass(frozen=True)
@@ -71,6 +82,8 @@ class ResultadoFila:
 class ResultadoPagina:
     filas: tuple[ResultadoFila, ...]
     registro_ok: bool
+    # la celda de cada número manuscrito, para que la usuaria lo compare en la revisión
+    recortes: dict[int, np.ndarray] = field(default_factory=dict)
 
     @property
     def banderas(self) -> tuple[str, ...]:
@@ -180,6 +193,52 @@ def _leer_tabla(
     return filas
 
 
+def _leer_digitos(
+    imagen: np.ndarray,
+    gris: np.ndarray,
+    referencia: np.ndarray,
+    tabla: Tabla,
+    lector: LectorDigitos | None,
+    p: ParametrosLectura,
+) -> tuple[list[ResultadoFila], dict[int, np.ndarray]]:
+    """Una fila por ítem: el dígito manuscrito de su celda, o vacía, o dudosa (nunca se adivina)."""
+    columna = tabla.columnas_x[0]
+    ancho_celda = columna[1] - columna[0]
+    alto_celda = min(f.y[1] - f.y[0] for f in tabla.filas)
+    radio = max(1, round(p.holgura_impreso * min(ancho_celda, alto_celda)))
+    impreso = mascara_impreso(referencia, radio)
+    limpia = _gris(imagen).copy()
+    limpia[impreso] = 255  # fuera la cuadrícula y lo impreso: queda lo escrito a mano
+    filas = []
+    recortes: dict[int, np.ndarray] = {}
+    for fila in tabla.filas:
+        caja = (columna[0], fila.y[0], columna[1], fila.y[1])
+        mx, my = ancho_celda // 2, (fila.y[1] - fila.y[0]) // 2
+        ventana = (columna[0] - mx, fila.y[0] - my, columna[1] + mx, fila.y[1] + my)
+        prop, _ = medir_celda(gris, caja, ventana, impreso, p)
+        if prop >= p.tinta_digito:
+            recortes[fila.item] = imagen[fila.y[0] : fila.y[1], columna[0] : columna[1]].copy()
+        if prop < p.tinta_digito:
+            filas.append(ResultadoFila(fila.item, None, (prop,), (BANDERA_CELDA_VACIA,)))
+            continue
+        if lector is None:
+            filas.append(ResultadoFila(fila.item, None, (prop,), (BANDERA_SIN_LECTOR,)))
+            continue
+        dx = round(ancho_celda * p.margen_celda)
+        dy = round((fila.y[1] - fila.y[0]) * p.margen_celda)
+        recorte = limpia[fila.y[0] + dy : fila.y[1] - dy, columna[0] + dx : columna[1] - dx]
+        lectura = lector.leer_digito(recorte, tabla.opciones)
+        if lectura.digito is None or lectura.confianza < p.digito_ilegible:
+            filas.append(ResultadoFila(fila.item, None, (prop,), (BANDERA_DIGITO_ILEGIBLE,)))
+        elif lectura.confianza < p.digito_confianza or lectura.margen < p.digito_margen:
+            filas.append(
+                ResultadoFila(fila.item, lectura.digito, (prop,), (BANDERA_DIGITO_DUDOSO,))
+            )
+        else:
+            filas.append(ResultadoFila(fila.item, lectura.digito, (prop,)))
+    return filas, recortes
+
+
 def leer_casillas(
     registro: Registro,
     plantilla: Plantilla,
@@ -187,6 +246,7 @@ def leer_casillas(
     *,
     pagina: int = 0,
     parametros: ParametrosLectura | None = None,
+    lector: object | None = None,
 ) -> ResultadoPagina:
     """Lee todas las filas de la página `pagina` (0-based) sobre la hoja registrada.
 
@@ -208,7 +268,16 @@ def leer_casillas(
     gris = _gris(registro.imagen)
     if p.desenfoque_sigma > 0:
         gris = cv2.GaussianBlur(gris, (0, 0), p.desenfoque_sigma)
-    filas = [f for t in datos.tablas for f in _leer_tabla(gris, referencia, t, plantilla, p)]
+    lector_digitos = lector if isinstance(lector, LectorDigitos) else None
+    filas: list[ResultadoFila] = []
+    recortes: dict[int, np.ndarray] = {}
+    for t in datos.tablas:
+        if t.tipo == "digito":
+            leidas, cortes = _leer_digitos(registro.imagen, gris, referencia, t, lector_digitos, p)
+            recortes.update(cortes)
+        else:
+            leidas = _leer_tabla(gris, referencia, t, plantilla, p)
+        filas += leidas
     if not registro.ok:
         filas = [
             ResultadoFila(
@@ -220,4 +289,4 @@ def leer_casillas(
             )
             for f in filas
         ]
-    return ResultadoPagina(tuple(filas), registro.ok)
+    return ResultadoPagina(tuple(filas), registro.ok, recortes)

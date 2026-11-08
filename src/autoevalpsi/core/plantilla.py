@@ -71,6 +71,9 @@ class Fila(_Modelo):
 
 
 class Tabla(_Modelo):
+    # «marcas»: el valor es la casilla marcada. «digito»: una sola columna con un número escrito
+    # a mano; `opciones` son los dígitos permitidos y se leen con OCR de vocabulario cerrado.
+    tipo: Literal["marcas", "digito"] = "marcas"
     seccion: str | None = (
         None  # agrupa tablas en secciones («5.2 Lenguaje denominativo»); solo informa
     )
@@ -81,7 +84,15 @@ class Tabla(_Modelo):
 
     @model_validator(mode="after")
     def _coherente(self) -> Self:
-        if len(self.opciones) != len(self.columnas_x):
+        if self.tipo == "digito":
+            if len(self.columnas_x) != 1:
+                raise ValueError(
+                    "una tabla de dígitos tiene una sola columna (la celda del número)"
+                )
+            malos = [o for o in self.opciones if len(o) != 1 or not o.isdigit()]
+            if malos:
+                raise ValueError(f"los dígitos permitidos deben ser 0-9 de un carácter: {malos}")
+        if len(self.opciones) != len(self.columnas_x) and self.tipo == "marcas":
             raise ValueError(
                 f"opciones ({len(self.opciones)}) y columnas_x ({len(self.columnas_x)}) "
                 "deben tener la misma longitud"

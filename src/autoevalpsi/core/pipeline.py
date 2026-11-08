@@ -165,7 +165,9 @@ def procesar_foto(
     imagen = cargar_imagen(datos)
     calidad = evaluar_calidad(imagen, umbrales_calidad)
     registro = registrar(imagen, referencia, umbrales=umbrales_registro)
-    leidas = leer_casillas(registro, plantilla, referencia, pagina=pagina, parametros=parametros)
+    leidas = leer_casillas(
+        registro, plantilla, referencia, pagina=pagina, parametros=parametros, lector=lector
+    )
     texto = (
         leer_texto(
             registro.imagen, plantilla, referencia, lector, pagina=pagina, parametros=parametros_ocr
@@ -188,7 +190,7 @@ def procesar_foto(
     return Procesamiento(
         resultado,
         registro,
-        texto.recortes if texto else {},
+        {**leidas.recortes, **(texto.recortes if texto else {})},
         texto.recortes_cabecera if texto else {},
     )
 
