@@ -124,6 +124,7 @@ export function clienteFalso(sobre: Partial<Cliente> = {}): Cliente {
     plantilla: sinUsar,
     corregirEvaluacion: sinUsar,
     descartarPagina: sinUsar,
+    eliminarEvaluacion: sinUsar,
     urlRecorteFila: (e: string, i: number) => `/recorte/${e}/${i}`,
     urlRecorteCabecera: (e: string, c: string) => `/cabecera/${e}/${c}`,
     plantillas: sinUsar,

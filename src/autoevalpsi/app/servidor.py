@@ -26,6 +26,7 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     GET  /api/evaluaciones/{id}/recortes/{item}   PNG del recorte de la observación de una fila
     GET  /api/evaluaciones/{id}/cabecera/{campo}  PNG del recorte de un campo de la cabecera
     DELETE /api/evaluaciones/{id}/paginas/{n}     descarta una foto para repetirla (AP-R5)
+    DELETE /api/evaluaciones/{id}                 elimina la evaluación entera (los Excel exportados quedan)
     GET  /captura                            página del celular (HTML estático, sin secretos); AP-07
     GET  /, /assets/*                        la interfaz React compilada (AP-R4); estática y sin secretos
 
@@ -642,6 +643,26 @@ def crear_app(
         except EvaluacionInexistente as e:
             raise _error(404, "pagina_inexistente", str(e)) from e
         return {"evaluacion_eliminada": eliminada}
+
+    @app.delete("/api/evaluaciones/{id}")
+    def eliminar_evaluacion(id: str) -> dict:
+        """Elimina una evaluación entera (por ejemplo, una hecha con el formulario equivocado).
+        Los Excel que ya exportó se quedan donde están."""
+        evaluacion(id)
+        leyendo = any(
+            t["evaluacion_id"] == id
+            for t in cola.estado()["trabajos"]
+            if t["estado"] in ("en_cola", "procesando")
+        )
+        if leyendo:
+            raise _error(
+                409, "foto_en_lectura", "Esa evaluación todavía se está leyendo; espera un momento."
+            )
+        try:
+            bd.eliminar_evaluacion(id)
+        except EvaluacionInexistente as e:
+            raise _error(404, "evaluacion_inexistente", str(e)) from e
+        return {"eliminada": True}
 
     # --- configuración (AP-R4) ----------------------------------------------------------
 

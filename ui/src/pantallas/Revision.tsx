@@ -511,10 +511,11 @@ interface PropsRevision {
   plantilla: Plantilla;
   alActualizar: (ev: Evaluacion) => void;
   alDescartar: (pagina: number) => Promise<void>;
+  alEliminar?: () => Promise<void>; // elimina la evaluación entera
 }
 
 /** Pantalla de revisión (AP-R5): una tabla con la pregunta, las casillas, los avisos y la observación. */
-export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar }: PropsRevision) {
+export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar, alEliminar }: PropsRevision) {
   const info = useMemo(() => infoDeItems(plantilla), [plantilla]);
   const filas = evaluacion.filas;
   const [borradores, setBorradores] = useState<Record<number, Borrador>>({});
@@ -682,7 +683,31 @@ export function Revision({ api, evaluacion, plantilla, alActualizar, alDescartar
         <p className="hidden text-sm text-slate-600 2xl:block">
           Teclado: ↑ ↓ fila · 1, 2, 3… respuesta · 0 sin respuesta · Enter confirma
         </p>
-        <a className="ml-auto shrink-0 whitespace-nowrap text-acento underline" href={enlace.evaluaciones}>
+        {alEliminar && (
+          <Boton
+            variante="suave"
+            className="ml-auto shrink-0 whitespace-nowrap border-red-300 px-3 py-1 text-sm text-red-800"
+            disabled={guardando}
+            onClick={() => {
+              void confirmar({
+                titulo: "Eliminar la evaluación",
+                mensaje:
+                  "Se elimina esta evaluación con sus fotos y lo leído. " +
+                  "Los Excel que ya exportaste no se tocan. No se puede deshacer.",
+                confirmar: "Sí, eliminar",
+                peligro: true,
+              }).then((acepto) => {
+                if (acepto) void alEliminar();
+              });
+            }}
+          >
+            Eliminar evaluación
+          </Boton>
+        )}
+        <a
+          className={`${alEliminar ? "" : "ml-auto "}shrink-0 whitespace-nowrap text-acento underline`}
+          href={enlace.evaluaciones}
+        >
           Volver a la lista
         </a>
       </div>
@@ -823,6 +848,15 @@ export function PantallaRevision({ id }: { id: string }) {
     [api, id, avisar],
   );
 
+  const eliminar = useCallback(async () => {
+    try {
+      await api.eliminarEvaluacion(id);
+      window.location.hash = enlace.evaluaciones;
+    } catch (e) {
+      void avisar({ tipo: "error", titulo: "No se pudo eliminar", mensaje: mensajeDe(e) });
+    }
+  }, [api, id, avisar]);
+
   if (carga.error && !evaluacion) {
     return (
       <Tarjeta titulo="Revisión">
@@ -845,6 +879,7 @@ export function PantallaRevision({ id }: { id: string }) {
         plantilla={carga.datos.plantilla}
         alActualizar={setActual}
         alDescartar={descartar}
+        alEliminar={eliminar}
       />
     </>
   );

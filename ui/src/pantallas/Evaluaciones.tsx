@@ -3,7 +3,8 @@ import { useState } from "react";
 import type { ResumenEvaluacion } from "../api/tipos";
 import { Aviso, Tarjeta } from "../componentes/base";
 import { TablaEvaluaciones } from "../componentes/TablaEvaluaciones";
-import { useApi, useCarga } from "../hooks";
+import { useDialogos } from "../componentes/Dialogos";
+import { mensajeDe, useApi, useCarga } from "../hooks";
 
 export type Filtro = "todas" | "por_revisar" | "listas" | "exportadas";
 
@@ -24,7 +25,13 @@ export function filtrar(evaluaciones: ResumenEvaluacion[], filtro: Filtro): Resu
   return filtro === "todas" ? evaluaciones : evaluaciones.filter((e) => e.estado === ESTADO_DEL_FILTRO[filtro]);
 }
 
-export function ListaEvaluaciones({ evaluaciones }: { evaluaciones: ResumenEvaluacion[] }) {
+export function ListaEvaluaciones({
+  evaluaciones,
+  alEliminar,
+}: {
+  evaluaciones: ResumenEvaluacion[];
+  alEliminar?: (e: ResumenEvaluacion) => void;
+}) {
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const visibles = filtrar(evaluaciones, filtro);
   return (
@@ -49,18 +56,39 @@ export function ListaEvaluaciones({ evaluaciones }: { evaluaciones: ResumenEvalu
           );
         })}
       </div>
-      <TablaEvaluaciones evaluaciones={visibles} />
+      <TablaEvaluaciones evaluaciones={visibles} alEliminar={alEliminar} />
     </div>
   );
 }
 
 export function PantallaEvaluaciones() {
   const api = useApi();
-  const { datos, error } = useCarga(() => api.evaluaciones(), 5000);
+  const { datos, error, recargar } = useCarga(() => api.evaluaciones(), 5000);
+  const { confirmar, avisar } = useDialogos();
+
+  async function eliminar(e: ResumenEvaluacion) {
+    const nombre = e.paciente || "sin nombre";
+    const acepto = await confirmar({
+      titulo: "Eliminar la evaluación",
+      mensaje:
+        `Se elimina la evaluación de «${nombre}» con sus fotos y lo leído. ` +
+        "Los Excel que ya exportaste no se tocan. No se puede deshacer.",
+      confirmar: "Sí, eliminar",
+      peligro: true,
+    });
+    if (!acepto) return;
+    try {
+      await api.eliminarEvaluacion(e.id);
+      recargar();
+    } catch (err) {
+      void avisar({ tipo: "error", titulo: "No se pudo eliminar", mensaje: mensajeDe(err) });
+    }
+  }
+
   return (
     <Tarjeta titulo="Evaluaciones">
       {error && <Aviso>{error}</Aviso>}
-      {datos && <ListaEvaluaciones evaluaciones={datos} />}
+      {datos && <ListaEvaluaciones evaluaciones={datos} alEliminar={(e) => void eliminar(e)} />}
     </Tarjeta>
   );
 }

@@ -38,7 +38,13 @@ const colorEstado: Record<ResumenEvaluacion["estado"], string> = {
   exportada: "bg-slate-100 text-slate-700",
 };
 
-export function TablaEvaluaciones({ evaluaciones }: { evaluaciones: ResumenEvaluacion[] }) {
+export function TablaEvaluaciones({
+  evaluaciones,
+  alEliminar,
+}: {
+  evaluaciones: ResumenEvaluacion[];
+  alEliminar?: (e: ResumenEvaluacion) => void;
+}) {
   if (evaluaciones.length === 0) {
     return <p className="text-slate-600">No hay evaluaciones todavía.</p>;
   }
@@ -49,7 +55,12 @@ export function TablaEvaluaciones({ evaluaciones }: { evaluaciones: ResumenEvalu
           <th className="py-2 pr-4 font-medium">Paciente</th>
           <th className="py-2 pr-4 font-medium">Fecha y hora (Bolivia)</th>
           <th className="py-2 pr-4 font-medium">Formulario</th>
-          <th className="py-2 font-medium">Estado</th>
+          <th className="py-2 pr-4 font-medium">Estado</th>
+          {alEliminar && (
+            <th className="py-2 font-medium">
+              <span className="sr-only">Eliminar</span>
+            </th>
+          )}
         </tr>
       </thead>
       <tbody>
@@ -62,11 +73,23 @@ export function TablaEvaluaciones({ evaluaciones }: { evaluaciones: ResumenEvalu
             </td>
             <td className="py-3 pr-4">{fechaHoraBolivia(e.creada_en)}</td>
             <td className="py-3 pr-4">{e.plantilla_id}</td>
-            <td className="py-3">
+            <td className="py-3 pr-4">
               <span className={`rounded-full px-3 py-1 text-sm ${colorEstado[e.estado]}`}>
                 {describirEstado(e)}
               </span>
             </td>
+            {alEliminar && (
+              <td className="py-3">
+                <button
+                  type="button"
+                  className="rounded-lg border border-red-300 px-3 py-1 text-sm text-red-800 hover:bg-red-50"
+                  aria-label={`Eliminar la evaluación de ${e.paciente || "Sin nombre"}`}
+                  onClick={() => alEliminar(e)}
+                >
+                  Eliminar
+                </button>
+              </td>
+            )}
           </tr>
         ))}
       </tbody>

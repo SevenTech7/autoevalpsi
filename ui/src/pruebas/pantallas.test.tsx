@@ -8,7 +8,7 @@ import type { Cliente } from "../api/cliente";
 import { ErrorApi } from "../api/cliente";
 import { ContextoApi } from "../hooks";
 import { Configuracion } from "../pantallas/Configuracion";
-import { ListaEvaluaciones, filtrar } from "../pantallas/Evaluaciones";
+import { ListaEvaluaciones, PantallaEvaluaciones, filtrar } from "../pantallas/Evaluaciones";
 import { TarjetaCelular, TarjetaPendientes, formatearRestante } from "../pantallas/Inicio";
 import { clienteFalso, inicioVinculo, resumen } from "./datos";
 import { render } from "./render";
@@ -294,5 +294,30 @@ describe("la aplicación", () => {
     expect(screen.getByRole("link", { name: "Inicio" })).not.toHaveAttribute("aria-current");
     vi.unstubAllGlobals();
     window.location.hash = "";
+  });
+});
+
+describe("eliminar una evaluación", () => {
+  it("pide confirmación en una ventana, la elimina y recarga la lista", async () => {
+    const eliminarEvaluacion = vi.fn().mockResolvedValue({ eliminada: true });
+    const evaluaciones = vi
+      .fn()
+      .mockResolvedValueOnce(LISTA)
+      .mockResolvedValue(LISTA.filter((e) => e.id !== "a"));
+    conApi(clienteFalso({ evaluaciones, eliminarEvaluacion }), <PantallaEvaluaciones />);
+    await userEvent.click(await screen.findByRole("button", { name: "Eliminar la evaluación de Ana Pérez" }));
+    const ventana = await screen.findByRole("dialog");
+    expect(ventana).toHaveTextContent("Los Excel que ya exportaste no se tocan");
+    await userEvent.click(within(ventana).getByRole("button", { name: "Sí, eliminar" }));
+    expect(eliminarEvaluacion).toHaveBeenCalledWith("a");
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Ana Pérez" })).not.toBeInTheDocument());
+  });
+
+  it("si se arrepiente, no se elimina nada", async () => {
+    const eliminarEvaluacion = vi.fn();
+    conApi(clienteFalso({ evaluaciones: vi.fn().mockResolvedValue(LISTA), eliminarEvaluacion }), <PantallaEvaluaciones />);
+    await userEvent.click(await screen.findByRole("button", { name: /Eliminar la evaluación de Rosa Gil/ }));
+    await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /Cancelar|No/ }));
+    expect(eliminarEvaluacion).not.toHaveBeenCalled();
   });
 });

@@ -88,6 +88,8 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
       pedir<Plantilla>("GET", `/api/plantillas/${id(plantilla)}?version=${version}`),
     corregirEvaluacion: (evaluacion: string, cambio: CambioEvaluacion) =>
       pedir<Evaluacion>("PUT", `/api/evaluaciones/${id(evaluacion)}`, cambio),
+    eliminarEvaluacion: (evaluacion: string) =>
+      pedir<{ eliminada: boolean }>("DELETE", `/api/evaluaciones/${id(evaluacion)}`),
     descartarPagina: (evaluacion: string, pagina: number) =>
       pedir<{ evaluacion_eliminada: boolean }>(
         "DELETE",

@@ -264,6 +264,19 @@ def test_la_misma_foto_con_otro_formulario_se_permite(entorno, lote_sintetico, z
     assert bd.lecturas_de_foto("0" * 64) == []
 
 
+def test_eliminar_una_evaluacion_entera(entorno, lote_sintetico):
+    cliente, _app, bd, _ = entorno
+    ev = _procesar(entorno, lote_sintetico[0].foto, paciente="Ana")["trabajo"]["evaluacion_id"]
+    assert cliente.delete(f"/api/evaluaciones/{ev}").json() == {"eliminada": True}
+    assert cliente.get("/api/evaluaciones").json() == []
+    assert cliente.get(f"/api/evaluaciones/{ev}").status_code == 404
+    assert cliente.delete(f"/api/evaluaciones/{ev}").status_code == 404
+    assert not list((bd.raiz / "fotos").glob("*/*"))  # no quedan fotos en el disco
+    # la misma foto se puede subir de nuevo
+    _procesar(entorno, lote_sintetico[0].foto)
+    assert len(cliente.get("/api/evaluaciones").json()) == 1
+
+
 def test_hoja_en_blanco_deja_el_trabajo_en_error_y_el_trabajador_sigue(entorno, lote_sintetico):
     cliente = entorno[0]
     ruta = lote_sintetico[0].foto.parent / "negra.jpg"

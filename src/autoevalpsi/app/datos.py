@@ -721,6 +721,25 @@ class BaseDatos:
                 pass
         return not quedan
 
+    def eliminar_evaluacion(self, evaluacion_id: str) -> None:
+        """Elimina la evaluación entera (todas sus fotos, lecturas, correcciones y recortes).
+        Los Excel ya exportados no se tocan. Lanza `EvaluacionInexistente` si no existe."""
+        with self._candado:
+            paginas = [
+                r[0]
+                for r in self._con.execute(
+                    "SELECT pagina FROM paginas WHERE evaluacion_id = ? ORDER BY pagina",
+                    (evaluacion_id,),
+                )
+            ]
+        if not paginas:
+            with self._tx() as con:
+                self._existe(con, evaluacion_id)
+                con.execute("DELETE FROM evaluaciones WHERE id = ?", (evaluacion_id,))
+            return
+        for pagina in paginas:
+            self.descartar_pagina(evaluacion_id, pagina)
+
     def archivo(self, ruta_relativa: str) -> Path | None:
         """Ruta absoluta de un archivo guardado, o None si no existe o se sale de la raíz."""
         destino = (self.raiz / ruta_relativa).resolve()
