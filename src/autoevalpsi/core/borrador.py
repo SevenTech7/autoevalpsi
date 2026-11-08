@@ -251,10 +251,61 @@ def dibujar(img: np.ndarray, plantilla: dict) -> np.ndarray:
 
 
 def plantilla_desde_foto(
-    img: np.ndarray, lector: LectorONNX, *, id: str, nombre: str
+    img: np.ndarray,
+    lector: LectorONNX,
+    *,
+    id: str,
+    nombre: str,
+    lineas: list[LineaCar] | None = None,
 ) -> tuple[dict, np.ndarray, dict]:
     """Foto llena (BGR) → (plantilla v1, referencia sin marcas, borrador con las secciones)."""
-    borrador = construir(leer_con_posiciones(img, lector))
+    borrador = construir(lineas if lineas is not None else leer_con_posiciones(img, lector))
     gris = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     plantilla, limpia = a_plantilla(borrador, gris, id=id, nombre=nombre)
     return plantilla, limpia, borrador
+
+
+MINIMO_BLOQUES = 2  # una hoja de celdas numeradas trae varias columnas de respuestas
+MINIMO_ITEMS_CELDAS = 20
+
+
+def plantilla_automatica(
+    img: np.ndarray, lector: LectorONNX, *, id: str, nombre: str
+) -> tuple[dict, np.ndarray, dict]:
+    """Elige el tipo de formulario por lo que ve y arma su borrador de plantilla.
+
+    Si la hoja es una cuadrícula de celdas numeradas con números escritos a mano (como la hoja de
+    respuestas del Vineland) arma tablas de dígitos; si no, busca preguntas «Sí ( ) No ( )».
+    Devuelve `(plantilla, referencia, resumen)`; `resumen` = `{"tipo", "secciones", "items"}`."""
+    from autoevalpsi.core.cuadricula import plantilla_de_digitos
+
+    lineas = leer_con_posiciones(img, lector)
+    definicion, limpia, bloques = plantilla_de_digitos(
+        img, lector, id=id, nombre=nombre, textos=lineas
+    )
+    if (
+        len(bloques) >= MINIMO_BLOQUES
+        and sum(len(b.numeros) for b in bloques) >= MINIMO_ITEMS_CELDAS
+    ):
+        secciones = {b.seccion for b in bloques if b.seccion}
+        return (
+            definicion,
+            limpia,
+            {
+                "tipo": "celdas",
+                "secciones": max(len(secciones), 1),
+                "items": sum(len(b.numeros) for b in bloques),
+            },
+        )
+    definicion, limpia, borrador = plantilla_desde_foto(
+        img, lector, id=id, nombre=nombre, lineas=lineas
+    )
+    return (
+        definicion,
+        limpia,
+        {
+            "tipo": "si_no",
+            "secciones": len(borrador["secciones"]),
+            "items": sum(len(s["items"]) for s in borrador["secciones"]),
+        },
+    )

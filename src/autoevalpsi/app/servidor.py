@@ -97,7 +97,7 @@ from autoevalpsi.app.plantillas import (
 from autoevalpsi.app.qr import RUTA_CAPTURA, qr_svg, url_captura
 from autoevalpsi.app.red import Interfaz, candidatas, elegir_ip, listar_interfaces
 from autoevalpsi.app.vinculo import Vinculos
-from autoevalpsi.core.borrador import plantilla_desde_foto
+from autoevalpsi.core.borrador import plantilla_automatica
 from autoevalpsi.core.excel import ArchivoBloqueado, NombreArchivo, exportar
 from autoevalpsi.core.imagen import ImagenInvalida, cargar_imagen, evaluar_calidad
 from autoevalpsi.core.ocr.lector import Lector
@@ -726,13 +726,13 @@ def crear_app(
         except ImagenInvalida as e:
             raise _error(422, "foto_invalida", str(e)) from e
         ident = re.sub(r"[^a-z0-9]+", "-", _sin_tildes(nombre).lower()).strip("-") or "formulario"
-        definicion, limpia, borrador = plantilla_desde_foto(imagen, lector, id=ident, nombre=nombre)
-        if not any(s["items"] for s in borrador["secciones"]):
+        definicion, limpia, hallazgo = plantilla_automatica(imagen, lector, id=ident, nombre=nombre)
+        if hallazgo["items"] == 0:
             raise _error(
                 422,
                 "sin_items",
-                "No encontré preguntas «Sí ( ) No ( )» en la foto. Prueba con una foto más "
-                "derecha, con buena luz y la hoja completa.",
+                "No encontré preguntas «Sí ( ) No ( )» ni celdas numeradas en la foto. Prueba con "
+                "una foto más derecha, con buena luz y la hoja completa.",
             )
         ok, png = cv2.imencode(".png", limpia)
         if not ok:
@@ -740,7 +740,7 @@ def crear_app(
         inst = plantillas.instalar_nueva(
             definicion, {definicion["paginas"][0]["imagen_referencia"]: png.tobytes()}
         )
-        return {**resumen(inst), "secciones": len(borrador["secciones"])}
+        return {**resumen(inst), "secciones": hallazgo["secciones"], "tipo": hallazgo["tipo"]}
 
     # --- vínculo del celular (AP-D2) y página de captura (AP-R2) ------------------------------
 

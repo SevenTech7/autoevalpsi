@@ -29,7 +29,7 @@ obligatoria de la página). Principio: ninguna fila sale con una opción equivoc
 Una fila con bandera es «amarilla»; sin bandera es «verde».
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import cv2
 import numpy as np
@@ -57,11 +57,13 @@ class ParametrosLectura:
     percentil_fondo: float = 85.0
     contraste_min: float = 100.0  # profundidad mínima de la tinta de la ganadora (0-255)
     desenfoque_sigma: float = 1.0  # quita el ruido de grano/JPEG antes de umbralizar
-    tinta_digito: float = 0.02  # tinta mínima de una celda de dígito para considerarla escrita
+    delta_digito_min: float = 22.0  # caída mínima de gris (0-255) para contar un píxel como tinta
+    delta_digito_rel: float = 0.28  # …o esta fracción del gris del papel, si es mayor
+    tinta_digito: float = 0.008  # tinta mínima de una celda de dígito para considerarla escrita
     digito_confianza: float = 0.6  # por debajo: el dígito se propone pero se marca como dudoso
     digito_margen: float = 0.3  # distancia mínima al segundo dígito para no marcarlo dudoso
     digito_ilegible: float = 0.3  # por debajo de esta confianza no se propone ningún dígito
-    margen_celda: float = 0.14  # fracción de la celda que se descarta (líneas de la cuadrícula)
+    margen_celda: float = 0.18  # fracción de la celda que se descarta (líneas de la cuadrícula)
 
 
 @dataclass(frozen=True)
@@ -196,38 +198,41 @@ def _leer_tabla(
 def _leer_digitos(
     imagen: np.ndarray,
     gris: np.ndarray,
-    referencia: np.ndarray,
     tabla: Tabla,
     lector: LectorDigitos | None,
     p: ParametrosLectura,
 ) -> tuple[list[ResultadoFila], dict[int, np.ndarray]]:
-    """Una fila por ítem: el dígito manuscrito de su celda, o vacía, o dudosa (nunca se adivina)."""
-    columna = tabla.columnas_x[0]
-    ancho_celda = columna[1] - columna[0]
-    alto_celda = min(f.y[1] - f.y[0] for f in tabla.filas)
-    radio = max(1, round(p.holgura_impreso * min(ancho_celda, alto_celda)))
-    impreso = mascara_impreso(referencia, radio)
-    limpia = _gris(imagen).copy()
-    limpia[impreso] = 255  # fuera la cuadrícula y lo impreso: queda lo escrito a mano
+    """Una fila por ítem: el dígito manuscrito de su celda, o vacía, o dudosa (nunca se adivina).
+
+    Solo se mira el **interior** de la celda (sin el borde, donde está la cuadrícula impresa): ahí no
+    hay nada impreso, así que toda tinta es lo escrito a mano. No depende de la referencia, que en
+    fotos con poca luz o sombra no sirve para separar lo impreso."""
+    x0, x1 = tabla.columnas_x[0]
+    sin_impreso = np.zeros(gris.shape[:2], bool)
     filas = []
     recortes: dict[int, np.ndarray] = {}
     for fila in tabla.filas:
-        caja = (columna[0], fila.y[0], columna[1], fila.y[1])
-        mx, my = ancho_celda // 2, (fila.y[1] - fila.y[0]) // 2
-        ventana = (columna[0] - mx, fila.y[0] - my, columna[1] + mx, fila.y[1] + my)
-        prop, _ = medir_celda(gris, caja, ventana, impreso, p)
-        if prop >= p.tinta_digito:
-            recortes[fila.item] = imagen[fila.y[0] : fila.y[1], columna[0] : columna[1]].copy()
+        y0, y1 = fila.y
+        dx, dy = round((x1 - x0) * p.margen_celda), round((y1 - y0) * p.margen_celda)
+        interior = (x0 + dx, y0 + dy, x1 - dx, y1 - dy)
+        mx, my = (x1 - x0) // 2, (y1 - y0) // 2
+        ventana = (x0 - mx, y0 - my, x1 + mx, y1 + my)
+        # el contraste mínimo de la tinta se mide contra el papel: con poca luz el lápiz apenas
+        # baja 30 niveles, con buena luz baja 100
+        zona = gris[max(ventana[1], 0) : ventana[3], max(ventana[0], 0) : ventana[2]]
+        fondo = float(np.percentile(zona, p.percentil_fondo))
+        delta = max(p.delta_digito_min, p.delta_digito_rel * fondo)
+        prop, _ = medir_celda(gris, interior, ventana, sin_impreso, replace(p, delta_tinta=delta))
         if prop < p.tinta_digito:
             filas.append(ResultadoFila(fila.item, None, (prop,), (BANDERA_CELDA_VACIA,)))
             continue
+        recortes[fila.item] = imagen[y0:y1, x0:x1].copy()
         if lector is None:
             filas.append(ResultadoFila(fila.item, None, (prop,), (BANDERA_SIN_LECTOR,)))
             continue
-        dx = round(ancho_celda * p.margen_celda)
-        dy = round((fila.y[1] - fila.y[0]) * p.margen_celda)
-        recorte = limpia[fila.y[0] + dy : fila.y[1] - dy, columna[0] + dx : columna[1] - dx]
-        lectura = lector.leer_digito(recorte, tabla.opciones)
+        lectura = lector.leer_digito(
+            gris[interior[1] : interior[3], interior[0] : interior[2]], tabla.opciones
+        )
         if lectura.digito is None or lectura.confianza < p.digito_ilegible:
             filas.append(ResultadoFila(fila.item, None, (prop,), (BANDERA_DIGITO_ILEGIBLE,)))
         elif lectura.confianza < p.digito_confianza or lectura.margen < p.digito_margen:
@@ -273,7 +278,7 @@ def leer_casillas(
     recortes: dict[int, np.ndarray] = {}
     for t in datos.tablas:
         if t.tipo == "digito":
-            leidas, cortes = _leer_digitos(registro.imagen, gris, referencia, t, lector_digitos, p)
+            leidas, cortes = _leer_digitos(registro.imagen, gris, t, lector_digitos, p)
             recortes.update(cortes)
         else:
             leidas = _leer_tabla(gris, referencia, t, plantilla, p)

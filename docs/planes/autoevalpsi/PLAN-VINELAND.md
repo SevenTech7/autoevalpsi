@@ -46,7 +46,7 @@ pueden ser de otro paciente pero tienen el mismo formato.
 |---|---|---|
 | VD-R0 | Spike: ¿se leen los dígitos 0/1/2 con el OCR restringido? | hecha (2026-11-07) |
 | VD-R1 | Tabla de dígitos (`Tabla.tipo = "digito"`, una columna, una fila por ítem) y su lectura | hecha (2026-11-07) |
-| VD-R2 | Detectar la cuadrícula en la foto y armar la plantilla (borrador editable en el editor) | pendiente |
+| VD-R2 | Detectar la cuadrícula en la foto y armar la plantilla (borrador editable en el editor) | hecha (2026-11-07) |
 | VD-R3 | Exportar en el libro de la usuaria (`Fila.celda` + libro base, reglas de blancos) | pendiente |
 | VD-R4 | Reverso: áreas 7–10 y letras A/B/C | pendiente |
 
@@ -94,3 +94,35 @@ Sobre la foto del frente (luz amarilla, hojas debajo, sin enderezar):
 - **Editor:** una tabla de dígitos no deja agregar ni quitar columnas.
 - **Pruebas:** 12 de Python (10 con lector falso + 3 con el modelo real, marcador `lento`) y 5 de la
   interfaz. Suites completas en verde (428 Python, 132 interfaz).
+
+## VD-R2 — resultado
+
+`core/cuadricula.py` + `core/borrador.plantilla_automatica` (la usa «Crear una plantilla desde una
+foto»: si ve una cuadrícula de celdas numeradas arma tablas de dígitos; si no, busca «Sí ( ) No ( )»).
+
+- **Celdas:** son los huecos cerrados que dejan las líneas (binarización adaptativa, robusta a la
+  luz amarilla y a la sombra), filtrados por tamaño relativo a la foto.
+- **Columnas:** se arman de arriba abajo encadenando celdas, así siguen una columna inclinada (el
+  borde derecho de la hoja de la foto está torcido). Las celdas que no dan hueco (relleno azul de
+  la evaluadora) se completan por la separación entre filas.
+- **Etiquetas y respuestas:** `LectorONNX.leer_numero` (OCR restringido a 0-9) lee el número
+  impreso de cada celda; una columna que cuenta 1, 2, 3… es de etiquetas (la numeración se corrige
+  votando con todas las lecturas) y su vecina de la derecha es la de respuestas. El título de cada
+  sección sale de la celda de encabezado que cubre la columna.
+- **Plantilla:** una tabla de dígitos por columna de respuestas (una columna inclinada se parte en
+  tablas rectas) y una referencia con lo escrito a mano borrado. Es un borrador: se corrige en el
+  editor.
+- **Resultado en las dos fotos de muestra:** frente → 11 columnas de respuestas (1-30 y 31-39,
+  1-30 y 31-49, …, 31-58), reverso → 9 (7, 8, 9 y las tres de «Comportamientos problemáticos»), con
+  la numeración exacta. Leyendo la misma foto con su propia plantilla: reverso, columna de
+  «Relacionarse con otros» (43 ítems) y «Jugar y usar el tiempo libre» como se ven a ojo; frente,
+  «Escuchar y entender» 19-39 igual salvo el ítem 24 (un 1 sobrescrito).
+- **Lectura de la celda (cambio):** se mira solo el **interior** de la celda (sin el borde con la
+  cuadrícula) y el contraste mínimo de la tinta se mide contra el papel (con sombra el lápiz apenas
+  baja 30 niveles). Ya no depende de la referencia, que en fotos con poca luz no separaba bien lo
+  impreso.
+- **Pruebas:** 10 de lógica pura, 2 con el lector real sobre una hoja dibujada (`lento`) y 1 sobre
+  la foto real del reverso (`real`, solo local). Suite completa: 435 de Python en verde.
+- **Límites conocidos:** una hoja curva se parte en muchas tablas pequeñas; el encabezado de una
+  sección puede salir vacío si su celda no se detecta (se llama «Columna N»); el nombre del
+  paciente, escrito a mano arriba, no se ubica solo (se agrega como campo en el editor).

@@ -173,4 +173,5 @@ export interface PlantillaDef {
 
 export interface ResultadoDesdeFoto extends ResumenPlantilla {
   secciones: number;
+  tipo?: "si_no" | "celdas"; // lo que se encontró: preguntas Sí/No o una cuadrícula de celdas numeradas
 }
