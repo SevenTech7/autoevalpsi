@@ -210,6 +210,41 @@ class LectorONNX:
         segundo = float(por_digito[orden[1]]) if len(orden) > 1 else 0.0
         return LecturaDigito(permitidos[int(orden[0])], mejor, mejor - segundo)
 
+    def leer_numero(self, recorte: np.ndarray) -> tuple[int | None, float]:
+        """El número impreso (0-9, varias cifras) de una celda: restringido a dígitos.
+
+        Devuelve `(número, confianza)`; `(None, 0)` si no hay ninguna cifra. Sirve para leer las
+        etiquetas 1, 2, 3… de una hoja de respuestas.
+        """
+        gris = recorte if recorte.ndim == 2 else cv2.cvtColor(recorte, cv2.COLOR_BGR2GRAY)
+        alto, ancho = gris.shape[:2]
+        if alto == 0 or ancho == 0:
+            return None, 0.0
+        lienzo_w = max(alto * 3, ancho + alto)
+        lienzo = np.full((alto, lienzo_w), 255, np.uint8)
+        x = (lienzo_w - ancho) // 2
+        lienzo[:, x : x + ancho] = gris
+        with self._candado:
+            self._cargar()
+            digitos = [str(d) for d in range(10)]
+            indices = [self._clases.index(d) for d in digitos]
+            salida = self._rec.run(
+                None, {"x": self._preparar(cv2.cvtColor(lienzo, cv2.COLOR_GRAY2BGR))}
+            )[0][0]
+        sub = salida[:, [0, *indices]]
+        sub = sub / np.maximum(sub.sum(1, keepdims=True), 1e-9)
+        cifras: list[str] = []
+        pesos: list[float] = []
+        previo = 0
+        for t, k in enumerate(sub.argmax(1)):
+            if k != 0 and k != previo:
+                cifras.append(digitos[k - 1])
+                pesos.append(float(sub[t, k]))
+            previo = int(k)
+        if not cifras:
+            return None, 0.0
+        return int("".join(cifras)), float(np.mean(pesos))
+
     @staticmethod
     def _preparar(bgr: np.ndarray) -> np.ndarray:
         h, w = bgr.shape[:2]

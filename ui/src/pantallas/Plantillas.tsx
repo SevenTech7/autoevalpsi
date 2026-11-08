@@ -36,7 +36,8 @@ function DesdeFoto({ alCrear }: { alCrear: (id: string) => void }) {
         tipo: "ok",
         titulo: "Borrador listo",
         mensaje:
-          `Encontré ${r.items} preguntas en ${r.secciones} secciones. Es un borrador: revísalo en el ` +
+          `Encontré ${r.items} ${r.tipo === "celdas" ? "celdas de respuesta" : "preguntas"} en ` +
+          `${r.secciones} ${r.secciones === 1 ? "sección" : "secciones"}. Es un borrador: revísalo en el ` +
           "editor y corrige lo que falte o esté mal.",
       });
       alCrear(r.id);
@@ -51,8 +52,8 @@ function DesdeFoto({ alCrear }: { alCrear: (id: string) => void }) {
     <Tarjeta titulo="Crear una plantilla desde una foto">
       <div className="space-y-4">
         <p>
-          Sube la foto de un formulario <strong>ya lleno</strong>. La aplicación busca las preguntas «Sí / No» y las
-          casillas y arma un borrador; después lo corriges tú en el editor. Con la hoja entera, derecha y bien
+          Sube la foto de un formulario <strong>ya lleno</strong>. La aplicación busca las preguntas «Sí / No» o las
+          celdas numeradas con números escritos a mano y arma un borrador; después lo corriges tú en el editor. Con la hoja entera, derecha y bien
           iluminada sale mejor.
         </p>
         <div className="flex flex-wrap items-end gap-3">
