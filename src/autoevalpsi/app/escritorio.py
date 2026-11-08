@@ -44,7 +44,11 @@ class ErrorArranque(Exception):
 
 class AplicacionYaAbierta(ErrorArranque):
     def __init__(self) -> None:
-        super().__init__("AutoEvalPsi ya está abierta. Búscala en la barra de tareas.")
+        super().__init__(
+            "AutoEvalPsi ya está abierta, pero no se ve su ventana. Ciérrala con el Administrador "
+            "de tareas (Ctrl+Mayús+Esc, busca «AutoEvalPsi» y pulsa «Finalizar tarea») y ábrela "
+            "de nuevo."
+        )
 
 
 class PuertoOcupado(ErrorArranque):
@@ -196,6 +200,39 @@ def avisar(mensaje: str) -> None:
         print(mensaje, file=sys.stderr)
 
 
+def traer_al_frente() -> bool:  # pragma: no cover - solo Windows
+    """Si ya hay una ventana de AutoEvalPsi abierta, la restaura y la pone al frente."""
+    if os.name != "nt":
+        return False
+    import ctypes
+
+    usuario = ctypes.windll.user32
+    ventana = usuario.FindWindowW(None, TITULO)
+    if not ventana:
+        return False
+    usuario.ShowWindow(ventana, 9)  # SW_RESTORE: también la saca de minimizada
+    usuario.SetForegroundWindow(ventana)
+    return True
+
+
+def configurar_registro(raiz: Path) -> Path | None:
+    """Deja un registro de lo que pasa al abrir (sin consola no queda nada que mirar).
+    `<raíz>/registro.log`, con rotación; no guarda datos de pacientes."""
+    from logging.handlers import RotatingFileHandler
+
+    try:
+        raiz.mkdir(parents=True, exist_ok=True)
+        ruta = raiz / "registro.log"
+        manejador = RotatingFileHandler(ruta, maxBytes=500_000, backupCount=2, encoding="utf-8")
+    except OSError:
+        return None
+    manejador.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    raiz_log = logging.getLogger()
+    raiz_log.addHandler(manejador)
+    raiz_log.setLevel(logging.INFO)
+    return ruta
+
+
 def abrir_ventana(url: str, bd: BaseDatos) -> None:  # pragma: no cover - ventana real
     """Bloquea hasta que se cierra la ventana (o `webview.start` falla)."""
     import webview
@@ -209,7 +246,12 @@ def abrir_ventana(url: str, bd: BaseDatos) -> None:  # pragma: no cover - ventan
     ventana.append(
         webview.create_window(TITULO, url, js_api=Puente(bd, dialogo), width=1100, height=760)
     )
+    ventana[0].events.shown += lambda: log.info("ventana mostrada")
+    ventana[0].events.loaded += lambda: log.info("página cargada en la ventana")
+    ventana[0].events.closed += lambda: log.info("ventana cerrada")
+    log.info("abriendo la ventana")
     webview.start()
+    log.info("webview.start terminó")
 
 
 def ejecutar(
@@ -219,6 +261,7 @@ def ejecutar(
     lector: Lector | None = None,
     ventana: Callable[[str, BaseDatos], None] = abrir_ventana,
     mostrar_error: Callable[[str], None] = avisar,
+    al_frente: Callable[[], bool] = traer_al_frente,
 ) -> int:
     """Arranca todo, abre la ventana y cierra en orden. Devuelve el código de salida."""
     from autoevalpsi.app.datos import raiz_por_defecto
@@ -234,9 +277,21 @@ def ejecutar(
         url = f"http://{LOCAL}:{servidor.puerto}/?token={app.state.token}"
         ventana(url, bd)
         return 0
+    except AplicacionYaAbierta as e:
+        if al_frente():  # ya estaba abierta: se le da el frente y listo, sin regañar
+            return 0
+        mostrar_error(str(e))
+        return 2
     except ErrorArranque as e:
         mostrar_error(str(e))
         return 2
+    except Exception as e:
+        log.exception("la ventana falló")
+        mostrar_error(
+            f"AutoEvalPsi no pudo abrir su ventana ({type(e).__name__}). "
+            f"Detalle en {raiz / 'registro.log'}."
+        )
+        return 3
     finally:
         servidor.detener()
         bd.cerrar()

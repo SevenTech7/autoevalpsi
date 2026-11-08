@@ -95,8 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     lector = lector_por_defecto()
     if args.prueba_humo:
         return prueba_humo(lector, informe=args.informe)
-    from autoevalpsi.app.escritorio import ejecutar
+    from autoevalpsi.app.datos import raiz_por_defecto
+    from autoevalpsi.app.escritorio import configurar_registro, ejecutar
 
+    configurar_registro(raiz_por_defecto())
     return ejecutar(lector=lector)
 
 

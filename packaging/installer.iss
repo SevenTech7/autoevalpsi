@@ -45,7 +45,7 @@ Name: "{autodesktop}\AutoEvalPsi"; Filename: "{app}\AutoEvalPsi.exe"; Tasks: esc
 ; Regla de firewall acotada (DI-03): solo este programa, TCP 8765 y redes de perfil Privado.
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AutoEvalPsi"""; Flags: runhidden; StatusMsg: "Preparando la red local..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AutoEvalPsi"" dir=in action=allow program=""{app}\AutoEvalPsi.exe"" protocol=TCP localport=8765 profile=private"; Flags: runhidden; StatusMsg: "Permitiendo el celular en la red privada..."
-Filename: "{app}\AutoEvalPsi.exe"; Description: "Abrir AutoEvalPsi"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AutoEvalPsi.exe"; Description: "Abrir AutoEvalPsi"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AutoEvalPsi"""; Flags: runhidden; RunOnceId: "QuitarReglaFirewall"

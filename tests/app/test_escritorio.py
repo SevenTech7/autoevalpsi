@@ -192,6 +192,70 @@ def test_ejecutar_muestra_el_error_de_instancia_ya_abierta(tmp_path, app):
     assert mensajes and "ya está abierta" in mensajes[0]
 
 
+def test_si_ya_esta_abierta_y_hay_ventana_se_le_da_el_frente_sin_avisar(tmp_path, app):
+    primera = ServidorLocal(app, puerto=0)
+    primera.iniciar()
+    mensajes, frente = [], []
+    try:
+        codigo = ejecutar(
+            raiz=tmp_path,
+            puerto=primera.puerto,
+            ventana=lambda *_: pytest.fail("no debe abrir otra ventana"),
+            mostrar_error=mensajes.append,
+            al_frente=lambda: frente.append(1) or True,
+        )
+    finally:
+        primera.detener()
+    assert codigo == 0 and frente and not mensajes
+
+
+def test_si_ya_esta_abierta_sin_ventana_el_aviso_dice_como_cerrarla(tmp_path, app):
+    primera = ServidorLocal(app, puerto=0)
+    primera.iniciar()
+    mensajes = []
+    try:
+        ejecutar(
+            raiz=tmp_path,
+            puerto=primera.puerto,
+            ventana=lambda *_: None,
+            mostrar_error=mensajes.append,
+            al_frente=lambda: False,
+        )
+    finally:
+        primera.detener()
+    assert "Administrador de tareas" in mensajes[0] and "Finalizar tarea" in mensajes[0]
+
+
+def test_una_falla_inesperada_de_la_ventana_se_avisa_y_deja_registro(tmp_path):
+    mensajes = []
+
+    def ventana(url, bd):
+        raise RuntimeError("WebView2 no arrancó")
+
+    codigo = ejecutar(raiz=tmp_path, puerto=0, ventana=ventana, mostrar_error=mensajes.append)
+    assert codigo == 3 and "RuntimeError" in mensajes[0] and "registro.log" in mensajes[0]
+
+
+def test_el_registro_se_escribe_en_la_carpeta_de_datos(tmp_path):
+    import logging
+
+    from autoevalpsi.app.escritorio import configurar_registro
+
+    antes = list(logging.getLogger().handlers)
+    try:
+        ruta = configurar_registro(tmp_path / "datos")
+        logging.getLogger("prueba").warning("hola desde la prueba")
+        for h in logging.getLogger().handlers:
+            h.flush()
+        assert ruta == tmp_path / "datos" / "registro.log"
+        assert "hola desde la prueba" in ruta.read_text(encoding="utf-8")
+    finally:
+        for h in list(logging.getLogger().handlers):
+            if h not in antes:
+                logging.getLogger().removeHandler(h)
+                h.close()
+
+
 def test_ejecutar_cierra_el_servidor_si_la_ventana_falla(tmp_path):
     puertos = []
 
