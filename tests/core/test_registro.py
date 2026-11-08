@@ -274,6 +274,25 @@ def test_una_foto_reconocida_pero_dudosa_sale_con_bandera_y_no_se_rechaza(contex
         registrar(np.zeros((1600, 1200, 3), np.uint8), ref)
 
 
+def test_sift_calza_otra_foto_de_la_misma_hoja_con_otra_escala_y_perspectiva(contexto):
+    """Plantilla hecha desde una foto: la nueva foto tiene otro encuadre y otra resolución."""
+    _, ref = contexto
+    h, w = ref.shape
+    destino = np.float32(
+        [[0.08 * w, 0.10 * h], [0.97 * w, 0.06 * h], [0.99 * w, 0.95 * h], [0.04 * w, 0.92 * h]]
+    )
+    origen = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
+    M = cv2.getPerspectiveTransform(origen, destino)
+    foto = cv2.warpPerspective(ref, M, (w, h), borderValue=90)
+    foto = cv2.resize(foto, None, fx=0.6, fy=0.6, interpolation=cv2.INTER_AREA)  # otra resolución
+    foto = cv2.GaussianBlur(foto, (0, 0), 1.0)
+    H, m = registro._directa_con(foto, ref, registro._sift, cv2.NORM_L2, 0.8)
+    assert H is not None and m["inliers"] >= 40 and m["error"] < 2.0
+    # la esquina de la hoja en la foto cae en la esquina de la referencia
+    esq = cv2.perspectiveTransform(destino.reshape(-1, 1, 2) * 0.6, H).reshape(-1, 2)
+    assert np.abs(esq - origen).max() < 6
+
+
 def test_el_emparejamiento_directo_no_da_por_buena_una_hoja_ajena(contexto):
     """Ruido a cuadro completo: ni contorno de papel ni coincidencias con la plantilla."""
     _, ref = contexto

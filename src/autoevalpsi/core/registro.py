@@ -35,6 +35,7 @@ BANDERA_REGISTRO_DUDOSO = "registro_dudoso"
 _LADO_ORB = 1400  # px del lado largo para buscar coincidencias
 _NFEATURES = 6000
 _RAZON_LOWE = 0.8
+_NFEATURES_SIFT = 6000
 _RADIO_BUSQUEDA = 0.06  # fracción del lado largo: una coincidencia más lejos es falsa
 _UMBRAL_RANSAC_PX = 6.0  # a escala _LADO_ORB
 _LADO_ECC = 1000  # px del lado largo para las máscaras de líneas
@@ -191,24 +192,25 @@ def _homografia_orb(hoja: np.ndarray, referencia: np.ndarray):
     }
 
 
-def _homografia_directa(foto: np.ndarray, referencia: np.ndarray):
-    """H (px de la `foto` completa -> px de `referencia`) sin enderezar antes la hoja.
+def _sift(gris: np.ndarray, k: float):
+    chica = cv2.resize(gris, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    chica = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(chica)
+    return cv2.SIFT_create(nfeatures=_NFEATURES_SIFT).detectAndCompute(chica, None)
 
-    Para fotos donde no se ve el contorno del papel (la hoja llena el cuadro, o solo se detecta
-    la tabla). La foto se lleva a la escala de la referencia y se empareja contra *toda* la página
-    (prueba de razón de Lowe global; ORB es invariante a giros). Misma forma de salida que
-    `_homografia_orb`."""
+
+def _directa_con(foto, referencia, detector, norma, razon):
+    """H (px de la `foto` completa -> px de `referencia`) emparejando contra *toda* la página."""
     h, w = referencia.shape
     s = max(h, w) / max(foto.shape)
     escalada = cv2.resize(foto, None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC)
     k = min(1.0, _LADO_ORB / max(h, w))
-    kp_r, des_r = _orb(referencia, k)
-    kp_f, des_f = _orb(escalada, k)
+    kp_r, des_r = detector(referencia, k)
+    kp_f, des_f = detector(escalada, k)
     vacio = {"coincidencias": 0, "inliers": 0, "error": np.inf, "cobertura": 0.0}
     if des_r is None or des_f is None or len(kp_r) < 8 or len(kp_f) < 8:
         return None, vacio
-    pares = [p for p in cv2.BFMatcher(cv2.NORM_HAMMING).knnMatch(des_f, des_r, k=2) if len(p) == 2]
-    buenos = [a for a, b in pares if a.distance < _RAZON_LOWE * b.distance]
+    pares = [p for p in cv2.BFMatcher(norma).knnMatch(des_f, des_r, k=2) if len(p) == 2]
+    buenos = [a for a, b in pares if a.distance < razon * b.distance]
     vacio["coincidencias"] = len(buenos)
     if len(buenos) < 8:
         return None, vacio
@@ -229,6 +231,23 @@ def _homografia_directa(foto: np.ndarray, referencia: np.ndarray):
         "error": float(np.median(res)),
         "cobertura": _cobertura(dst[dentro] / k, w, h),
     }
+
+
+def _homografia_directa(foto: np.ndarray, referencia: np.ndarray):
+    """H (px de la `foto` completa -> px de `referencia`) sin enderezar antes la hoja.
+
+    Para fotos donde no se ve el contorno del papel (la hoja llena el cuadro, o solo se detecta
+    la tabla) y para plantillas hechas desde una foto, cuya referencia es otra foto de la hoja
+    (otro encuadre, otra perspectiva). Primero ORB (rápido; invariante a giros); si no deja un
+    registro firme (pocos puntos o error alto), SIFT, que aguanta mejor otra escala y otra
+    perspectiva. Misma forma de salida que `_homografia_orb`."""
+    H, m = _directa_con(foto, referencia, _orb, cv2.NORM_HAMMING, _RAZON_LOWE)
+    if H is not None and m["inliers"] >= 3 * UmbralesRegistro.inliers_min and m["error"] <= 2.0:
+        return H, m
+    H2, m2 = _directa_con(foto, referencia, _sift, cv2.NORM_L2, _RAZON_LOWE)
+    if H2 is not None and (H is None or m2["inliers"] > m["inliers"]):
+        return H2, m2
+    return H, m
 
 
 # --- ajuste fino con las líneas de la tabla -----------------------------------------------------

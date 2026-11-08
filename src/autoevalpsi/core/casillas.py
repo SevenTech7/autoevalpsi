@@ -61,7 +61,9 @@ class ParametrosLectura:
     delta_digito_rel: float = 0.15  # …o esta fracción del gris del papel, si es mayor
     tinta_digito: float = 0.008  # tinta mínima de una celda de dígito para considerarla escrita
     digito_confianza: float = 0.6  # por debajo: el dígito se propone pero se marca como dudoso
-    digito_margen: float = 0.3  # distancia mínima al segundo dígito para no marcarlo dudoso
+    digito_margen: float = 0.4  # distancia mínima al segundo dígito para no marcarlo dudoso
+    registro_malo_error: float = 2.5  # px de plantilla: peor que esto la hoja no quedó en su sitio
+    registro_malo_correlacion: float = 0.1  # líneas de la tabla casi sin parecido a la referencia
     digito_ilegible: float = 0.3  # por debajo de esta confianza no se propone ningún dígito
     margen_celda: float = 0.18  # fracción de la celda que se descarta (líneas de la cuadrícula)
 
@@ -276,8 +278,16 @@ def leer_casillas(
     lector_digitos = lector if isinstance(lector, LectorDigitos) else None
     filas: list[ResultadoFila] = []
     recortes: dict[int, np.ndarray] = {}
+    # Con la hoja mal calzada las celdas que se miran no son las de la plantilla: no se lee ningún
+    # número (se inventarían); la página queda sin lectura y con el aviso del registro.
+    calzada_mal = not registro.ok and (
+        registro.error_reproyeccion > p.registro_malo_error
+        or registro.correlacion_lineas < p.registro_malo_correlacion
+    )
     for t in datos.tablas:
-        if t.tipo == "digito":
+        if t.tipo == "digito" and calzada_mal:
+            leidas = [ResultadoFila(f.item, None, (0.0,)) for f in t.filas]
+        elif t.tipo == "digito":
             leidas, cortes = _leer_digitos(registro.imagen, gris, t, lector_digitos, p)
             recortes.update(cortes)
         else:

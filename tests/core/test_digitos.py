@@ -1,5 +1,7 @@
 """VD-R1: tablas de dígitos manuscritos (el valor es un número, no una casilla marcada)."""
 
+from dataclasses import replace
+
 import cv2
 import numpy as np
 import pytest
@@ -191,3 +193,26 @@ def test_cada_celda_con_numero_deja_su_recorte_para_la_revision():
     )
     assert sorted(pagina.recortes) == [1, 3]  # las vacías no tienen recorte
     assert pagina.recortes[1].shape[:2] == (50, 60)  # la celda completa, con su marco
+
+
+def test_con_la_hoja_mal_calzada_no_se_lee_ningun_numero():
+    """Si el registro salió mal, las celdas miradas no son las de la plantilla: no se inventa."""
+    lector = LectorFalso(digitos=[seguro("2")] * 4)
+    mal = replace(
+        registro(con_digitos({1: "2", 2: "1"})),
+        error_reproyeccion=2.8,
+        correlacion_lineas=-0.03,
+        banderas=("registro_dudoso",),
+    )
+    pagina = leer_casillas(mal, plantilla(), hoja_en_blanco(), lector=lector)
+    assert [f.opcion for f in pagina.filas] == [None] * 4
+    assert all("registro_dudoso" in f.banderas for f in pagina.filas)
+    assert lector.llamadas_digito == []
+    # un registro dudoso pero preciso (esquina fuera de la foto) sí se lee, con el aviso
+    dudoso = replace(
+        registro(con_digitos({1: "2"})), error_reproyeccion=0.7, banderas=("registro_dudoso",)
+    )
+    f = leer_casillas(
+        dudoso, plantilla(), hoja_en_blanco(), lector=LectorFalso(digitos=[seguro("2")])
+    )
+    assert f.filas[0].opcion == "2" and "registro_dudoso" in f.filas[0].banderas
