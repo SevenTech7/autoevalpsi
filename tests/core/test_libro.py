@@ -222,3 +222,62 @@ def _con_celda(celda: str):
     paginas = datos["paginas"]
     paginas[0]["tablas"][0]["filas"][1]["celda"] = celda
     return paginas
+
+
+# --- comprobar que la plantilla y el libro cuadran ----------------------------------------------
+
+
+def _guardar(tmp_path, celdas: dict[str, object]):
+    libro = Workbook()
+    for k, v in celdas.items():
+        libro.active[k] = v
+    ruta = tmp_path / "c.xlsx"
+    libro.save(ruta)
+    return ruta
+
+
+def test_comprobar_cuando_todo_cuadra(tmp_path):
+    from autoevalpsi.core.libro import comprobar_libro
+
+    ruta = _guardar(tmp_path, {"A1": 2, "A2": 1, "A3": "=SUM(A1:A2)"})
+    r = comprobar_libro(ruta, None, [("1", "A1"), ("2", "A2")])
+    assert r["cuadra"] and "cuadran" in r["avisos"][0] and r["con_celda"] == 2
+
+
+def test_comprobar_avisa_de_items_sin_celda(tmp_path):
+    from autoevalpsi.core.libro import comprobar_libro
+
+    ruta = _guardar(tmp_path, {"A1": 2})
+    r = comprobar_libro(ruta, None, [("1", "A1"), ("7", None), ("8", None)])
+    assert not r["cuadra"] and r["sin_celda"] == 2
+    assert "2 ítem(s) no tienen celda" in r["avisos"][0] and "7, 8" in r["avisos"][0]
+
+
+def test_comprobar_avisa_de_celdas_con_formula_o_rotulo(tmp_path):
+    from autoevalpsi.core.libro import comprobar_libro
+
+    ruta = _guardar(tmp_path, {"A1": "=SUM(B1:B2)", "A2": "receptivo", "A3": 5, "A4": "3"})
+    r = comprobar_libro(ruta, None, [("1", "A1"), ("2", "A2"), ("3", "A3"), ("4", "A4")])
+    assert r["ocupadas"] == ["A1", "A2"]  # un número guardado como texto no cuenta como rótulo
+    assert "fórmula o texto fijo" in r["avisos"][0]
+
+
+def test_comprobar_detecta_numeros_del_libro_que_ningun_item_usa(tmp_path):
+    from autoevalpsi.core.libro import comprobar_libro
+
+    ruta = _guardar(tmp_path, {"A1": 2, "A2": 1, "A3": 0, "B1": 2})
+    r = comprobar_libro(ruta, None, [("1", "A1"), ("3", "A3")])  # falta la fila de A2
+    assert r["numeros_sin_item"] == ["A2"]  # B1 queda fuera del área que cubren los ítems
+    assert r["numeros_en_area"] == 3 and "perdió filas" in r["avisos"][0]
+
+
+def test_comprobar_un_libro_ilegible_o_sin_la_hoja(tmp_path):
+    from autoevalpsi.core.libro import comprobar_libro
+
+    mal = tmp_path / "x.xlsx"
+    mal.write_bytes(b"no es excel")
+    with pytest.raises(LibroBaseInvalido, match="No se pudo abrir"):
+        comprobar_libro(mal, None, [("1", "A1")])
+    ok = _guardar(tmp_path, {"A1": 1})
+    with pytest.raises(LibroBaseInvalido, match="no tiene la hoja"):
+        comprobar_libro(ok, "Otra", [("1", "A1")])

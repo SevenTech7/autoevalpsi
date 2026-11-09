@@ -289,6 +289,30 @@ describe("libro de Excel y páginas (VD-R3)", () => {
     expect(screen.getByText("Cambios sin guardar")).toBeInTheDocument();
   });
 
+  it("elegir un libro muestra también lo que no cuadra con los ítems", async () => {
+    const ponerLibro = vi.fn().mockResolvedValue({
+      id: "sino", nombre: "Sí/No", version: 3, paginas: 1, items: 2, vaciar: [],
+      avisos: ["2 ítem(s) no tienen celda en el libro y no se escribirán: 7, 8."],
+    });
+    montar({ ponerLibro });
+    await userEvent.upload(await screen.findByLabelText("Elegir el libro de Excel"), new File(["x"], "L.xlsx"));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("no tienen celda en el libro");
+  });
+
+  it("el botón comprueba el libro guardado y dice si cuadra o qué revisar", async () => {
+    const comprobarLibro = vi
+      .fn()
+      .mockResolvedValueOnce({ cuadra: false, avisos: ["El libro tiene 3 celda(s) con número que ningún ítem usa (A2)."] })
+      .mockResolvedValueOnce({ cuadra: true, avisos: ["El libro y la plantilla cuadran: 2 ítems."] });
+    montarConLibro({ comprobarLibro });
+    const boton = await screen.findByRole("button", { name: /Comprobar que el libro y los ítems cuadran/ });
+    await userEvent.click(boton);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("ningún ítem usa");
+    await userEvent.click(screen.getByRole("button", { name: /Entendido|Aceptar|Cerrar/ }));
+    await userEvent.click(boton);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("cuadran");
+  });
+
   it("las celdas que se conservan se escriben normalizadas", async () => {
     montarConLibro();
     const caja = await screen.findByLabelText("Celdas que se conservan");

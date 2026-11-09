@@ -307,3 +307,25 @@ def test_agregar_una_pagina_desde_otra_foto(tmp_path, zip_plantilla, monkeypatch
             assert len(vieja["paginas"]) == 1  # la versión anterior no cambió
     finally:
         bd.cerrar()
+
+
+def test_comprobar_el_libro_avisa_por_la_api(entorno):
+    cliente, _repo = entorno
+    id, definicion = _definicion(cliente)
+    r = cliente.get(f"/api/plantillas/{id}/libro/comprobacion")
+    assert r.status_code == 422  # todavía sin libro
+    editada = copy.deepcopy(definicion)
+    filas = editada["paginas"][0]["tablas"][0]["filas"]
+    filas[0]["celda"], filas[1]["celda"] = "A1", "A3"
+    cliente.post(f"/api/plantillas/{id}/versiones", json={"plantilla": editada})
+    r = cliente.post(
+        f"/api/plantillas/{id}/libro",
+        files={
+            "archivo": ("L.xlsx", _xlsx({"A1": 2, "A2": 1, "A3": 3}), "application/octet-stream")
+        },
+    )
+    assert r.status_code == 201
+    assert any("ningún ítem usa" in a for a in r.json()["avisos"])  # A2 sobra
+    c = cliente.get(f"/api/plantillas/{id}/libro/comprobacion").json()
+    assert c["numeros_sin_item"] == ["A2"] and c["cuadra"] is False
+    assert c["sin_celda"] == c["items"] - 2

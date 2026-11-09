@@ -136,6 +136,7 @@ export function clienteFalso(sobre: Partial<Cliente> = {}): Cliente {
     urlReferencia: (p: string, v: number, n: number) => `/referencia/${p}/${v}/${n}`,
     guardarVersion: sinUsar,
     ponerLibro: sinUsar,
+    comprobarLibro: sinUsar,
     agregarPagina: sinUsar,
     plantillaDesdeFoto: sinUsar,
     importarPlantilla: sinUsar,

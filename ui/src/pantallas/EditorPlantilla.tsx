@@ -325,9 +325,26 @@ function EditorCargado({
         `El libro de Excel quedó como molde de la salida (versión ${r.version}). ` +
         (r.vaciar.length > 0
           ? `Antes de escribir cada evaluación se vaciarán: ${r.vaciar.join(", ")}. Revisa esa lista en «Libro de Excel» y corrígela si hace falta.`
-          : "No se vaciará ninguna celda: revisa la lista en «Libro de Excel».")
+          : "No se vaciará ninguna celda: revisa la lista en «Libro de Excel».") +
+        (r.avisos?.length ? `\n\nComprobación con tus ítems:\n• ${r.avisos.join("\n• ")}` : "")
       );
     }, "No se pudo usar ese libro");
+
+  async function comprobarLibro() {
+    setOcupadoServidor(true);
+    try {
+      const c = await api.comprobarLibro(inicial.id);
+      await avisar({
+        tipo: c.cuadra ? "ok" : "info",
+        titulo: c.cuadra ? "El libro cuadra" : "Revisa el libro",
+        mensaje: c.avisos.join("\n\n"),
+      });
+    } catch (e) {
+      await avisar({ tipo: "error", titulo: "No se pudo comprobar el libro", mensaje: mensajeDe(e) });
+    } finally {
+      setOcupadoServidor(false);
+    }
+  }
 
   const agregarPagina = (foto: File) =>
     enElServidor(async () => {
@@ -648,6 +665,11 @@ function EditorCargado({
                     La salida es el Excel genérico. Si tienes tu propio libro, elígelo y cada pregunta se escribe en su
                     celda.
                   </p>
+                )}
+                {borrador.libro && (
+                  <Boton variante="suave" disabled={sinGuardar || ocupadoServidor} onClick={() => void comprobarLibro()}>
+                    Comprobar que el libro y los ítems cuadran
+                  </Boton>
                 )}
                 <input
                   ref={entradaLibro}

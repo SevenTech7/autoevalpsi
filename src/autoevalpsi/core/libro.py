@@ -182,3 +182,73 @@ def proponer_vaciado(base: Path, hoja: str | None, celdas: list[str]) -> list[st
             if f is not None:
                 ini = prev = f
     return propuesta
+
+
+def comprobar_libro(base: Path, hoja: str | None, items: list[tuple[str, str | None]]) -> dict:
+    """Cruza la plantilla con el libro de la usuaria. `items` son `(rótulo, celda|None)`.
+
+    El libro sabe cuántos datos espera su hoja; la foto, dónde están. Si no cuadran, lo más
+    probable es que el reconocimiento haya perdido filas o que una celda esté mal asignada. Solo
+    avisa: la decisión es de la usuaria. Devuelve conteos, listas cortas y `avisos` en palabras."""
+    try:
+        libro = load_workbook(base)
+    except (OSError, ValueError, KeyError, BadZipFile) as e:
+        raise LibroBaseInvalido(f"No se pudo abrir el libro de Excel «{base.name}»: {e}") from e
+    if hoja and hoja not in libro.sheetnames:
+        raise LibroBaseInvalido(f"El libro no tiene la hoja «{hoja}».")
+    ws = libro[hoja] if hoja else libro.worksheets[0]
+
+    sin_celda = [r for r, c in items if not c]
+    celdas = [c for _, c in items if c]
+    ocupadas: list[str] = []
+    for c in celdas:
+        v = ws[c].value
+        if isinstance(v, str) and v.strip() and not v.strip().lstrip("-").isdigit():
+            ocupadas.append(c)  # fórmula o rótulo: escribir encima lo destruiría
+    numeros_sin_item: list[str] = []
+    numeros_en_area = 0
+    if celdas:
+        limites = [range_boundaries(c) for c in celdas]
+        c0, f0 = min(b[0] for b in limites), min(b[1] for b in limites)
+        c1, f1 = max(b[2] for b in limites), max(b[3] for b in limites)
+        mias = set(celdas)
+        for fila in ws.iter_rows(min_row=f0, max_row=f1, min_col=c0, max_col=c1):
+            for c in fila:
+                if isinstance(c.value, bool) or not isinstance(c.value, int | float):
+                    continue
+                numeros_en_area += 1
+                if c.coordinate not in mias:
+                    numeros_sin_item.append(c.coordinate)
+
+    def lista(xs: list[str], tope: int = 6) -> str:
+        return ", ".join(xs[:tope]) + (f" y {len(xs) - tope} más" if len(xs) > tope else "")
+
+    avisos: list[str] = []
+    if sin_celda:
+        avisos.append(
+            f"{len(sin_celda)} ítem(s) no tienen celda en el libro y no se escribirán: {lista(sin_celda)}."
+        )
+    if ocupadas:
+        avisos.append(
+            f"{len(ocupadas)} ítem(s) apuntan a celdas con fórmula o texto fijo ({lista(ocupadas)}): "
+            "se sobrescribirían. Revisa su celda."
+        )
+    if numeros_sin_item:
+        avisos.append(
+            f"El libro tiene {len(numeros_sin_item)} celda(s) con número dentro del área de datos que "
+            f"ningún ítem usa ({lista(numeros_sin_item)}): quizá la plantilla perdió filas."
+        )
+    if not avisos:
+        avisos.append(
+            f"El libro y la plantilla cuadran: {len(celdas)} ítems, cada uno con su celda."
+        )
+    return {
+        "items": len(items),
+        "con_celda": len(celdas),
+        "sin_celda": len(sin_celda),
+        "ocupadas": ocupadas,
+        "numeros_sin_item": numeros_sin_item,
+        "numeros_en_area": numeros_en_area,
+        "cuadra": not (sin_celda or ocupadas or numeros_sin_item),
+        "avisos": avisos,
+    }

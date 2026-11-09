@@ -20,7 +20,12 @@ from pathlib import Path, PurePosixPath
 import numpy as np
 from pydantic import ValidationError
 
-from autoevalpsi.core.libro import proponer_conservar, proponer_vaciado
+from autoevalpsi.core.libro import (
+    LibroBaseInvalido,
+    comprobar_libro,
+    proponer_conservar,
+    proponer_vaciado,
+)
 from autoevalpsi.core.plantilla import Plantilla, PlantillaInvalida, cargar_plantilla
 from autoevalpsi.core.registro import RegistroInvalido, cargar_referencia
 
@@ -229,6 +234,20 @@ class RepositorioPlantillas:
         """El libro de Excel base de la plantilla, si declara uno."""
         libro = inst.plantilla.libro
         return inst.ruta.parent / libro.archivo if libro else None
+
+    def comprobar_libro(self, id: str) -> dict:
+        """Cruza la versión más nueva con su libro de Excel (`core.libro.comprobar_libro`)."""
+        inst = self.obtener(id)
+        ruta = self.ruta_libro(inst)
+        if ruta is None:
+            raise LibroBaseInvalido("Esta plantilla no tiene un libro de Excel.")
+        items = [
+            (f.texto.rsplit("·", 1)[-1].strip() or str(f.item), f.celda)
+            for p in inst.plantilla.paginas
+            for t in p.tablas
+            for f in t.filas
+        ]
+        return comprobar_libro(ruta, inst.plantilla.libro.hoja, items)
 
     def _nueva_version(
         self, id: str, cambiar, archivos: dict[str, bytes] | None = None

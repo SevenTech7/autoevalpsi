@@ -1,4 +1,5 @@
 import type {
+  ComprobacionLibro,
   Configuracion,
   EstadoActualizacion,
   EstadoCola,
@@ -150,6 +151,9 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
       form.append("archivo", archivo);
       return pedir<ResultadoLibro>("POST", `/api/plantillas/${id(plantilla)}/libro`, form);
     },
+    /** Cruza los ítems de la plantilla guardada con su libro de Excel. Solo avisa. */
+    comprobarLibro: (plantilla: string) =>
+      pedir<ComprobacionLibro>("GET", `/api/plantillas/${id(plantilla)}/libro/comprobacion`),
     /** Una página más para la plantilla (por ejemplo el reverso), armada desde otra foto. */
     agregarPagina: (plantilla: string, foto: File) => {
       const form = new FormData();

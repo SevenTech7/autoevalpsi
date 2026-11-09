@@ -209,6 +209,17 @@ export interface PlantillaDef {
 
 export interface ResultadoLibro extends ResumenPlantilla {
   vaciar: string[];
+  avisos?: string[]; // lo que no cuadra entre la plantilla y el libro (ver ComprobacionLibro)
+}
+
+export interface ComprobacionLibro {
+  items: number;
+  con_celda: number;
+  sin_celda: number;
+  ocupadas: string[]; // celdas con fórmula o rótulo que un ítem sobrescribiría
+  numeros_sin_item: string[]; // números del libro, dentro del área de datos, que ningún ítem usa
+  cuadra: boolean;
+  avisos: string[];
 }
 
 export interface ResultadoPagina extends ResumenPlantilla {

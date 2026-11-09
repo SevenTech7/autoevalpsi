@@ -16,6 +16,7 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     POST /api/evaluaciones/{id}/exportar     a Excel; 409 si hay algo sin revisar (AP-06) o el
                                              archivo está abierto; {carpeta, evaluacion, consolidado}
     GET  /api/plantillas[/{id}]              plantillas instaladas
+    GET  /api/plantillas/{id}/libro/comprobacion   cruza los ítems con el libro de Excel (solo avisa)
     POST /api/plantillas/importar            .zip con el .json y las imágenes en blanco (PL-D2)
     POST /api/vinculo/iniciar[?ip=]          código de vínculo de un solo uso (5 min), su QR y las IP (AP-02)
     GET  /api/vinculo                        ¿hay un celular vinculado?
@@ -983,7 +984,21 @@ def crear_app(
             raise _error(422, "libro_base_invalido", str(e)) from e
         except PlantillaYaInstalada as e:
             raise _error(409, "plantilla_ya_instalada", str(e)) from e
-        return {**resumen(inst), "vaciar": vaciar}
+        return {
+            **resumen(inst),
+            "vaciar": vaciar,
+            "avisos": plantillas.comprobar_libro(id)["avisos"],
+        }
+
+    @app.get("/api/plantillas/{id}/libro/comprobacion")
+    def comprobar_libro_de_excel(id: str) -> dict:
+        """Cruza los ítems de la plantilla con el libro: filas sin celda, celdas ocupadas, números
+        del libro que ningún ítem usa. Solo avisa."""
+        instalada(id)
+        try:
+            return plantillas.comprobar_libro(id)
+        except LibroBaseInvalido as e:
+            raise _error(422, "libro_base_invalido", str(e)) from e
 
     @app.post("/api/plantillas/{id}/paginas", status_code=201)
     def agregar_pagina_desde_foto(id: str, foto: Annotated[UploadFile, File()]) -> dict:
