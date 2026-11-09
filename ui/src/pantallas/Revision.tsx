@@ -700,9 +700,9 @@ export function Revision({
   const visiblesHoja = useMemo(() => visibles.filter((f) => f.pagina === hoja), [visibles, hoja]);
   const conObservaciones = useMemo(() => hayObservaciones(plantilla, filas), [plantilla, filas]);
 
-  /** Cambiar de pestaña siempre deja la vista al comienzo de esa hoja (nunca a la mitad). La fila
-   * activa pasa a la primera por revisar, sin desplazar la página: para ir a ella está el botón
-   * «Ir a la primera fila por revisar». */
+  /** Cambiar de pestaña no mueve la página ni un píxel: la vista queda donde estaba. La fila activa
+   * pasa a la primera por revisar, sin desplazar nada: para ir a ella está el botón «Ir a la
+   * primera fila por revisar». */
   const irAHoja = useCallback(
     (n: number) => {
       setHoja(n);
@@ -710,7 +710,6 @@ export function Revision({
       const aqui = filas.filter((f) => f.pagina === n);
       const primera = aqui.find((f) => !f.revisada) ?? aqui[0];
       if (primera) setActiva(primera.item);
-      setTimeout(() => document.getElementById("hoja-contenido")?.scrollIntoView?.({ block: "start" }), 0);
     },
     [filas],
   );

@@ -88,7 +88,7 @@ describe("barra de la revisión", () => {
     expect(document.querySelector('tr[aria-current="true"]')).toHaveAttribute("data-item", "2");
   });
 
-  it("cambiar de pestaña no mueve la página a una fila: solo va al comienzo de la hoja", async () => {
+  it("cambiar de pestaña no mueve la página: ninguna llamada a desplazar", async () => {
     const aVista = vi.fn();
     window.HTMLElement.prototype.scrollIntoView = aVista;
     const { ev, plantilla: p } = dosHojasConFilas();
@@ -96,8 +96,8 @@ describe("barra de la revisión", () => {
     aVista.mockClear();
     await userEvent.click(within(screen.getByRole("tablist")).getByRole("tab", { name: /Hoja 1/ }));
     await new Promise((ok) => setTimeout(ok, 20));
-    const llamadas = aVista.mock.calls.map((c) => c[0]);
-    expect(llamadas).toEqual([{ block: "start" }]); // ninguna fila pidió desplazarse
+    expect(aVista).not.toHaveBeenCalled();
+    expect(screen.getByText("Puntualidad")).toBeInTheDocument(); // y aun así cambió el contenido
   });
 
   it("muestra el avance de lo revisado", () => {
