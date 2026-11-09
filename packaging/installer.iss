@@ -48,7 +48,8 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AutoEvalPsi"" dir=in action=allow program=""{app}\AutoEvalPsi.exe"" protocol=TCP localport=8765 profile=private"; Flags: runhidden; StatusMsg: "Permitiendo el celular en la red privada..."
 Filename: "{app}\AutoEvalPsi.exe"; Description: "Abrir AutoEvalPsi"; Flags: nowait postinstall skipifsilent runasoriginaluser
 ; Actualización desde la app: sin asistente final, así que se vuelve a abrir aquí.
-Filename: "{app}\AutoEvalPsi.exe"; Flags: nowait runasoriginaluser; Check: Reabrir
+; Se espera 5 s: el antivirus puede estar revisando los archivos recién copiados.
+Filename: "{sys}\cmd.exe"; Parameters: "/c ping -n 6 127.0.0.1 >nul & start """" ""{app}\AutoEvalPsi.exe"""; Flags: nowait runhidden runasoriginaluser; Check: Reabrir
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AutoEvalPsi"""; Flags: runhidden; RunOnceId: "QuitarReglaFirewall"
