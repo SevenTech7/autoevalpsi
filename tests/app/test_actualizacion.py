@@ -221,3 +221,52 @@ def test_el_celular_no_puede_actualizar():
 
     assert not _del_celular("GET", "/api/actualizacion")
     assert not _del_celular("POST", "/api/actualizacion/instalar")
+
+
+def _api_con_cierre(tmp_path, lanzar):
+    bd = BaseDatos(tmp_path / "datos")
+    cerrados = []
+    act = Actualizador(tmp_path / "act", actual="0.1.0", abrir=Red(_release()), lanzar=lanzar)
+    app = crear_app(
+        bd,
+        RepositorioPlantillas(tmp_path / "p"),
+        token=TOKEN,
+        actualizador=act,
+        al_instalar=lambda: cerrados.append(1),
+    )
+    return bd, app, cerrados
+
+
+def _bajar(cliente):
+    cliente.post("/api/actualizacion/buscar")
+    cliente.post("/api/actualizacion/descargar")
+    for _ in range(200):
+        if cliente.get("/api/actualizacion").json()["estado"] == "lista":
+            return
+        time.sleep(0.02)
+
+
+def test_tras_lanzar_el_instalador_la_app_se_cierra_sola(tmp_path):
+    bd, app, cerrados = _api_con_cierre(tmp_path, lambda ruta: None)
+    with TestClient(app, headers=AUTH, client=LAPTOP) as cliente:
+        _bajar(cliente)
+        assert cliente.post("/api/actualizacion/instalar").status_code == 200
+        for _ in range(100):
+            if cerrados:
+                break
+            time.sleep(0.05)
+    bd.cerrar()
+    assert cerrados == [1]
+
+
+def test_si_windows_no_abre_el_instalador_la_app_no_se_cierra(tmp_path):
+    def lanzar(_ruta):
+        raise OSError("cancelado")
+
+    bd, app, cerrados = _api_con_cierre(tmp_path, lanzar)
+    with TestClient(app, headers=AUTH, client=LAPTOP) as cliente:
+        _bajar(cliente)
+        assert cliente.post("/api/actualizacion/instalar").status_code == 502
+        time.sleep(2.0)
+    bd.cerrar()
+    assert cerrados == []

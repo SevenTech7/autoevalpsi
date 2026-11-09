@@ -378,6 +378,7 @@ def crear_app(
     guardar_fallidas: Path | None = None,
     carpeta_por_defecto: Path | None = None,
     actualizador: Actualizador | None = None,
+    al_instalar: Callable[[], None] | None = None,
 ) -> FastAPI:
     """`lector` (OCR) es opcional: sin él solo se leen las casillas. `app.state.token` es el
     token del arranque y `app.state.cola` la cola, por si quien arranca los necesita. `puerto` e
@@ -848,7 +849,13 @@ def crear_app(
                 "fotos_en_lectura",
                 "Hay fotos leyéndose. Espera a que terminen y vuelve a intentarlo.",
             )
-        return actualizar(actualizador.instalar)
+        estado = actualizar(actualizador.instalar)
+        if al_instalar:
+            # El instalador ya está corriendo (Windows ya dio el permiso): la app se cierra sola
+            # para no tener archivos tomados cuando él los reemplace. Un segundo de gracia para
+            # que la respuesta llegue a la ventana.
+            threading.Timer(1.5, al_instalar).start()
+        return estado
 
     # --- plantillas ---------------------------------------------------------------------
 

@@ -366,6 +366,7 @@ describe("actualizar la aplicación", () => {
     expect(instalar).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Instalar ahora" }));
     await waitFor(() => expect(instalar).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("se cerrará sola");
   });
 
   it("sin internet el error sale en una ventana emergente", async () => {

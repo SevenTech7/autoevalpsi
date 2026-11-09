@@ -181,7 +181,16 @@ function TarjetaActualizacion() {
         "abrirse sola. Tus evaluaciones y plantillas se conservan.",
       confirmar: "Instalar ahora",
     });
-    if (acepto) await paso(() => api.instalarActualizacion(), "No se pudo instalar la actualización");
+    if (!acepto) return;
+    await paso(async () => {
+      const e = await api.instalarActualizacion();
+      await avisar({
+        tipo: "info",
+        titulo: "Instalando",
+        mensaje: "La aplicación se cerrará sola y volverá a abrirse en unos segundos. No hace falta hacer nada.",
+      });
+      return e;
+    }, "No se pudo instalar la actualización");
   }
 
   const nueva = actual?.novedad;

@@ -254,6 +254,14 @@ def abrir_ventana(url: str, bd: BaseDatos) -> None:  # pragma: no cover - ventan
     log.info("webview.start terminó")
 
 
+def cerrar_ventana() -> None:  # pragma: no cover - ventana real
+    """Cierra la ventana: `webview.start` vuelve y `ejecutar` termina en orden."""
+    import webview
+
+    for v in list(webview.windows):
+        v.destroy()
+
+
 def ejecutar(
     *,
     raiz: Path | None = None,
@@ -270,7 +278,7 @@ def ejecutar(
     bd = BaseDatos(raiz)
     plantillas = RepositorioPlantillas(raiz / "plantillas")
     ips = [i.ip for i in candidatas(listar_interfaces())]
-    app = crear_app(bd, plantillas, lector=lector, puerto=puerto)
+    app = crear_app(bd, plantillas, lector=lector, puerto=puerto, al_instalar=cerrar_ventana)
     servidor = ServidorLocal(app, puerto, ips)
     try:
         servidor.iniciar()
