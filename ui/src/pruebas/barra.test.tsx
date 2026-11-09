@@ -61,11 +61,43 @@ describe("barra de la revisión", () => {
     await waitFor(() => expect(exportar).toHaveBeenCalledWith("ev1", false));
   });
 
-  it("bloqueado dice por qué al pasar el cursor", () => {
-    montar(evaluacion()); // faltan filas
+  it("bloqueado lo dice con palabras: texto a la vista y ventana al pulsarlo", async () => {
+    montar(evaluacion()); // faltan 2 filas
     const barra = screen.getAllByRole("button", { name: /^Exportar/ })[0]!;
-    expect(barra).toBeDisabled();
-    expect(barra).toHaveAttribute("title", "Faltan 2 filas por revisar.");
+    expect(barra).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("No se puede exportar: faltan 2 filas por revisar")).toBeInTheDocument();
+    await userEvent.click(barra);
+    const popup = await screen.findByRole("dialog");
+    expect(popup).toHaveTextContent("Todavía no se puede exportar");
+    expect(popup).toHaveTextContent("Faltan 2 filas por revisar.");
+    expect(within(popup).getByRole("button", { name: "Ir a la primera fila por revisar" })).toBeInTheDocument();
+  });
+
+  it("si lo que falta es confirmar los datos de la hoja, lo dice", async () => {
+    montar(evaluacion({ cabecera_revisada: false, filas_pendientes: 0, filas: [fila({ item: 1 }), fila({ item: 2 }), fila({ item: 3 })] }));
+    await userEvent.click(screen.getAllByRole("button", { name: /^Exportar/ })[0]!);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Falta confirmar los datos de la hoja.");
+  });
+
+  it("«Ir a la primera fila por revisar» lleva la fila a la vista y la deja activa", async () => {
+    const aVista = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = aVista;
+    montar(evaluacion()); // pendientes: ítems 2 y 3
+    await userEvent.click(screen.getByRole("button", { name: "Ir a la primera fila por revisar" }));
+    expect(aVista).toHaveBeenCalledWith({ block: "center" });
+    expect(document.querySelector('tr[aria-current="true"]')).toHaveAttribute("data-item", "2");
+  });
+
+  it("cambiar de pestaña no mueve la página a una fila: solo va al comienzo de la hoja", async () => {
+    const aVista = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = aVista;
+    const { ev, plantilla: p } = dosHojasConFilas();
+    montar(ev, {}, p);
+    aVista.mockClear();
+    await userEvent.click(within(screen.getByRole("tablist")).getByRole("tab", { name: /Hoja 1/ }));
+    await new Promise((ok) => setTimeout(ok, 20));
+    const llamadas = aVista.mock.calls.map((c) => c[0]);
+    expect(llamadas).toEqual([{ block: "start" }]); // ninguna fila pidió desplazarse
   });
 
   it("muestra el avance de lo revisado", () => {

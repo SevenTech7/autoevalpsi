@@ -285,6 +285,13 @@ function Cabecera({ api, evaluacion, campos, guardando, alConfirmar, alCambiarEs
 
 // --- una fila de la tabla -----------------------------------------------------------------------
 
+/** Pedido de llevar una fila a la vista; `n` distingue pedidos repetidos de la misma fila. */
+interface Ver {
+  item: number;
+  centrar: boolean;
+  n: number;
+}
+
 interface PropsFila {
   api: Cliente;
   evaluacionId: string;
@@ -292,6 +299,7 @@ interface PropsFila {
   info: InfoItem | undefined;
   borrador: Borrador | undefined;
   activa: boolean;
+  ver: Ver | null;
   guardando: boolean;
   conObservaciones: boolean;
   alElegir: () => void;
@@ -311,9 +319,11 @@ function FilaTabla(p: PropsFila) {
   const cambiada = borrador !== undefined && Object.keys(borrador).length > 0;
   const ref = useRef<HTMLTableRowElement>(null);
 
+  // Solo se desplaza cuando la usuaria lo pidió (flechas, «siguiente», «ir a la primera»): elegir una
+  // hoja o hacer clic en una fila no debe mover la página.
   useEffect(() => {
-    if (activa) ref.current?.scrollIntoView?.({ block: "nearest" });
-  }, [activa]);
+    if (p.ver) ref.current?.scrollIntoView?.({ block: p.ver.centrar ? "center" : "nearest" });
+  }, [p.ver]);
 
   const hecha = fila.revisada && !cambiada;
   const fondo = activa ? "bg-sky-50" : hecha ? "bg-white" : "bg-amber-50";
@@ -329,7 +339,7 @@ function FilaTabla(p: PropsFila) {
       aria-current={activa ? "true" : undefined}
       data-item={fila.item}
       onClick={p.alElegir}
-      className={`${fondo} ${activa ? "outline outline-2 -outline-offset-2 outline-acento" : ""}`}
+      className={`scroll-mt-36 scroll-mb-4 ${fondo} ${activa ? "outline outline-2 -outline-offset-2 outline-acento" : ""}`}
     >
       {digitos ? (
         <th scope="row" className={`${CELDA} pl-2 pr-3 text-left`} title={info?.texto}>
@@ -399,11 +409,13 @@ function FilaTabla(p: PropsFila) {
       {digitos && (
         <td className={`${CELDA} w-28 text-center`}>
           {fila.ruta_recorte ? (
-            <Recorte
-              src={p.api.urlRecorteFila(p.evaluacionId, fila.item)}
-              alt={`Lo escrito en el ítem ${fila.item}`}
-              clase="mx-auto max-h-10 max-w-24"
-            />
+            <div className="flex h-10 items-center justify-center">
+              <Recorte
+                src={p.api.urlRecorteFila(p.evaluacionId, fila.item)}
+                alt={`Lo escrito en el ítem ${fila.item}`}
+                clase="mx-auto max-h-10 max-w-24"
+              />
+            </div>
           ) : (
             <span className="text-sm text-slate-500">vacía</span>
           )}
@@ -414,11 +426,13 @@ function FilaTabla(p: PropsFila) {
         <td className={`${CELDA} min-w-56`}>
           <div className="flex items-center gap-2">
             {fila.ruta_recorte && (
-              <Recorte
-                src={p.api.urlRecorteFila(p.evaluacionId, fila.item)}
-                alt={`Observación escrita a mano del ítem ${fila.item}`}
-                clase="max-h-10 max-w-40 shrink-0"
-              />
+              <div className="flex h-10 w-40 shrink-0 items-center">
+                <Recorte
+                  src={p.api.urlRecorteFila(p.evaluacionId, fila.item)}
+                  alt={`Observación escrita a mano del ítem ${fila.item}`}
+                  clase="max-h-10 max-w-40"
+                />
+              </div>
             )}
             <div className="min-w-0 grow">
               <textarea
@@ -665,6 +679,9 @@ export function Revision({
   const [soloPendientes, setSoloPendientes] = useState(false);
   const total = plantilla.paginas.length;
   const [hoja, setHoja] = useState<number>(() => (filas.find((f) => !f.revisada) ?? filas[0])?.pagina ?? 0);
+  const [ver, setVer] = useState<Ver | null>(null);
+  const pedidos = useRef(0);
+  const verFila = useCallback((item: number, centrar: boolean) => setVer({ item, centrar, n: ++pedidos.current }), []);
   const [guardando, setGuardando] = useState(false);
   const { avisar, confirmar } = useDialogos();
   const [cabeceraSinConfirmar, setCabeceraSinConfirmar] = useState(false);
@@ -683,12 +700,17 @@ export function Revision({
   const visiblesHoja = useMemo(() => visibles.filter((f) => f.pagina === hoja), [visibles, hoja]);
   const conObservaciones = useMemo(() => hayObservaciones(plantilla, filas), [plantilla, filas]);
 
+  /** Cambiar de pestaña siempre deja la vista al comienzo de esa hoja (nunca a la mitad). La fila
+   * activa pasa a la primera por revisar, sin desplazar la página: para ir a ella está el botón
+   * «Ir a la primera fila por revisar». */
   const irAHoja = useCallback(
     (n: number) => {
       setHoja(n);
+      setVer(null);
       const aqui = filas.filter((f) => f.pagina === n);
       const primera = aqui.find((f) => !f.revisada) ?? aqui[0];
       if (primera) setActiva(primera.item);
+      setTimeout(() => document.getElementById("hoja-contenido")?.scrollIntoView?.({ block: "start" }), 0);
     },
     [filas],
   );
@@ -733,9 +755,11 @@ export function Revision({
       if (siguiente) {
         setActiva(siguiente.item);
         setHoja(siguiente.pagina);
+        // la contigua se muestra con el mínimo movimiento; una lejana, al centro
+        verFila(siguiente.item, siguiente !== orden[desde + 1]);
       }
     },
-    [borradores, guardar],
+    [borradores, guardar, verFila],
   );
 
   /** Confirma de una vez todas las filas por revisar (con lo que ya se haya cambiado en ellas). */
@@ -775,7 +799,10 @@ export function Revision({
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       const otra = visiblesHoja[Math.min(visiblesHoja.length - 1, Math.max(0, pos + (e.key === "ArrowDown" ? 1 : -1)))];
-      if (otra) setActiva(otra.item);
+      if (otra) {
+        setActiva(otra.item);
+        verFila(otra.item, false);
+      }
     } else if (info.get(activa)?.tipo === "digito" && (/^[0-9]$/.test(e.key) || e.key === "Backspace" || e.key === "Delete")) {
       // en una tabla de números, la tecla es el número mismo; Borrar deja la celda sin respuesta
       const opciones = info.get(activa)?.opciones ?? [];
@@ -806,6 +833,15 @@ export function Revision({
   const paginaActual = evaluacion.paginas.find((pg) => pg.pagina === hoja);
   const tramos = paginaActual ? tramosPorOpciones(visiblesHoja, info) : [];
   const varias = total > 1;
+  const primeraPendiente = filas.find((f) => f.pagina === hoja && (!f.revisada || borradores[f.item]));
+  const irAPrimeraPendiente = () => {
+    // si en esta hoja no queda nada, busca la primera de cualquier hoja
+    const f = primeraPendiente ?? filas.find((x) => !x.revisada);
+    if (!f) return;
+    setHoja(f.pagina);
+    setActiva(f.item);
+    verFila(f.item, true);
+  };
   const exportar = useExportar({
     api,
     evaluacion,
@@ -833,14 +869,34 @@ export function Revision({
             {textoFaltan(pendientes)}
             {pendientes === 0 && evaluacion.cabecera_revisada ? " · Lista para exportar" : ""}
           </p>
-          <Boton
-            className="ml-auto shrink-0 whitespace-nowrap px-4 py-1.5"
-            disabled={exportar.bloqueo !== null || exportar.ocupado}
-            title={exportar.bloqueo ?? undefined}
-            onClick={() => void exportar.exportar()}
-          >
-            {exportar.textoBoton}
-          </Boton>
+          <div className="ml-auto flex shrink-0 flex-col items-end">
+            <Boton
+              className={`whitespace-nowrap px-4 py-1.5 ${exportar.bloqueo ? "cursor-not-allowed opacity-60" : ""}`}
+              disabled={exportar.ocupado}
+              aria-disabled={exportar.bloqueo !== null}
+              aria-describedby={exportar.bloqueo ? "motivo-exportar" : undefined}
+              onClick={() => {
+                if (!exportar.bloqueo) return void exportar.exportar();
+                // Sin respuesta muda: se explica en una ventana y se ofrece ir a lo que falta.
+                void avisar({
+                  tipo: "info",
+                  titulo: "Todavía no se puede exportar",
+                  mensaje: `${exportar.bloqueo} Cuando esté todo revisado y confirmado, el botón se activa.`,
+                  accion:
+                    pendientes > 0
+                      ? { texto: "Ir a la primera fila por revisar", alHacer: irAPrimeraPendiente }
+                      : { texto: "Ir a los datos de la hoja", alHacer: () => window.scrollTo({ top: 0 }) },
+                });
+              }}
+            >
+              {exportar.textoBoton}
+            </Boton>
+            {exportar.bloqueo && (
+              <span id="motivo-exportar" className="mt-0.5 text-xs text-amber-900">
+                No se puede exportar: {exportar.bloqueo.replace(/\.$/, "").replace(/^./, (c) => c.toLowerCase())}
+              </span>
+            )}
+          </div>
           <MenuMas>
             <p className="text-sm font-semibold text-slate-700">Atajos de teclado</p>
             <p className="text-sm text-slate-600">↑ ↓ cambian de fila · 1, 2, 3… eligen la respuesta · 0 sin respuesta · Enter confirma</p>
@@ -921,7 +977,7 @@ export function Revision({
         id="hoja-contenido"
         role={varias ? "tabpanel" : undefined}
         aria-labelledby={varias ? `hoja-${hoja}` : undefined}
-        className="rounded-lg border border-slate-200 bg-white shadow-sm"
+        className="scroll-mt-36 rounded-lg border border-slate-200 bg-white shadow-sm"
       >
         {!paginaActual ? (
           <HojaFaltante n={hoja} alSubir={alSubirHoja} />
@@ -929,6 +985,11 @@ export function Revision({
           <>
             <div className="flex items-center justify-between gap-3 px-3 py-1">
               <h3 className="text-base font-semibold">{varias ? `Hoja ${paginaActual.pagina + 1}` : "Respuestas"}</h3>
+              {primeraPendiente && (
+                <Boton variante="suave" className="ml-auto px-3 py-0.5 text-sm" onClick={irAPrimeraPendiente}>
+                  Ir a la primera fila por revisar
+                </Boton>
+              )}
               <Boton
                 variante="suave"
                 className="px-3 py-0.5 text-sm"
@@ -999,6 +1060,7 @@ export function Revision({
                       info={info.get(f.item)}
                       borrador={borradores[f.item]}
                       activa={activa === f.item}
+                      ver={ver?.item === f.item ? ver : null}
                       guardando={guardando}
                       conObservaciones={conObservaciones}
                       alElegir={() => setActiva(f.item)}

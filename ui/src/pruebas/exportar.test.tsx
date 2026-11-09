@@ -216,9 +216,10 @@ describe("dentro de la pantalla de revisión", () => {
       />,
     );
     expect(botones()).toHaveLength(2); // barra de arriba y panel del pie, siempre iguales
-    expect(botones().every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
+    const apagado = (b: HTMLElement) => (b as HTMLButtonElement).disabled || b.getAttribute("aria-disabled") === "true";
+    expect(botones().some(apagado)).toBe(false);
     await userEvent.type(screen.getByLabelText("Paciente"), "x");
-    expect(botones().every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
-    expect(screen.getByText(/cambios sin confirmar/)).toBeInTheDocument();
+    expect(botones().every(apagado)).toBe(true);
+    expect(screen.getAllByText(/cambios sin confirmar/).length).toBeGreaterThan(0); // barra y pie
   });
 });
