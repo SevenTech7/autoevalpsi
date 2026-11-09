@@ -1099,6 +1099,15 @@ export function PantallaRevision({ id }: { id: string }) {
   useEffect(() => setActual(null), [id]);
   const evaluacion = actual ?? carga.datos?.ev ?? null;
 
+  // Al salir de la pantalla (o cambiar de evaluación) se deja de consultar la cola.
+  const vivo = useRef(true);
+  useEffect(() => {
+    vivo.current = true;
+    return () => {
+      vivo.current = false;
+    };
+  }, [id]);
+
   const descartar = useCallback(
     async (pagina: number) => {
       try {
@@ -1133,7 +1142,7 @@ export function PantallaRevision({ id }: { id: string }) {
             mensaje: r.problemas_calidad.join(" "),
           });
         }
-        for (let i = 0; i < 120; i++) {
+        for (let i = 0; i < 120 && vivo.current; i++) {
           const cola = await api.cola();
           const t = cola.trabajos?.find((x) => x.id === r.trabajo.id);
           if (t?.estado === "error") {
@@ -1142,8 +1151,10 @@ export function PantallaRevision({ id }: { id: string }) {
           if (t?.estado === "lista") break;
           await new Promise((ok) => setTimeout(ok, 1500));
         }
+        if (!vivo.current) return;
         setActual(await api.evaluacion(id));
       } catch (e) {
+        if (!vivo.current) return;
         void avisar({ tipo: "error", titulo: "No se pudo subir la hoja", mensaje: mensajeDe(e) });
       }
     },

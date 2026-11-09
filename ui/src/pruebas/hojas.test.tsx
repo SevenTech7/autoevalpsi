@@ -8,7 +8,7 @@ import type { Plantilla } from "../api/tipos";
 import { describirEstado } from "../componentes/TablaEvaluaciones";
 import { ContextoApi } from "../hooks";
 import { Plantillas } from "../pantallas/Plantillas";
-import { Revision } from "../pantallas/Revision";
+import { PantallaRevision, Revision } from "../pantallas/Revision";
 import { clienteFalso, evaluacion, plantilla, resumen } from "./datos";
 import { render } from "./render";
 
@@ -53,6 +53,33 @@ describe("hojas de una evaluación", () => {
     const foto = new File(["x"], "h2.jpg", { type: "image/jpeg" });
     await userEvent.upload(within(panel).getByLabelText("Subir la foto de la hoja 2"), foto);
     await waitFor(() => expect(alSubirHoja).toHaveBeenCalledWith(1, foto));
+  });
+
+  it("al salir de la pantalla se deja de consultar la cola de la foto subida", async () => {
+    const cola = vi.fn().mockResolvedValue({ trabajos: [{ id: "t1", estado: "leyendo" }] });
+    const api = clienteFalso({
+      evaluacion: vi.fn().mockResolvedValue(evaluacion({ cabecera_revisada: true })),
+      plantilla: vi.fn().mockResolvedValue(dosHojas()),
+      subirFoto: vi
+        .fn()
+        .mockResolvedValue({ trabajo: { id: "t1" }, repetir: false, problemas_calidad: [] }),
+      cola,
+    });
+    const { unmount } = render(
+      <ContextoApi.Provider value={api}>
+        <PantallaRevision id="ev1" />
+      </ContextoApi.Provider>,
+    );
+    await userEvent.click(await screen.findByRole("tab", { name: /Hoja 2/ }));
+    const panel = screen.getByRole("tabpanel");
+    await userEvent.upload(
+      within(panel).getByLabelText("Subir la foto de la hoja 2"),
+      new File(["x"], "h2.jpg", { type: "image/jpeg" }),
+    );
+    await waitFor(() => expect(cola).toHaveBeenCalledTimes(1));
+    unmount();
+    await new Promise((r) => setTimeout(r, 1800)); // más que el intervalo de sondeo (1,5 s)
+    expect(cola).toHaveBeenCalledTimes(1);
   });
 
   it("con una sola hoja no aparecen las pestañas", () => {

@@ -238,8 +238,8 @@ class RepositorioPlantillas:
     def comprobar_libro(self, id: str) -> dict:
         """Cruza la versión más nueva con su libro de Excel (`core.libro.comprobar_libro`)."""
         inst = self.obtener(id)
-        ruta = self.ruta_libro(inst)
-        if ruta is None:
+        ruta, libro = self.ruta_libro(inst), inst.plantilla.libro
+        if ruta is None or libro is None:
             raise LibroBaseInvalido("Esta plantilla no tiene un libro de Excel.")
         items = [
             (f.texto.rsplit("·", 1)[-1].strip() or str(f.item), f.celda)
@@ -247,7 +247,7 @@ class RepositorioPlantillas:
             for t in p.tablas
             for f in t.filas
         ]
-        return comprobar_libro(ruta, inst.plantilla.libro.hoja, items)
+        return comprobar_libro(ruta, libro.hoja, items)
 
     def _nueva_version(
         self, id: str, cambiar, archivos: dict[str, bytes] | None = None

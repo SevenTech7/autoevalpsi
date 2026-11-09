@@ -86,7 +86,7 @@ def listar_interfaces() -> list[Interfaz]:
     ips: set[str] = set()
     try:
         for *_, direccion in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-            ips.add(direccion[0])
+            ips.add(str(direccion[0]))
     except OSError:
         pass
     if ruta:

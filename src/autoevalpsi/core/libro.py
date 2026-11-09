@@ -94,22 +94,36 @@ def libro_de_la_usuaria(ev, base: Path) -> Workbook:
     return libro
 
 
-def proponer_conservar(base: Path, hoja: str | None, celdas: list[str]) -> list[str]:
-    """Celdas que quedan dentro del rectángulo de los ítems pero no son datos: textos fijos de la
-    hoja de la usuaria (p. ej. la letra A, B o C que marca el final de cada columna). Se conservan
-    al vaciar; los valores del paciente son números y esos sí se limpian."""
-    if not celdas:
-        return []
+def _hoja_de(base: Path, hoja: str | None):
+    """Abre el libro de la usuaria y devuelve la hoja pedida (o la primera)."""
     try:
         libro = load_workbook(base)
     except (OSError, ValueError, KeyError, BadZipFile) as e:
         raise LibroBaseInvalido(f"No se pudo abrir el libro de Excel «{base.name}»: {e}") from e
     if hoja and hoja not in libro.sheetnames:
         raise LibroBaseInvalido(f"El libro no tiene la hoja «{hoja}».")
-    ws = libro[hoja] if hoja else libro.worksheets[0]
+    return libro[hoja] if hoja else libro.worksheets[0]
+
+
+def _caja(celdas: list[str]) -> tuple[int, int, int, int]:
+    """Rectángulo (col0, fila0, col1, fila1) que cubre un conjunto de celdas o rangos."""
     limites = [range_boundaries(c) for c in celdas]
-    c0, f0 = min(b[0] for b in limites), min(b[1] for b in limites)
-    c1, f1 = max(b[2] for b in limites), max(b[3] for b in limites)
+    return (
+        min(b[0] for b in limites),
+        min(b[1] for b in limites),
+        max(b[2] for b in limites),
+        max(b[3] for b in limites),
+    )
+
+
+def proponer_conservar(base: Path, hoja: str | None, celdas: list[str]) -> list[str]:
+    """Celdas que quedan dentro del rectángulo de los ítems pero no son datos: textos fijos de la
+    hoja de la usuaria (p. ej. la letra A, B o C que marca el final de cada columna). Se conservan
+    al vaciar; los valores del paciente son números y esos sí se limpian."""
+    if not celdas:
+        return []
+    ws = _hoja_de(base, hoja)
+    c0, f0, c1, f1 = _caja(celdas)
     mias = set(celdas)
     return [
         c.coordinate
@@ -130,19 +144,11 @@ def proponer_vaciado(base: Path, hoja: str | None, celdas: list[str]) -> list[st
     - fuera de él, los números escritos a mano (no fórmulas) y los textos cortos que están justo a
       la derecha de un número o de una fórmula (las clasificaciones «b», «mod b»).
     Los rótulos y las fórmulas nunca entran."""
-    try:
-        libro = load_workbook(base)
-    except (OSError, ValueError, KeyError, BadZipFile) as e:
-        raise LibroBaseInvalido(f"No se pudo abrir el libro de Excel «{base.name}»: {e}") from e
-    if hoja and hoja not in libro.sheetnames:
-        raise LibroBaseInvalido(f"El libro no tiene la hoja «{hoja}».")
-    ws = libro[hoja] if hoja else libro.worksheets[0]
+    ws = _hoja_de(base, hoja)
     propuesta: list[str] = []
     caja = None
     if celdas:
-        limites = [range_boundaries(c) for c in celdas]
-        c0, f0 = min(b[0] for b in limites), min(b[1] for b in limites)
-        c1, f1 = max(b[2] for b in limites), max(b[3] for b in limites)
+        c0, f0, c1, f1 = _caja(celdas)
         caja = (c0, f0, c1, f1)
         propuesta.append(f"{get_column_letter(c0)}{f0}:{get_column_letter(c1)}{f1}")
 
@@ -190,13 +196,7 @@ def comprobar_libro(base: Path, hoja: str | None, items: list[tuple[str, str | N
     El libro sabe cuántos datos espera su hoja; la foto, dónde están. Si no cuadran, lo más
     probable es que el reconocimiento haya perdido filas o que una celda esté mal asignada. Solo
     avisa: la decisión es de la usuaria. Devuelve conteos, listas cortas y `avisos` en palabras."""
-    try:
-        libro = load_workbook(base)
-    except (OSError, ValueError, KeyError, BadZipFile) as e:
-        raise LibroBaseInvalido(f"No se pudo abrir el libro de Excel «{base.name}»: {e}") from e
-    if hoja and hoja not in libro.sheetnames:
-        raise LibroBaseInvalido(f"El libro no tiene la hoja «{hoja}».")
-    ws = libro[hoja] if hoja else libro.worksheets[0]
+    ws = _hoja_de(base, hoja)
 
     sin_celda = [r for r, c in items if not c]
     celdas = [c for _, c in items if c]
@@ -208,9 +208,7 @@ def comprobar_libro(base: Path, hoja: str | None, items: list[tuple[str, str | N
     numeros_sin_item: list[str] = []
     numeros_en_area = 0
     if celdas:
-        limites = [range_boundaries(c) for c in celdas]
-        c0, f0 = min(b[0] for b in limites), min(b[1] for b in limites)
-        c1, f1 = max(b[2] for b in limites), max(b[3] for b in limites)
+        c0, f0, c1, f1 = _caja(celdas)
         mias = set(celdas)
         for fila in ws.iter_rows(min_row=f0, max_row=f1, min_col=c0, max_col=c1):
             for c in fila:

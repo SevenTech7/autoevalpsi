@@ -22,6 +22,8 @@ jobs:
         run: uv sync --frozen --all-extras
       - name: Ruff
         run: uv run ruff check
+      - name: Tipos (mypy)
+        run: uv run mypy
       - name: Pytest (sin lento ni real)
         run: uv run pytest -m "not lento and not real"
 

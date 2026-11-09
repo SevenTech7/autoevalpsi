@@ -53,7 +53,7 @@ class ParametrosLectura:
     """Parámetros de medición de tinta (no son contrato de plantilla; ver `Plantilla.omr`)."""
 
     holgura_impreso: float = 0.03  # engrosado de lo impreso, fracción del lado menor de la celda
-    delta_tinta: int = 40  # niveles de gris bajo el fondo para contar un píxel como tinta
+    delta_tinta: float = 40  # niveles de gris bajo el fondo para contar un píxel como tinta
     percentil_fondo: float = 85.0
     contraste_min: float = 100.0  # profundidad mínima de la tinta de la ganadora (0-255)
     desenfoque_sigma: float = 1.0  # quita el ruido de grano/JPEG antes de umbralizar

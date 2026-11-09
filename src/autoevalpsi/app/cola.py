@@ -182,6 +182,7 @@ class ColaProcesamiento:
             t = tarea.trabajo
             with self._candado:
                 t.estado = "procesando"
+            resultado: tuple[str, str, bool | None]
             try:
                 revision = self._ejecutar(t, tarea.datos)
                 resultado = ("lista", "", revision)

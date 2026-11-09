@@ -156,7 +156,8 @@ def test_la_credencial_abre_fotos_cola_y_plantillas(entorno, lote_sintetico):
     plantillas = celular.get("/api/plantillas", headers=h)
     assert plantillas.status_code == 200
     pid = plantillas.json()[0]["id"]
-    assert celular.get(f"/api/plantillas/{pid}", headers=h).status_code == 200
+    # la definición completa del formulario no la necesita el celular
+    assert celular.get(f"/api/plantillas/{pid}", headers=h).status_code == 403
     assert celular.get("/api/cola", headers=h).status_code == 200
     r = celular.post(
         "/api/fotos",
@@ -176,6 +177,9 @@ def test_la_credencial_abre_fotos_cola_y_plantillas(entorno, lote_sintetico):
         ("PUT", "/api/evaluaciones/x"),
         ("POST", "/api/evaluaciones/x/exportar"),
         ("POST", "/api/plantillas/importar"),
+        ("GET", "/api/plantillas/x"),
+        ("GET", "/api/plantillas/x/referencia/0"),
+        ("GET", "/api/plantillas/x/libro/comprobacion"),
         ("POST", "/api/vinculo/iniciar"),
         ("GET", "/api/vinculo"),
         ("DELETE", "/api/vinculo"),

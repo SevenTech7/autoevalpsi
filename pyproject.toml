@@ -19,7 +19,7 @@ ocr = ["onnxruntime"]
 autoevalpsi = "autoevalpsi.cli:main"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "pyinstaller", "pyyaml", "httpx"]
+dev = ["pytest", "ruff", "mypy", "pyinstaller", "pyyaml", "httpx"]
 
 [build-system]
 requires = ["hatchling"]
@@ -45,3 +45,22 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 # Los bind-mounts de Docker Desktop marcan todo como ejecutable; EXE* daría falsos positivos.
 extend-ignore = ["EXE001", "EXE002"]
+
+# Tipos del backend (corre en CI sobre Windows). Los módulos de visión (numpy/OpenCV/ONNX/Pillow)
+# se excluyen del chequeo: sus anotaciones de tipos dan falsos positivos y no hay stubs fiables.
+[tool.mypy]
+python_version = "3.12"
+platform = "win32"
+files = ["src"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "autoevalpsi.core.ocr.onnx",
+    "autoevalpsi.core.borrador",
+    "autoevalpsi.core.registro",
+    "autoevalpsi.core.hoja",
+    "autoevalpsi.core.casillas",
+    "autoevalpsi.core.imagen",
+]
+ignore_errors = true

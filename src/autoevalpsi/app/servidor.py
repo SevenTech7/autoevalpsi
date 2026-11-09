@@ -188,8 +188,10 @@ def _del_celular(metodo: str, ruta: str) -> bool:
     if metodo == "POST":
         return ruta == "/api/fotos"
     if metodo == "GET":
+        # Solo lo que usa la página del celular: la lista de formularios (no su definición ni
+        # sus imágenes de referencia) y el estado de la cola.
         return ruta in ("/api/cola", "/api/plantillas", "/api/incompletas") or ruta.startswith(
-            ("/api/cola/", "/api/plantillas/")
+            "/api/cola/"
         )
     return False
 
@@ -1027,7 +1029,7 @@ def crear_app(
             raise _error(422, "foto_invalida", str(e)) from e
         p = base.plantilla
         filas = [f for pg in p.paginas for t in pg.tablas for f in t.filas]
-        letras = {re.match(r"[A-Z]+", f.celda).group() for f in filas if f.celda}
+        letras = {m.group() for f in filas if f.celda and (m := re.match(r"[A-Z]+", f.celda))}
         n = len(p.paginas) + 1
         definicion, limpia, hallazgo = plantilla_automatica(
             imagen,

@@ -26,6 +26,12 @@ jobs:
           if ($env:GITHUB_REF -like 'refs/tags/v*') { $v = $env:GITHUB_REF_NAME.Substring(1) }
           else { $v = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value }
           "version=$v" >> $env:GITHUB_OUTPUT
+          # La versión que ve la app sale de pyproject.toml: si la etiqueta no coincide, el
+          # instalador diría una versión y la app otra (y la actualización nunca terminaría).
+          $enArchivo = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ($enArchivo -ne $v) { throw "La etiqueta dice $v pero pyproject.toml dice $enArchivo. Sube la versión y vuelve a etiquetar." }
+          $enLock = [regex]::Match((Get-Content uv.lock -Raw), '(?m)^name = "autoevalpsi"\r?\nversion = "(.+?)"').Groups[1].Value
+          if ($enLock -ne $v) { throw "uv.lock dice $enLock y la etiqueta $v. Corre uv lock y vuelve a etiquetar." }
 
       - uses: astral-sh/setup-uv@v6
         with:
