@@ -321,3 +321,63 @@ describe("eliminar una evaluación", () => {
     expect(eliminarEvaluacion).not.toHaveBeenCalled();
   });
 });
+
+describe("actualizar la aplicación", () => {
+  const base = { actual: "0.1.0", buscada: false, novedad: null, estado: "libre", bajado: 0, mensaje: "" };
+  const nueva = { version: "0.2.0", notas: "Mejoras", tamano: 150 * 1024 * 1024 };
+  const config = { carpeta_exportacion: null, carpeta_exportacion_efectiva: "C:\Datos" };
+
+  it("muestra la versión y solo busca al pulsar; avisa si ya está al día", async () => {
+    const buscar = vi.fn().mockResolvedValue({ ...base, buscada: true });
+    conApi(
+      clienteFalso({
+        configuracion: vi.fn().mockResolvedValue(config),
+        actualizacion: vi.fn().mockResolvedValue(base),
+        buscarActualizacion: buscar,
+      }),
+      <Configuracion />,
+    );
+    expect(await screen.findByText("0.1.0")).toBeInTheDocument();
+    expect(buscar).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Buscar actualización" }));
+    expect(await screen.findByText(/ya tienes la última/)).toBeInTheDocument();
+  });
+
+  it("con una versión nueva: descarga, y al estar lista pide confirmar antes de instalar", async () => {
+    const buscar = vi.fn().mockResolvedValue({ ...base, buscada: true, novedad: nueva });
+    const descargar = vi.fn().mockResolvedValue({ ...base, buscada: true, novedad: nueva, estado: "lista" });
+    const instalar = vi.fn().mockResolvedValue({ ...base, buscada: true, novedad: nueva, estado: "lista" });
+    conApi(
+      clienteFalso({
+        configuracion: vi.fn().mockResolvedValue(config),
+        actualizacion: vi.fn().mockResolvedValue(base),
+        buscarActualizacion: buscar,
+        descargarActualizacion: descargar,
+        instalarActualizacion: instalar,
+      }),
+      <Configuracion />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Buscar actualización" }));
+    expect(await screen.findByText("0.2.0")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Descargar la versión 0.2.0/ }));
+    const instalarBtn = await screen.findByRole("button", { name: "Instalar y reiniciar" });
+    await userEvent.click(instalarBtn);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Tus evaluaciones y plantillas se conservan");
+    expect(instalar).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Instalar ahora" }));
+    await waitFor(() => expect(instalar).toHaveBeenCalledTimes(1));
+  });
+
+  it("sin internet el error sale en una ventana emergente", async () => {
+    conApi(
+      clienteFalso({
+        configuracion: vi.fn().mockResolvedValue(config),
+        actualizacion: vi.fn().mockResolvedValue(base),
+        buscarActualizacion: vi.fn().mockRejectedValue(new ErrorApi(502, "actualizacion_fallo", "Revisa la conexión a internet.")),
+      }),
+      <Configuracion />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Buscar actualización" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Revisa la conexión a internet.");
+  });
+});

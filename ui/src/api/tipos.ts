@@ -95,6 +95,21 @@ export interface Configuracion {
   carpeta_exportacion_efectiva: string;
 }
 
+export interface NovedadVersion {
+  version: string;
+  notas: string;
+  tamano: number; // bytes del instalador
+}
+
+export interface EstadoActualizacion {
+  actual: string; // versión instalada
+  buscada: boolean; // ya se consultó en esta sesión
+  novedad: NovedadVersion | null; // null: no hay versión más nueva
+  estado: "libre" | "descargando" | "lista" | "error";
+  bajado: number; // bytes descargados
+  mensaje: string; // motivo si estado = error
+}
+
 export interface ResultadoExportacion {
   carpeta: string;
   evaluacion: string;

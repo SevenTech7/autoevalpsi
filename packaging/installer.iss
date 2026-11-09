@@ -3,7 +3,8 @@
 ; Antes hace falta la carpeta dist\AutoEvalPsi que deja PyInstaller (packaging\autoevalpsi.spec).
 ;
 ; Decisiones: por máquina (DI-D2) y datos conservados por defecto al desinstalar (DI-D1).
-; No crea tareas programadas, servicios, arranque automático ni actualizador (DI-06).
+; No crea tareas programadas, servicios ni arranque automático (DI-06). La actualización la lanza la
+; propia app solo cuando la usuaria lo pide, con /SILENT /REABRIR (ver app/actualizacion.py).
 
 #ifndef Version
   #define Version "0.0.0"
@@ -46,6 +47,8 @@ Name: "{autodesktop}\AutoEvalPsi"; Filename: "{app}\AutoEvalPsi.exe"; Tasks: esc
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AutoEvalPsi"""; Flags: runhidden; StatusMsg: "Preparando la red local..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""AutoEvalPsi"" dir=in action=allow program=""{app}\AutoEvalPsi.exe"" protocol=TCP localport=8765 profile=private"; Flags: runhidden; StatusMsg: "Permitiendo el celular en la red privada..."
 Filename: "{app}\AutoEvalPsi.exe"; Description: "Abrir AutoEvalPsi"; Flags: nowait postinstall skipifsilent runasoriginaluser
+; Actualización desde la app: sin asistente final, así que se vuelve a abrir aquí.
+Filename: "{app}\AutoEvalPsi.exe"; Flags: nowait runasoriginaluser; Check: Reabrir
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""AutoEvalPsi"""; Flags: runhidden; RunOnceId: "QuitarReglaFirewall"
@@ -55,6 +58,15 @@ const
   // ISPP toma como directiva toda línea que empieza con «#»: por eso el salto va en una constante.
   NL = #13#10;
   GuidWebView2 = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+
+function Reabrir(): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), '/REABRIR') = 0 then Result := True;
+end;
 
 function WebView2Instalado(): Boolean;
 var

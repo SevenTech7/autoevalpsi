@@ -1,5 +1,6 @@
 import type {
   Configuracion,
+  EstadoActualizacion,
   EstadoCola,
   CambioEvaluacion,
   Evaluacion,
@@ -167,6 +168,10 @@ export function crearCliente({ token, base = "", fetcher }: OpcionesCliente) {
     configuracion: () => pedir<Configuracion>("GET", "/api/configuracion"),
     guardarCarpetaExportacion: (carpeta: string) =>
       pedir<Configuracion>("PUT", "/api/configuracion", { carpeta_exportacion: carpeta }),
+    actualizacion: () => pedir<EstadoActualizacion>("GET", "/api/actualizacion"),
+    buscarActualizacion: () => pedir<EstadoActualizacion>("POST", "/api/actualizacion/buscar"),
+    descargarActualizacion: () => pedir<EstadoActualizacion>("POST", "/api/actualizacion/descargar"),
+    instalarActualizacion: () => pedir<EstadoActualizacion>("POST", "/api/actualizacion/instalar"),
   };
 }
 

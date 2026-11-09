@@ -1,5 +1,5 @@
 # DI-R3: compila el instalador de Windows. Se dispara con una etiqueta `v*` (publica un Release en
-# este repo privado) o a mano desde la pestaña Actions (solo deja el .zip como artefacto).
+# este repo; la app lo consulta para actualizarse) o a mano desde la pestaña Actions (solo deja el .zip como artefacto).
 # Sin `schedule:`. Las plantillas reales no entran: se importan desde un .zip (PL-D2).
 name: release
 
@@ -95,6 +95,9 @@ jobs:
           Copy-Item salida\AutoEvalPsi-Instalador-$v.exe entrega\
           Compress-Archive -Path entrega\* -DestinationPath "AutoEvalPsi-$v.zip" -Force
           (Get-FileHash "AutoEvalPsi-$v.zip" -Algorithm SHA256).Hash | Out-File "AutoEvalPsi-$v.zip.sha256" -Encoding ascii
+          # El instalador suelto y su suma: es lo que baja la propia app al actualizarse.
+          Copy-Item salida\AutoEvalPsi-Instalador-$v.exe .
+          (Get-FileHash "AutoEvalPsi-Instalador-$v.exe" -Algorithm SHA256).Hash.ToLower() | Out-File "AutoEvalPsi-Instalador-$v.exe.sha256" -Encoding ascii
 
       - uses: actions/upload-artifact@v4
         with:
@@ -108,4 +111,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create $env:GITHUB_REF_NAME AutoEvalPsi-*.zip AutoEvalPsi-*.zip.sha256 --title "AutoEvalPsi ${{ steps.ver.outputs.version }}" --notes "Instalador de Windows. Descomprime el .zip y ejecuta el instalador."
+        run: gh release create $env:GITHUB_REF_NAME AutoEvalPsi-*.zip AutoEvalPsi-*.zip.sha256 AutoEvalPsi-Instalador-*.exe AutoEvalPsi-Instalador-*.exe.sha256 --title "AutoEvalPsi ${{ steps.ver.outputs.version }}" --notes "Instalador de Windows. Descomprime el .zip y ejecuta el instalador."

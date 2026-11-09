@@ -23,6 +23,8 @@ Errores: `{"detail": {"codigo": "...", "mensaje": "..."}}` con el `mensaje` apto
     DELETE /api/vinculo                      desvincula el celular
     GET  /api/configuracion                  carpeta de exportación (la elegida y la efectiva)
     PUT  /api/configuracion                  {carpeta_exportacion}; "" vuelve a la de por defecto
+    GET  /api/actualizacion                  estado de la actualización (versión instalada, novedad, descarga)
+    POST /api/actualizacion/{buscar,descargar,instalar}   solo cuando la usuaria lo pide
     POST /api/evaluaciones/{id}/borrar_fotos [{incluir_recortes}] -> {borrados}; acción manual (AP-D1)
     GET  /api/evaluaciones/{id}/recortes/{item}   PNG del recorte de la observación de una fila
     GET  /api/evaluaciones/{id}/cabecera/{campo}  PNG del recorte de un campo de la cabecera
@@ -85,6 +87,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 
+from autoevalpsi.app.actualizacion import Actualizador, ErrorActualizacion
 from autoevalpsi.app.carpetas import carpeta_descargas
 from autoevalpsi.app.cola import ColaLlena, ColaProcesamiento, FotoEnProceso, Trabajo
 from autoevalpsi.app.datos import (
@@ -373,6 +376,7 @@ def crear_app(
     puertos_laptop: frozenset[int] = frozenset(),
     guardar_fallidas: Path | None = None,
     carpeta_por_defecto: Path | None = None,
+    actualizador: Actualizador | None = None,
 ) -> FastAPI:
     """`lector` (OCR) es opcional: sin él solo se leen las casillas. `app.state.token` es el
     token del arranque y `app.state.cola` la cola, por si quien arranca los necesita. `puerto` e
@@ -423,6 +427,8 @@ def crear_app(
     app.state.token = token
     app.state.cola = cola
     app.state.vinculos = vinculos
+    actualizador = actualizador or Actualizador(bd.raiz / "actualizaciones")
+    app.state.actualizador = actualizador
 
     def instalada(id: str, version: int | None = None):
         try:
@@ -811,6 +817,37 @@ def crear_app(
             carpeta = str(ruta)
         bd.guardar_configuracion("carpeta_exportacion", carpeta)
         return configuracion()
+
+    # --- actualización (solo a pedido de la usuaria) --------------------------------------
+
+    def actualizar(accion: Callable[[], object]) -> dict:
+        try:
+            accion()
+        except ErrorActualizacion as e:
+            raise _error(502, "actualizacion_fallo", str(e)) from e
+        return actualizador.estado()
+
+    @app.get("/api/actualizacion")
+    def estado_actualizacion() -> dict:
+        return actualizador.estado()
+
+    @app.post("/api/actualizacion/buscar")
+    def buscar_actualizacion() -> dict:
+        return actualizar(actualizador.buscar)
+
+    @app.post("/api/actualizacion/descargar")
+    def descargar_actualizacion() -> dict:
+        return actualizar(actualizador.descargar)
+
+    @app.post("/api/actualizacion/instalar")
+    def instalar_actualizacion() -> dict:
+        if cola.estado()["pendientes"]:
+            raise _error(
+                409,
+                "fotos_en_lectura",
+                "Hay fotos leyéndose. Espera a que terminen y vuelve a intentarlo.",
+            )
+        return actualizar(actualizador.instalar)
 
     # --- plantillas ---------------------------------------------------------------------
 

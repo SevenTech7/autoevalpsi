@@ -1,10 +1,10 @@
 # Guía de instalación de AutoEvalPsi (una página)
 
-Para instalar en tu laptop y después en la de tu hermana. No hace falta abrir ninguna terminal.
+Para instalar en tu laptop y después en la segunda laptop. No hace falta abrir ninguna terminal.
 
 ## Antes de empezar
 
-- **Windows 10 u 11 de 64 bits.** La laptop de tu hermana (Ryzen 7 4700U, 8 GB de RAM, unos 46 GB
+- **Windows 10 u 11 de 64 bits.** La segunda laptop (Ryzen 7 4700U, 8 GB de RAM, unos 46 GB
   libres) cumple de sobra: la aplicación usa unos 520 MB de memoria mientras lee una foto (medido) y
   el instalador pesa 156 MB. No usa la tarjeta gráfica; lee con el procesador, unos 20 a 40 segundos
   por foto.
@@ -15,14 +15,13 @@ Para instalar en tu laptop y después en la de tu hermana. No hace falta abrir n
 
 ## 1. Conseguir el instalador
 
-1. Entra a GitHub con tu cuenta y abre
-   `github.com/SevenTech7/autoevalpsi/actions/runs/42518065928` (el repositorio es privado).
-2. Abajo, en **Artifacts**, descarga `AutoEvalPsi-0.1.0` (unos 156 MB). Trae el instalador y un
-   archivo `.sha256`.
+1. Abre `github.com/SevenTech7/autoevalpsi/releases/latest` (el repositorio es público; no hace
+   falta iniciar sesión).
+2. En **Assets**, descarga `AutoEvalPsi-Instalador-<versión>.exe` (unos 150 MB).
 
 ## 2. Instalar
 
-1. Descomprime el .zip y abre `AutoEvalPsi-Instalador-0.1.0.exe`.
+1. Abre el instalador descargado.
 2. Windows mostrará **«Windows protegió su PC»** (SmartScreen), porque el instalador todavía no
    está firmado. Pulsa **Más información → Ejecutar de todos modos**. Es normal.
 3. Pulsa **Sí** cuando pida permiso de administrador (una sola vez: crea la regla de red privada).
@@ -42,6 +41,15 @@ Para instalar en tu laptop y después en la de tu hermana. No hace falta abrir n
    **Evaluaciones** y exporta.
 4. Los Excel salen a **Descargas**. Se puede cambiar en **Configuración**.
 
+## Actualizar a una versión nueva
+
+No hace falta volver a descargar nada a mano: en **Configuración → Actualizar la aplicación**,
+pulsa **Buscar actualización**. Si hay una versión nueva, **Descargar** y luego **Instalar y
+reiniciar**. Windows pide permiso de administrador, la aplicación se cierra, se instala encima y
+se vuelve a abrir. Tus evaluaciones y plantillas se conservan. Solo busca cuando pulsas el botón
+(hace falta internet). La primera instalación de 0.2.0 sí se hace a mano, porque la versión 0.1.0
+no traía el botón.
+
 ## Si algo falla
 
 - **No encuentra el formulario o dice «no se reconoce»:** revisa que elegiste el formulario
@@ -51,7 +59,7 @@ Para instalar en tu laptop y después en la de tu hermana. No hace falta abrir n
 - **Quieres empezar de cero con una evaluación:** en la lista, botón **Eliminar** (los Excel que
   ya exportaste no se tocan).
 
-## Para tu hermana (el equipo que usará a diario)
+## Para el equipo que se usará a diario
 
 - Activa una **contraseña de Windows** y, si el equipo lo permite, el **cifrado de dispositivo** o
   BitLocker (Configuración → Privacidad y seguridad → Cifrado de dispositivo): las fotos y las

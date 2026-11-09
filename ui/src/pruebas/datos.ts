@@ -144,6 +144,11 @@ export function clienteFalso(sobre: Partial<Cliente> = {}): Cliente {
     desvincular: sinUsar,
     configuracion: sinUsar,
     guardarCarpetaExportacion: sinUsar,
+    actualizacion: () =>
+      Promise.resolve({ actual: "0.1.0", buscada: false, novedad: null, estado: "libre", bajado: 0, mensaje: "" }),
+    buscarActualizacion: sinUsar,
+    descargarActualizacion: sinUsar,
+    instalarActualizacion: sinUsar,
     ...sobre,
   } as Cliente;
 }
