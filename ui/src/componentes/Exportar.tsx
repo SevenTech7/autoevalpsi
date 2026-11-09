@@ -23,16 +23,15 @@ function nombreDe(ruta: string): string {
   return ruta.split(/[\\/]/).pop() ?? ruta;
 }
 
-interface Props {
+interface PropsHook {
   api: Cliente;
   evaluacion: Evaluacion;
   cambiosSinGuardar: boolean;
   alExportar: (ev: Evaluacion) => void;
 }
 
-/** Exportación (AP-R6): habilitada solo con todo revisado; la primera vez pide la carpeta.
- * El resultado, los errores y las confirmaciones salen en ventanas emergentes. */
-export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Props) {
+/** Lo que comparten el botón de arriba (barra de la revisión) y el panel del pie. */
+export function useExportar({ api, evaluacion, cambiosSinGuardar, alExportar }: PropsHook) {
   const { avisar, confirmar } = useDialogos();
   const [iniciales, setIniciales] = useState(false);
   const [borrarFotos, setBorrarFotos] = useState(false);
@@ -40,6 +39,7 @@ export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Pro
 
   const bloqueo = motivoBloqueo(evaluacion, cambiosSinGuardar);
   const yaExportada = evaluacion.estado === "exportada";
+  const textoBoton = ocupado ? "Exportando…" : yaExportada ? "Exportar de nuevo" : "Exportar a Excel";
 
   async function exportar() {
     if (
@@ -86,6 +86,18 @@ export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Pro
     await avisar(resultado);
   }
 
+  return { iniciales, setIniciales, borrarFotos, setBorrarFotos, ocupado, bloqueo, yaExportada, textoBoton, exportar };
+}
+
+export type ControlExportar = ReturnType<typeof useExportar>;
+
+/** Exportación (AP-R6): habilitada solo con todo revisado; la primera vez pide la carpeta.
+ * El resultado, los errores y las confirmaciones salen en ventanas emergentes. */
+export function Exportar(props: PropsHook & { control?: ControlExportar }) {
+  const propio = useExportar(props); // sin `control` (uso suelto) el panel lleva su propio estado
+  const { iniciales, setIniciales, borrarFotos, setBorrarFotos, ocupado, bloqueo, yaExportada, textoBoton, exportar } =
+    props.control ?? propio;
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -109,7 +121,7 @@ export function Exportar({ api, evaluacion, cambiosSinGuardar, alExportar }: Pro
           Borrar las fotos de esta evaluación después de exportar
         </label>
         <Boton className="ml-auto" disabled={bloqueo !== null || ocupado} onClick={() => void exportar()}>
-          {ocupado ? "Exportando…" : yaExportada ? "Exportar de nuevo" : "Exportar a Excel"}
+          {textoBoton}
         </Boton>
       </div>
       {bloqueo ? (

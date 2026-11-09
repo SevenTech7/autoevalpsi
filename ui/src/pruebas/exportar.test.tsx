@@ -35,7 +35,8 @@ function montar(api: Cliente, ev = lista(), cambiosSinGuardar = false) {
   return { alExportar };
 }
 
-const boton = () => screen.getByRole("button", { name: /Exportar/ });
+const botones = () => screen.queryAllByRole("button", { name: /^Exportar/ });
+const boton = () => botones()[0]!; // en la revisión hay otro igual arriba, en la barra
 
 function ventanaDeEscritorio(api: Record<string, unknown>) {
   (window as unknown as { pywebview: unknown }).pywebview = { api };
@@ -214,9 +215,10 @@ describe("dentro de la pantalla de revisión", () => {
         alDescartar={vi.fn()}
       />,
     );
-    expect(boton()).toBeEnabled();
+    expect(botones()).toHaveLength(2); // barra de arriba y panel del pie, siempre iguales
+    expect(botones().every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
     await userEvent.type(screen.getByLabelText("Paciente"), "x");
-    expect(boton()).toBeDisabled();
+    expect(botones().every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
     expect(screen.getByText(/cambios sin confirmar/)).toBeInTheDocument();
   });
 });

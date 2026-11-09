@@ -6,7 +6,7 @@ import type { Cliente } from "../api/cliente";
 import type { Evaluacion, FilaGuardada, PaginaGuardada, Plantilla } from "../api/tipos";
 import { Aviso, Boton, Tarjeta } from "../componentes/base";
 import { hayDialogoAbierto, useDialogos } from "../componentes/Dialogos";
-import { Exportar } from "../componentes/Exportar";
+import { Exportar, useExportar } from "../componentes/Exportar";
 import { fechaHoraBolivia } from "../componentes/TablaEvaluaciones";
 import { mensajeDe, useApi, useCarga } from "../hooks";
 import { enlace } from "../ruta";
@@ -506,72 +506,135 @@ function AvisoDeHoja({ pagina }: { pagina: PaginaGuardada }) {
   );
 }
 
-/** Las hojas del formulario: cuáles ya tienen foto y cuáles faltan, con dónde subir la que falta. */
-function PanelHojas({
-  evaluacion,
-  total,
-  alSubir,
-}: {
-  evaluacion: Evaluacion;
-  total: number;
-  alSubir: (pagina: number, foto: File) => Promise<void>;
-}) {
-  const hechas = new Set(evaluacion.paginas.map((p) => p.pagina));
-  const [subiendo, setSubiendo] = useState<number | null>(null);
-  const faltan = Array.from({ length: total }, (_, n) => n).filter((n) => !hechas.has(n));
+/** Menú «⋯» de la barra: lo que no se usa a cada rato (atajos y eliminar). Se cierra con Esc o al
+ * hacer clic fuera. */
+function MenuMas({ children }: { children: ReactNode }) {
+  const [abierto, setAbierto] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => {
+      if (caja.current && !caja.current.contains(e.target as Node)) setAbierto(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAbierto(false);
+    document.addEventListener("mousedown", fuera);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fuera);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [abierto]);
+  return (
+    <div ref={caja} className="relative shrink-0">
+      <Boton
+        variante="suave"
+        className="px-3 py-1 text-base"
+        aria-label="Más acciones"
+        aria-haspopup="menu"
+        aria-expanded={abierto}
+        onClick={() => setAbierto(!abierto)}
+      >
+        ⋯
+      </Boton>
+      {abierto && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-30 mt-1 w-80 space-y-2 rounded-lg border border-slate-200 bg-white p-3 shadow-lg"
+          onClick={() => setAbierto(false)}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
-  async function subir(pagina: number, foto: File) {
-    setSubiendo(pagina);
+/** Una pestaña por hoja del formulario: dice si ya está subida y cuántas filas le faltan. */
+function PestanasHojas({
+  total,
+  evaluacion,
+  activa,
+  alElegir,
+}: {
+  total: number;
+  evaluacion: Evaluacion;
+  activa: number;
+  alElegir: (hoja: number) => void;
+}) {
+  const subidas = new Set(evaluacion.paginas.map((p) => p.pagina));
+  return (
+    <div role="tablist" aria-label="Hojas de la evaluación" className="flex flex-wrap gap-2">
+      {Array.from({ length: total }, (_, n) => {
+        const falta = !subidas.has(n);
+        const porRevisar = evaluacion.filas.filter((f) => f.pagina === n && !f.revisada).length;
+        const elegida = activa === n;
+        return (
+          <button
+            key={n}
+            type="button"
+            role="tab"
+            id={`hoja-${n}`}
+            aria-selected={elegida}
+            aria-controls="hoja-contenido"
+            onClick={() => alElegir(n)}
+            className={`rounded-lg border px-4 py-1.5 text-base font-medium ${
+              elegida ? "border-acento bg-white shadow-sm" : "border-slate-300 bg-slate-100 hover:bg-white"
+            }`}
+          >
+            Hoja {n + 1}
+            {falta ? (
+              <span className="ml-2 text-amber-800">· falta</span>
+            ) : porRevisar > 0 ? (
+              <span className="ml-2 text-amber-800">· {porRevisar} por revisar</span>
+            ) : (
+              <span className="ml-2 text-emerald-800">✓</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Lo que se ve en la pestaña de una hoja que todavía no tiene foto: dónde subirla. */
+function HojaFaltante({ n, alSubir }: { n: number; alSubir?: (pagina: number, foto: File) => Promise<void> }) {
+  const [subiendo, setSubiendo] = useState(false);
+  async function subir(foto: File) {
+    if (!alSubir) return;
+    setSubiendo(true);
     try {
-      await alSubir(pagina, foto);
+      await alSubir(n, foto);
     } finally {
-      setSubiendo(null);
+      setSubiendo(false);
     }
   }
-
   return (
-    <section
-      aria-label="Hojas de la evaluación"
-      className={`rounded-lg border px-3 py-2 shadow-sm ${faltan.length > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}
-    >
-      <h3 className="text-base font-semibold">
-        Hojas de esta evaluación ({total - faltan.length} de {total})
-      </h3>
-      <ul className="mt-1 space-y-1">
-        {Array.from({ length: total }, (_, n) => (
-          <li key={n} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="min-w-16 font-medium">Hoja {n + 1}</span>
-            {hechas.has(n) ? (
-              <span className="text-emerald-800">✓ Ya está subida</span>
-            ) : (
-              <>
-                <span className="text-amber-900">Falta</span>
-                <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium hover:bg-slate-50">
-                  {subiendo === n ? "Subiendo y leyendo…" : `Subir la foto de la hoja ${n + 1}`}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    aria-label={`Subir la foto de la hoja ${n + 1}`}
-                    disabled={subiendo !== null}
-                    className="sr-only"
-                    onChange={(e) => {
-                      const foto = e.target.files?.[0];
-                      e.target.value = "";
-                      if (foto) void subir(n, foto);
-                    }}
-                  />
-                </label>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-      {faltan.length > 0 && (
-        <p className="mt-1 text-sm text-slate-700">
-          También puedes tomarla con el celular: ábrelo y elige esta evaluación en «¿Seguir una evaluación a la que le falta una hoja?».
-        </p>
+    <div className="space-y-2 px-3 py-3">
+      <p className="text-amber-900">
+        <strong>Falta la foto de la hoja {n + 1}.</strong>
+      </p>
+      {alSubir && (
+        <label className="inline-block cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-base font-medium hover:bg-slate-50">
+          {subiendo ? "Subiendo y leyendo…" : `Subir la foto de la hoja ${n + 1}`}
+          <input
+            type="file"
+            accept="image/jpeg,image/png"
+            aria-label={`Subir la foto de la hoja ${n + 1}`}
+            disabled={subiendo}
+            className="sr-only"
+            onChange={(e) => {
+              const foto = e.target.files?.[0];
+              e.target.value = "";
+              if (foto) void subir(foto);
+            }}
+          />
+        </label>
       )}
-    </section>
+      <p className="text-sm text-slate-700">
+        También puedes tomarla con el celular: ábrelo y elige esta evaluación en «¿Seguir una evaluación a la que le falta
+        una hoja?».
+      </p>
+    </div>
   );
 }
 
@@ -600,6 +663,8 @@ export function Revision({
   const [borradores, setBorradores] = useState<Record<number, Borrador>>({});
   const [activa, setActiva] = useState<number | null>(() => (filas.find((f) => !f.revisada) ?? filas[0])?.item ?? null);
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const total = plantilla.paginas.length;
+  const [hoja, setHoja] = useState<number>(() => (filas.find((f) => !f.revisada) ?? filas[0])?.pagina ?? 0);
   const [guardando, setGuardando] = useState(false);
   const { avisar, confirmar } = useDialogos();
   const [cabeceraSinConfirmar, setCabeceraSinConfirmar] = useState(false);
@@ -615,7 +680,18 @@ export function Revision({
     () => (soloPendientes ? filas.filter((f) => !f.revisada || borradores[f.item]) : filas),
     [filas, soloPendientes, borradores],
   );
+  const visiblesHoja = useMemo(() => visibles.filter((f) => f.pagina === hoja), [visibles, hoja]);
   const conObservaciones = useMemo(() => hayObservaciones(plantilla, filas), [plantilla, filas]);
+
+  const irAHoja = useCallback(
+    (n: number) => {
+      setHoja(n);
+      const aqui = filas.filter((f) => f.pagina === n);
+      const primera = aqui.find((f) => !f.revisada) ?? aqui[0];
+      if (primera) setActiva(primera.item);
+    },
+    [filas],
+  );
 
   const poner = useCallback((item: number, cambio: Borrador) => {
     setBorradores((b) => ({ ...b, [item]: { ...b[item], ...cambio } }));
@@ -654,7 +730,10 @@ export function Revision({
         orden.find((f) => !f.revisada) ??
         orden[desde + 1] ??
         orden[desde];
-      if (siguiente) setActiva(siguiente.item);
+      if (siguiente) {
+        setActiva(siguiente.item);
+        setHoja(siguiente.pagina);
+      }
     },
     [borradores, guardar],
   );
@@ -692,10 +771,10 @@ export function Revision({
     const destino = e.target as HTMLElement | null;
     if (destino && ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "SUMMARY"].includes(destino.tagName)) return;
     if (e.ctrlKey || e.metaKey || e.altKey || activa === null || guardando || hayDialogoAbierto()) return;
-    const pos = visibles.findIndex((f) => f.item === activa);
+    const pos = visiblesHoja.findIndex((f) => f.item === activa);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      const otra = visibles[Math.min(visibles.length - 1, Math.max(0, pos + (e.key === "ArrowDown" ? 1 : -1)))];
+      const otra = visiblesHoja[Math.min(visiblesHoja.length - 1, Math.max(0, pos + (e.key === "ArrowDown" ? 1 : -1)))];
       if (otra) setActiva(otra.item);
     } else if (info.get(activa)?.tipo === "digito" && (/^[0-9]$/.test(e.key) || e.key === "Backspace" || e.key === "Delete")) {
       // en una tabla de números, la tecla es el número mismo; Borrar deja la celda sin respuesta
@@ -723,72 +802,107 @@ export function Revision({
 
   const pendientes = evaluacion.filas_pendientes;
   const campos = camposDeCabecera(plantilla, evaluacion);
-  const porPagina = evaluacion.paginas.map((pg) => ({
-    pagina: pg,
-    tramos: tramosPorOpciones(
-      visibles.filter((f) => f.pagina === pg.pagina),
-      info,
-    ),
-  }));
+  const revisadas = filas.filter((f) => f.revisada).length;
+  const paginaActual = evaluacion.paginas.find((pg) => pg.pagina === hoja);
+  const tramos = paginaActual ? tramosPorOpciones(visiblesHoja, info) : [];
+  const varias = total > 1;
+  const exportar = useExportar({
+    api,
+    evaluacion,
+    cambiosSinGuardar: cabeceraSinConfirmar || Object.keys(borradores).length > 0,
+    alExportar: alActualizar,
+  });
 
   return (
     <div className="space-y-3">
-      <div className="sticky top-0 z-20 flex h-14 items-center gap-x-4 rounded-lg border border-slate-200 bg-white/95 px-3 shadow-sm">
-        <h2 className="min-w-0 shrink truncate text-lg font-semibold">
-          {evaluacion.paciente || "Paciente sin nombre"}
-          <span className="ml-2 text-base font-normal text-slate-600">{plantilla.nombre}</span>
-        </h2>
-        <p role="status" className="shrink-0 whitespace-nowrap text-base font-semibold">
-          {textoFaltan(pendientes)}
-          {pendientes === 0 && evaluacion.cabecera_revisada ? " · Lista para exportar" : ""}
-        </p>
-        <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-base">
-          <input
-            type="checkbox"
-            checked={soloPendientes}
-            onChange={(e) => setSoloPendientes(e.target.checked)}
-            className="size-5"
-          />
-          Mostrar solo lo que falta
-        </label>
-        <Boton
-          variante="suave"
-          className="shrink-0 whitespace-nowrap px-3 py-1 text-sm"
-          disabled={guardando || (pendientes === 0 && Object.keys(borradores).length === 0)}
-          onClick={() => void confirmarTodas()}
-        >
-          Confirmar todas las filas
-        </Boton>
-        <p className="hidden text-sm text-slate-600 2xl:block">
-          Teclado: ↑ ↓ fila · 1, 2, 3… respuesta · 0 sin respuesta · Enter confirma
-        </p>
-        {alEliminar && (
+      <div className="sticky top-0 z-20 space-y-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
+        <div className="flex items-center gap-x-4">
+          <a className="shrink-0 whitespace-nowrap text-acento underline" href={enlace.evaluaciones}>
+            ← Lista
+          </a>
+          <h2 className="min-w-0 shrink truncate text-lg font-semibold">
+            {evaluacion.paciente || "Paciente sin nombre"}
+            <span className="ml-2 text-base font-normal text-slate-600">{plantilla.nombre}</span>
+          </h2>
+          <p
+            role="status"
+            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-0.5 text-base font-semibold ${
+              pendientes === 0 && evaluacion.cabecera_revisada ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900"
+            }`}
+          >
+            {textoFaltan(pendientes)}
+            {pendientes === 0 && evaluacion.cabecera_revisada ? " · Lista para exportar" : ""}
+          </p>
+          <Boton
+            className="ml-auto shrink-0 whitespace-nowrap px-4 py-1.5"
+            disabled={exportar.bloqueo !== null || exportar.ocupado}
+            title={exportar.bloqueo ?? undefined}
+            onClick={() => void exportar.exportar()}
+          >
+            {exportar.textoBoton}
+          </Boton>
+          <MenuMas>
+            <p className="text-sm font-semibold text-slate-700">Atajos de teclado</p>
+            <p className="text-sm text-slate-600">↑ ↓ cambian de fila · 1, 2, 3… eligen la respuesta · 0 sin respuesta · Enter confirma</p>
+            {alEliminar && (
+              <Boton
+                variante="suave"
+                role="menuitem"
+                className="w-full border-red-300 px-3 py-1 text-sm text-red-800"
+                disabled={guardando}
+                onClick={() => {
+                  void confirmar({
+                    titulo: "Eliminar la evaluación",
+                    mensaje:
+                      "Se elimina esta evaluación con sus fotos y lo leído. " +
+                      "Los Excel que ya exportaste no se tocan. No se puede deshacer.",
+                    confirmar: "Sí, eliminar",
+                    peligro: true,
+                  }).then((acepto) => {
+                    if (acepto) void alEliminar();
+                  });
+                }}
+              >
+                Eliminar evaluación
+              </Boton>
+            )}
+          </MenuMas>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <div
+            role="progressbar"
+            aria-label="Filas revisadas"
+            aria-valuemin={0}
+            aria-valuemax={filas.length}
+            aria-valuenow={revisadas}
+            className="h-2.5 w-48 overflow-hidden rounded-full bg-slate-200"
+          >
+            <div
+              className="h-full bg-emerald-600"
+              style={{ width: `${filas.length ? Math.round((revisadas / filas.length) * 100) : 0}%` }}
+            />
+          </div>
+          <span className="text-sm text-slate-700">
+            {revisadas} de {filas.length} revisadas
+          </span>
+          <label className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap text-base">
+            <input
+              type="checkbox"
+              checked={soloPendientes}
+              onChange={(e) => setSoloPendientes(e.target.checked)}
+              className="size-5"
+            />
+            Mostrar solo lo que falta
+          </label>
           <Boton
             variante="suave"
-            className="ml-auto shrink-0 whitespace-nowrap border-red-300 px-3 py-1 text-sm text-red-800"
-            disabled={guardando}
-            onClick={() => {
-              void confirmar({
-                titulo: "Eliminar la evaluación",
-                mensaje:
-                  "Se elimina esta evaluación con sus fotos y lo leído. " +
-                  "Los Excel que ya exportaste no se tocan. No se puede deshacer.",
-                confirmar: "Sí, eliminar",
-                peligro: true,
-              }).then((acepto) => {
-                if (acepto) void alEliminar();
-              });
-            }}
+            className="shrink-0 whitespace-nowrap px-3 py-1 text-sm"
+            disabled={guardando || (pendientes === 0 && Object.keys(borradores).length === 0)}
+            onClick={() => void confirmarTodas()}
           >
-            Eliminar evaluación
+            Confirmar todas las filas
           </Boton>
-        )}
-        <a
-          className={`${alEliminar ? "" : "ml-auto "}shrink-0 whitespace-nowrap text-acento underline`}
-          href={enlace.evaluaciones}
-        >
-          Volver a la lista
-        </a>
+        </div>
       </div>
 
       <Cabecera
@@ -801,40 +915,44 @@ export function Revision({
         alCambiarEstado={setCabeceraSinConfirmar}
       />
 
-      {alSubirHoja && plantilla.paginas.length > 1 && (
-        <PanelHojas evaluacion={evaluacion} total={plantilla.paginas.length} alSubir={alSubirHoja} />
-      )}
+      {varias && <PestanasHojas total={total} evaluacion={evaluacion} activa={hoja} alElegir={irAHoja} />}
 
-      {porPagina.map(({ pagina, tramos }) => (
-        <section key={pagina.pagina} className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 px-3 py-1">
-            <h3 className="text-base font-semibold">
-              {evaluacion.paginas.length > 1 ? `Hoja ${pagina.pagina + 1}` : "Respuestas"}
-            </h3>
-            <Boton
-              variante="suave"
-              className="px-3 py-0.5 text-sm"
-              disabled={guardando}
-              onClick={() => {
-                void confirmar({
-                  titulo: "Descartar esta foto",
-                  mensaje: "Se borra la foto y lo leído de ella, para que puedas volver a sacarla.",
-                  confirmar: "Sí, descartar",
-                  peligro: true,
-                }).then((acepto) => {
-                  if (acepto) void alDescartar(pagina.pagina);
-                });
-              }}
-            >
-              Descartar esta foto
-            </Boton>
-          </div>
-          <AvisoDeHoja pagina={pagina} />
-          {tramos.length === 0 ? (
-            <p className="px-3 pb-3 text-slate-600">No queda nada por revisar en esta hoja.</p>
-          ) : (
-            tramos.map((tramo) => (
-              <table key={tramo.filas[0]!.item} className="w-full border-collapse text-[0.95rem]">
+      <section
+        id="hoja-contenido"
+        role={varias ? "tabpanel" : undefined}
+        aria-labelledby={varias ? `hoja-${hoja}` : undefined}
+        className="rounded-lg border border-slate-200 bg-white shadow-sm"
+      >
+        {!paginaActual ? (
+          <HojaFaltante n={hoja} alSubir={alSubirHoja} />
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-3 px-3 py-1">
+              <h3 className="text-base font-semibold">{varias ? `Hoja ${paginaActual.pagina + 1}` : "Respuestas"}</h3>
+              <Boton
+                variante="suave"
+                className="px-3 py-0.5 text-sm"
+                disabled={guardando}
+                onClick={() => {
+                  void confirmar({
+                    titulo: "Descartar esta foto",
+                    mensaje: "Se borra la foto y lo leído de ella, para que puedas volver a sacarla.",
+                    confirmar: "Sí, descartar",
+                    peligro: true,
+                  }).then((acepto) => {
+                    if (acepto) void alDescartar(paginaActual.pagina);
+                  });
+                }}
+              >
+                Descartar esta foto
+              </Boton>
+            </div>
+            <AvisoDeHoja pagina={paginaActual} />
+            {tramos.length === 0 ? (
+              <p className="px-3 pb-3 text-slate-600">No queda nada por revisar en esta hoja.</p>
+            ) : (
+              tramos.map((tramo) => (
+                <table key={tramo.filas[0]!.item} className="w-full border-collapse text-[0.95rem]">
                 {tramo.titulo && (
                   <caption className="bg-slate-200 px-2 py-1 text-left text-base font-semibold">
                     {tramo.titulo}
@@ -891,16 +1009,18 @@ export function Revision({
                   ))}
                 </tbody>
               </table>
-            ))
-          )}
-        </section>
-      ))}
+              ))
+            )}
+          </>
+        )}
+      </section>
 
       <Exportar
         api={api}
         evaluacion={evaluacion}
         cambiosSinGuardar={cabeceraSinConfirmar || Object.keys(borradores).length > 0}
         alExportar={alActualizar}
+        control={exportar}
       />
     </div>
   );

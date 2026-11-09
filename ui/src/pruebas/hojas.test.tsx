@@ -41,16 +41,21 @@ describe("hojas de una evaluación", () => {
         alSubirHoja={alSubirHoja}
       />,
     );
-    const panel = screen.getByRole("region", { name: "Hojas de la evaluación" });
-    expect(within(panel).getByText("Hojas de esta evaluación (1 de 2)")).toBeInTheDocument();
-    expect(within(panel).getByText("✓ Ya está subida")).toBeInTheDocument();
+    const pestanas = screen.getByRole("tablist", { name: "Hojas de la evaluación" });
+    expect(within(pestanas).getByRole("tab", { name: /Hoja 1/ })).toHaveAttribute("aria-selected", "true");
+    expect(within(pestanas).getByRole("tab", { name: /Hoja 1/ })).toHaveTextContent("por revisar");
+    const faltante = within(pestanas).getByRole("tab", { name: /Hoja 2/ });
+    expect(faltante).toHaveTextContent("falta");
+    await userEvent.click(faltante);
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).getByText(/Falta la foto de la hoja 2/)).toBeInTheDocument();
     expect(within(panel).getByText(/con el celular/)).toBeInTheDocument();
     const foto = new File(["x"], "h2.jpg", { type: "image/jpeg" });
     await userEvent.upload(within(panel).getByLabelText("Subir la foto de la hoja 2"), foto);
     await waitFor(() => expect(alSubirHoja).toHaveBeenCalledWith(1, foto));
   });
 
-  it("con una sola hoja no aparece el panel", () => {
+  it("con una sola hoja no aparecen las pestañas", () => {
     render(
       <Revision
         api={clienteFalso()}
@@ -61,7 +66,7 @@ describe("hojas de una evaluación", () => {
         alSubirHoja={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("region", { name: "Hojas de la evaluación" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 });
 
