@@ -111,4 +111,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create $env:GITHUB_REF_NAME AutoEvalPsi-*.zip AutoEvalPsi-*.zip.sha256 AutoEvalPsi-Instalador-*.exe AutoEvalPsi-Instalador-*.exe.sha256 --title "AutoEvalPsi ${{ steps.ver.outputs.version }}" --notes "Instalador de Windows. Descomprime el .zip y ejecuta el instalador."
+        run: gh release create $env:GITHUB_REF_NAME AutoEvalPsi-*.zip AutoEvalPsi-*.zip.sha256 AutoEvalPsi-Instalador-*.exe AutoEvalPsi-Instalador-*.exe.sha256 --title "AutoEvalPsi ${{ steps.ver.outputs.version }}" --notes "Instalador de Windows. Descarga AutoEvalPsi-Instalador-X.exe y ábrelo. Si ya tienes la versión 0.2.0 o posterior, actualiza desde Configuración → Actualizar la aplicación."
